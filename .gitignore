@@ -1,0 +1,49 @@
+# Gradle and Android build output
+.gradle/
+**/build/
+local.properties
+.kotlin/
+.cxx/
+.externalNativeBuild/
+captures/
+
+# IDE and operating system
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Local toolchains and caches
+.android-sdk/
+.gradle-home/
+.toolchains/
+
+# Models and generated artifacts
+*.onnx
+*.ort
+*.tflite
+*.safetensors
+*.pt
+*.pth
+*.bin
+*.naytipack
+model-packs/
+artifacts/
+*.apk
+*.aab
+*.apks
+
+# Credentials and local configuration
+.env
+.env.*
+*.jks
+*.keystore
+*.pem
+*.p12
+secrets.properties
+signing.properties
+
+# Local diagnostics and private corpora
+diagnostics/
+private-corpus/
+benchmark-results/

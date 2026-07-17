@@ -18,12 +18,15 @@ import app.nayti.ml.runtime.pack.AndroidModelPackStorageBudget
 import app.nayti.ml.runtime.pack.FileModelPackSource
 import app.nayti.ml.runtime.pack.ModelPackInstaller
 import app.nayti.ml.runtime.pack.OrtKnownAnswerPayloadValidator
+import app.nayti.ml.runtime.semantic.User2Contract
+import app.nayti.ml.runtime.semantic.User2OrtRuntime
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.Comparator
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -58,8 +61,30 @@ class SignedModelPackInstrumentedTest {
             assertEquals(EXPECTED_PAYLOAD_BYTES, installed.payloadBytes)
             assertTrue(Files.isRegularFile(installed.directory.resolve("payload/models/siglip2_image.ort")))
             validateProductionOcrPath(installed.directory.resolve("payload"))
+            validateProductionUser2Path(installed.directory.resolve("payload"))
         } finally {
             deleteTree(root)
+        }
+    }
+
+    private fun validateProductionUser2Path(payload: Path) {
+        User2OrtRuntime.open(payload).use { runtime ->
+            val contentTokens = runtime.contentTokenCount("договор аренды квартиры")
+            assertTrue(contentTokens in 1..User2Contract.MaximumContentTokens)
+            assertTrue(
+                runtime.contentTokenCount((1..160).joinToString(" ") { index -> "слово$index" }) >
+                    User2Contract.MaximumContentTokens,
+            )
+
+            val document = runtime.encodeDocument("Квартальный отчёт по продажам")
+            val repeated = runtime.encodeDocument("Квартальный отчёт по продажам")
+            val query = runtime.encodeQuery("рост продаж за квартал")
+            assertEquals(User2Contract.EmbeddingDimension, document.normalized.size)
+            assertEquals(User2Contract.EmbeddingDimension, document.quantized.size)
+            assertTrue(document.quantized.contentEquals(repeated.quantized))
+            assertFalse(document.quantized.contentEquals(query.quantized))
+            val squaredNorm = document.normalized.sumOf { value -> value.toDouble() * value.toDouble() }
+            assertTrue(kotlin.math.abs(squaredNorm - 1.0) < 1e-5)
         }
     }
 

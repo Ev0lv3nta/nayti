@@ -407,6 +407,97 @@ class VectorPublicationStoreInstrumentedTest {
     }
 
     @Test
+    fun textToImageSearchUsesActiveEmbeddingContractAndReleasesResources() = runBlocking {
+        val firstAsset = insertAsset(1)
+        store().publish(
+            request(2_101, firstAsset, stageRunningWork(firstAsset, "text-first")).withVector(100),
+        )
+        now += 100
+        val secondAsset = insertAsset(2)
+        store().publish(
+            request(2_102, secondAsset, stageRunningWork(secondAsset, "text-second")).withVector(60),
+        )
+        now += 100
+        val thirdAsset = insertAsset(3)
+        store().publish(
+            request(2_103, thirdAsset, stageRunningWork(thirdAsset, "text-third")).withVector(-100),
+        )
+        var openedContract: VisualQueryContract? = null
+        var sessionClosed = false
+        val similarity =
+            VisualSimilaritySearch(
+                vectors = storage.vectorIndexDao,
+                vectorRoot = root,
+                clock = { now },
+                leaseTokens = { "text-query-test" },
+            )
+        val search =
+            VisualTextSearch(
+                similarity = similarity,
+                sessions = VisualTextQuerySessionFactory { contract ->
+                    openedContract = contract
+                    object : VisualTextQuerySession {
+                        override val embeddingSpaceHash = contract.embeddingSpaceHash
+                        override val dimension = contract.dimension
+
+                        override fun encodeQuery(text: String): ByteArray {
+                            assertEquals("красный автомобиль", text)
+                            return ByteArray(contract.dimension) { 100.toByte() }
+                        }
+
+                        override fun close() {
+                            sessionClosed = true
+                        }
+                    }
+                },
+            )
+
+        val result = search.search("  красный автомобиль  ", limit = 2)
+
+        assertEquals(VisualTextSearchStatus.READY, result.status)
+        assertEquals(listOf(firstAsset, secondAsset), result.hits.map { it.assetId })
+        assertEquals(EmbeddingHash, openedContract?.embeddingSpaceHash)
+        assertEquals(PackManifestHash, openedContract?.packManifestSha256)
+        assertTrue(sessionClosed)
+        assertNull(storage.vectorIndexDao.queryLease("text-query-test"))
+    }
+
+    @Test
+    fun textToImageSearchRejectsIncompatibleSessionAndStillReleasesLease() = runBlocking {
+        val assetId = insertAsset(1)
+        store().publish(
+            request(2_201, assetId, stageRunningWork(assetId, "text-contract")).withVector(100),
+        )
+        var sessionClosed = false
+        val search =
+            VisualTextSearch(
+                similarity =
+                    VisualSimilaritySearch(
+                        vectors = storage.vectorIndexDao,
+                        vectorRoot = root,
+                        clock = { now },
+                        leaseTokens = { "text-invalid-session" },
+                    ),
+                sessions = VisualTextQuerySessionFactory { contract ->
+                    object : VisualTextQuerySession {
+                        override val embeddingSpaceHash = SecondEmbeddingHash
+                        override val dimension = contract.dimension
+                        override fun encodeQuery(text: String) = ByteArray(contract.dimension)
+                        override fun close() {
+                            sessionClosed = true
+                        }
+                    }
+                },
+            )
+
+        val failure = runCatching { search.search("test") }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertTrue(sessionClosed)
+        assertNull(storage.vectorIndexDao.queryLease("text-invalid-session"))
+    }
+
+    @Test
     fun visualCompactionKeepsNewestRecordWhenOneAssetWasReindexed() = runBlocking {
         val assetId = insertAsset(1)
         repeat(8) { index ->

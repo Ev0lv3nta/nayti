@@ -11,6 +11,7 @@ import java.nio.file.Path
 
 object Siglip2Contract {
     const val PipelineVersion = "siglip2-image-v1"
+    const val TextSequenceLength = 64
     const val ImageEdge = 256
     const val DecodeLongSide = 512
     const val MaximumDecodedEdge = 2_048
@@ -20,6 +21,9 @@ object Siglip2Contract {
     const val ResizeContract = "pillow-compatible-bilinear-rgb-stretch-256-v1"
     internal const val ImageInputName = "pixel_values"
     internal const val ImageEmbeddingName = "image_embedding"
+    internal const val TextInputName = "text"
+    internal const val TextTokenIdsName = "input_ids"
+    internal const val TextEmbeddingName = "text_embedding"
 }
 
 class VisualRuntimeException(message: String, cause: Throwable? = null) : Exception(message, cause)

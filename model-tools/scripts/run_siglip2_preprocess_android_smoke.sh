@@ -52,6 +52,8 @@ copy_private "$kat_root/siglip2-input.png" "$private_root/siglip2-input.png"
 copy_private "$kat_root/siglip2-pixel-values.raw" "$private_root/siglip2-pixel-values.raw"
 copy_private "$kat_root/siglip2-image-embedding.raw" "$private_root/siglip2-image-embedding.raw"
 copy_private "$NAYTI_MODEL_LAB/ort-models/siglip2_image.ort" "$private_root/payload/models/siglip2_image.ort"
+copy_private "$NAYTI_MODEL_LAB/ort-models/siglip2_text.ort" "$private_root/payload/models/siglip2_text.ort"
+copy_private "$NAYTI_MODEL_LAB/ort-models/siglip2_tokenizer.ort" "$private_root/payload/models/siglip2_tokenizer.ort"
 
 "$adb" logcat -c
 "$adb" shell am instrument -w -r \
@@ -59,4 +61,4 @@ copy_private "$NAYTI_MODEL_LAB/ort-models/siglip2_image.ort" "$private_root/payl
   -e siglipKatRoot "$runtime_root" \
   "$runner" | tee "$run_log"
 "$adb" logcat -d -s NaytiSiglip2Proof:I AndroidRuntime:E '*:S'
-grep -q 'OK (1 test)' "$run_log"
+grep -q 'OK (2 tests)' "$run_log"

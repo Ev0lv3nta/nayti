@@ -7,6 +7,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import app.nayti.ml.runtime.visual.Siglip2Contract
 import app.nayti.ml.runtime.visual.Siglip2ImageOrtRuntime
 import app.nayti.ml.runtime.visual.Siglip2ImagePreprocessor
+import app.nayti.ml.runtime.visual.Siglip2TextOrtRuntime
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -42,6 +43,23 @@ class Siglip2ProductionRuntimeInstrumentedTest {
 
         assertTrue("Android resize diverged from official processor: $pixelMeanAbsoluteError", pixelMeanAbsoluteError < 0.08)
         assertTrue("Production visual embedding cosine is too low: $cosine", cosine >= 0.995)
+    }
+
+    @Test
+    fun productionTextRuntimeTokenizesAndEncodesNaturalRussianQuery() {
+        val root =
+            File(
+                checkNotNull(InstrumentationRegistry.getArguments().getString("siglipKatRoot")),
+            ).canonicalFile
+        val vector =
+            Siglip2TextOrtRuntime.open(File(root, "payload").toPath()).use { runtime ->
+                runtime.encodeQuery("Фото с собакой у моря")
+            }
+        val squaredNorm = vector.normalized.sumOf { value -> value.toDouble() * value }
+        Log.i(Tag, "textEmbeddingNorm=$squaredNorm nonZeroQInt8=${vector.quantized.count { it != 0.toByte() }}")
+
+        assertTrue("Production text embedding is not L2-normalized: $squaredNorm", kotlin.math.abs(squaredNorm - 1.0) < 1e-5)
+        assertTrue("Production text embedding quantized to zero", vector.quantized.any { it != 0.toByte() })
     }
 
     private fun readFloats(file: File, count: Int): FloatArray {

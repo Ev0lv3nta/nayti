@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "27076bd29002461764e9edc182402a56",
+    "identityHash": "9306378d42e48ca63272aa371f31a613",
     "entities": [
       {
         "tableName": "catalog_asset",
@@ -967,11 +967,796 @@
             "singletonId"
           ]
         }
+      },
+      {
+        "tableName": "vector_generation",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`generationId` TEXT NOT NULL, `channel` TEXT NOT NULL, `packId` TEXT NOT NULL, `packVersion` TEXT NOT NULL, `pipelineVersion` TEXT NOT NULL, `componentHash` TEXT NOT NULL, `embeddingSpaceHash` TEXT NOT NULL, `dimension` INTEGER NOT NULL, `state` TEXT NOT NULL, `createdAtMillis` INTEGER NOT NULL, `sealedAtMillis` INTEGER, PRIMARY KEY(`generationId`))",
+        "fields": [
+          {
+            "fieldPath": "generationId",
+            "columnName": "generationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "channel",
+            "columnName": "channel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packId",
+            "columnName": "packId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packVersion",
+            "columnName": "packVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pipelineVersion",
+            "columnName": "pipelineVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "componentHash",
+            "columnName": "componentHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "embeddingSpaceHash",
+            "columnName": "embeddingSpaceHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dimension",
+            "columnName": "dimension",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMillis",
+            "columnName": "createdAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sealedAtMillis",
+            "columnName": "sealedAtMillis",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "generationId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_vector_generation_channel_state",
+            "unique": false,
+            "columnNames": [
+              "channel",
+              "state"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_vector_generation_channel_state` ON `${TABLE_NAME}` (`channel`, `state`)"
+          },
+          {
+            "name": "index_vector_generation_packId_packVersion",
+            "unique": false,
+            "columnNames": [
+              "packId",
+              "packVersion"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_vector_generation_packId_packVersion` ON `${TABLE_NAME}` (`packId`, `packVersion`)"
+          }
+        ]
+      },
+      {
+        "tableName": "vector_segment_artifact",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sha256` TEXT NOT NULL, `segmentId` TEXT NOT NULL, `relativePath` TEXT NOT NULL, `byteLength` INTEGER NOT NULL, `formatVersion` INTEGER NOT NULL, `channel` TEXT NOT NULL, `embeddingSpaceHash` TEXT NOT NULL, `dimension` INTEGER NOT NULL, `recordCount` INTEGER NOT NULL, `createdAtMillis` INTEGER NOT NULL, PRIMARY KEY(`sha256`))",
+        "fields": [
+          {
+            "fieldPath": "sha256",
+            "columnName": "sha256",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "segmentId",
+            "columnName": "segmentId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "relativePath",
+            "columnName": "relativePath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "byteLength",
+            "columnName": "byteLength",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "formatVersion",
+            "columnName": "formatVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "channel",
+            "columnName": "channel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "embeddingSpaceHash",
+            "columnName": "embeddingSpaceHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dimension",
+            "columnName": "dimension",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordCount",
+            "columnName": "recordCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMillis",
+            "columnName": "createdAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sha256"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_vector_segment_artifact_segmentId",
+            "unique": true,
+            "columnNames": [
+              "segmentId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_vector_segment_artifact_segmentId` ON `${TABLE_NAME}` (`segmentId`)"
+          },
+          {
+            "name": "index_vector_segment_artifact_relativePath",
+            "unique": true,
+            "columnNames": [
+              "relativePath"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_vector_segment_artifact_relativePath` ON `${TABLE_NAME}` (`relativePath`)"
+          },
+          {
+            "name": "index_vector_segment_artifact_channel_embeddingSpaceHash",
+            "unique": false,
+            "columnNames": [
+              "channel",
+              "embeddingSpaceHash"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_vector_segment_artifact_channel_embeddingSpaceHash` ON `${TABLE_NAME}` (`channel`, `embeddingSpaceHash`)"
+          }
+        ]
+      },
+      {
+        "tableName": "vector_segment_record",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`segmentSha256` TEXT NOT NULL, `ordinal` INTEGER NOT NULL, `recordId` INTEGER NOT NULL, `assetId` INTEGER NOT NULL, `sourceFingerprint` TEXT NOT NULL, `chunkOrdinal` INTEGER NOT NULL, PRIMARY KEY(`segmentSha256`, `ordinal`))",
+        "fields": [
+          {
+            "fieldPath": "segmentSha256",
+            "columnName": "segmentSha256",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ordinal",
+            "columnName": "ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordId",
+            "columnName": "recordId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assetId",
+            "columnName": "assetId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceFingerprint",
+            "columnName": "sourceFingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chunkOrdinal",
+            "columnName": "chunkOrdinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "segmentSha256",
+            "ordinal"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_vector_segment_record_segmentSha256_recordId",
+            "unique": true,
+            "columnNames": [
+              "segmentSha256",
+              "recordId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_vector_segment_record_segmentSha256_recordId` ON `${TABLE_NAME}` (`segmentSha256`, `recordId`)"
+          },
+          {
+            "name": "index_vector_segment_record_assetId",
+            "unique": false,
+            "columnNames": [
+              "assetId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_vector_segment_record_assetId` ON `${TABLE_NAME}` (`assetId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "vector_manifest",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`revision` TEXT NOT NULL, `generationId` TEXT NOT NULL, `parentRevision` TEXT, `channel` TEXT NOT NULL, `relativePath` TEXT NOT NULL, `byteLength` INTEGER NOT NULL, `sha256` TEXT NOT NULL, `segmentCount` INTEGER NOT NULL, `recordCount` INTEGER NOT NULL, `createdAtMillis` INTEGER NOT NULL, PRIMARY KEY(`revision`))",
+        "fields": [
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generationId",
+            "columnName": "generationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentRevision",
+            "columnName": "parentRevision",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "channel",
+            "columnName": "channel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "relativePath",
+            "columnName": "relativePath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "byteLength",
+            "columnName": "byteLength",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sha256",
+            "columnName": "sha256",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "segmentCount",
+            "columnName": "segmentCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "recordCount",
+            "columnName": "recordCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMillis",
+            "columnName": "createdAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "revision"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_vector_manifest_relativePath",
+            "unique": true,
+            "columnNames": [
+              "relativePath"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_vector_manifest_relativePath` ON `${TABLE_NAME}` (`relativePath`)"
+          },
+          {
+            "name": "index_vector_manifest_sha256",
+            "unique": true,
+            "columnNames": [
+              "sha256"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_vector_manifest_sha256` ON `${TABLE_NAME}` (`sha256`)"
+          },
+          {
+            "name": "index_vector_manifest_generationId",
+            "unique": false,
+            "columnNames": [
+              "generationId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_vector_manifest_generationId` ON `${TABLE_NAME}` (`generationId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "vector_manifest_segment",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`manifestRevision` TEXT NOT NULL, `ordinal` INTEGER NOT NULL, `segmentSha256` TEXT NOT NULL, PRIMARY KEY(`manifestRevision`, `ordinal`))",
+        "fields": [
+          {
+            "fieldPath": "manifestRevision",
+            "columnName": "manifestRevision",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ordinal",
+            "columnName": "ordinal",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "segmentSha256",
+            "columnName": "segmentSha256",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "manifestRevision",
+            "ordinal"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_vector_manifest_segment_manifestRevision_segmentSha256",
+            "unique": true,
+            "columnNames": [
+              "manifestRevision",
+              "segmentSha256"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_vector_manifest_segment_manifestRevision_segmentSha256` ON `${TABLE_NAME}` (`manifestRevision`, `segmentSha256`)"
+          },
+          {
+            "name": "index_vector_manifest_segment_segmentSha256",
+            "unique": false,
+            "columnNames": [
+              "segmentSha256"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_vector_manifest_segment_segmentSha256` ON `${TABLE_NAME}` (`segmentSha256`)"
+          }
+        ]
+      },
+      {
+        "tableName": "activation_snapshot",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`snapshotId` TEXT NOT NULL, `parentSnapshotId` TEXT, `packId` TEXT NOT NULL, `packVersion` TEXT NOT NULL, `packManifestSha256` TEXT NOT NULL, `engineContractVersion` INTEGER NOT NULL, `rankingConfigVersion` TEXT NOT NULL, `lexicalPublicationEpoch` INTEGER NOT NULL, `pHashPublicationEpoch` INTEGER NOT NULL, `semanticManifestRevision` TEXT, `visualManifestRevision` TEXT, `catalogWatermark` INTEGER NOT NULL, `createdAtMillis` INTEGER NOT NULL, PRIMARY KEY(`snapshotId`))",
+        "fields": [
+          {
+            "fieldPath": "snapshotId",
+            "columnName": "snapshotId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parentSnapshotId",
+            "columnName": "parentSnapshotId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "packId",
+            "columnName": "packId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packVersion",
+            "columnName": "packVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packManifestSha256",
+            "columnName": "packManifestSha256",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "engineContractVersion",
+            "columnName": "engineContractVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rankingConfigVersion",
+            "columnName": "rankingConfigVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lexicalPublicationEpoch",
+            "columnName": "lexicalPublicationEpoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pHashPublicationEpoch",
+            "columnName": "pHashPublicationEpoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "semanticManifestRevision",
+            "columnName": "semanticManifestRevision",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "visualManifestRevision",
+            "columnName": "visualManifestRevision",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "catalogWatermark",
+            "columnName": "catalogWatermark",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMillis",
+            "columnName": "createdAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "snapshotId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_activation_snapshot_parentSnapshotId",
+            "unique": false,
+            "columnNames": [
+              "parentSnapshotId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_activation_snapshot_parentSnapshotId` ON `${TABLE_NAME}` (`parentSnapshotId`)"
+          },
+          {
+            "name": "index_activation_snapshot_semanticManifestRevision",
+            "unique": false,
+            "columnNames": [
+              "semanticManifestRevision"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_activation_snapshot_semanticManifestRevision` ON `${TABLE_NAME}` (`semanticManifestRevision`)"
+          },
+          {
+            "name": "index_activation_snapshot_visualManifestRevision",
+            "unique": false,
+            "columnNames": [
+              "visualManifestRevision"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_activation_snapshot_visualManifestRevision` ON `${TABLE_NAME}` (`visualManifestRevision`)"
+          },
+          {
+            "name": "index_activation_snapshot_packId_packVersion",
+            "unique": false,
+            "columnNames": [
+              "packId",
+              "packVersion"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_activation_snapshot_packId_packVersion` ON `${TABLE_NAME}` (`packId`, `packVersion`)"
+          }
+        ]
+      },
+      {
+        "tableName": "active_snapshot_pointer",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`singletonId` INTEGER NOT NULL, `snapshotId` TEXT, PRIMARY KEY(`singletonId`))",
+        "fields": [
+          {
+            "fieldPath": "singletonId",
+            "columnName": "singletonId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "snapshotId",
+            "columnName": "snapshotId",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "singletonId"
+          ]
+        }
+      },
+      {
+        "tableName": "query_snapshot_lease",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`leaseToken` TEXT NOT NULL, `snapshotId` TEXT NOT NULL, `accessRevision` INTEGER NOT NULL, `createdAtMillis` INTEGER NOT NULL, `expiresAtMillis` INTEGER NOT NULL, PRIMARY KEY(`leaseToken`))",
+        "fields": [
+          {
+            "fieldPath": "leaseToken",
+            "columnName": "leaseToken",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "snapshotId",
+            "columnName": "snapshotId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accessRevision",
+            "columnName": "accessRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMillis",
+            "columnName": "createdAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expiresAtMillis",
+            "columnName": "expiresAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "leaseToken"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_query_snapshot_lease_snapshotId_expiresAtMillis",
+            "unique": false,
+            "columnNames": [
+              "snapshotId",
+              "expiresAtMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_query_snapshot_lease_snapshotId_expiresAtMillis` ON `${TABLE_NAME}` (`snapshotId`, `expiresAtMillis`)"
+          }
+        ]
+      },
+      {
+        "tableName": "vector_publication",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`publicationToken` TEXT NOT NULL, `state` TEXT NOT NULL, `channel` TEXT NOT NULL, `generationId` TEXT NOT NULL, `segmentSha256` TEXT NOT NULL, `manifestRevision` TEXT NOT NULL, `snapshotId` TEXT NOT NULL, `createdAtMillis` INTEGER NOT NULL, `updatedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`publicationToken`))",
+        "fields": [
+          {
+            "fieldPath": "publicationToken",
+            "columnName": "publicationToken",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "channel",
+            "columnName": "channel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generationId",
+            "columnName": "generationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "segmentSha256",
+            "columnName": "segmentSha256",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "manifestRevision",
+            "columnName": "manifestRevision",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "snapshotId",
+            "columnName": "snapshotId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMillis",
+            "columnName": "createdAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMillis",
+            "columnName": "updatedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "publicationToken"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_vector_publication_state_updatedAtMillis",
+            "unique": false,
+            "columnNames": [
+              "state",
+              "updatedAtMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_vector_publication_state_updatedAtMillis` ON `${TABLE_NAME}` (`state`, `updatedAtMillis`)"
+          },
+          {
+            "name": "index_vector_publication_generationId",
+            "unique": false,
+            "columnNames": [
+              "generationId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_vector_publication_generationId` ON `${TABLE_NAME}` (`generationId`)"
+          },
+          {
+            "name": "index_vector_publication_manifestRevision",
+            "unique": true,
+            "columnNames": [
+              "manifestRevision"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_vector_publication_manifestRevision` ON `${TABLE_NAME}` (`manifestRevision`)"
+          },
+          {
+            "name": "index_vector_publication_snapshotId",
+            "unique": true,
+            "columnNames": [
+              "snapshotId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_vector_publication_snapshotId` ON `${TABLE_NAME}` (`snapshotId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "artifact_delete_intent",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`relativePath` TEXT NOT NULL, `ownerSnapshotId` TEXT NOT NULL, `expectedSha256` TEXT NOT NULL, `state` TEXT NOT NULL, `createdAtMillis` INTEGER NOT NULL, PRIMARY KEY(`relativePath`))",
+        "fields": [
+          {
+            "fieldPath": "relativePath",
+            "columnName": "relativePath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ownerSnapshotId",
+            "columnName": "ownerSnapshotId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expectedSha256",
+            "columnName": "expectedSha256",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMillis",
+            "columnName": "createdAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "relativePath"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_artifact_delete_intent_ownerSnapshotId_state",
+            "unique": false,
+            "columnNames": [
+              "ownerSnapshotId",
+              "state"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_artifact_delete_intent_ownerSnapshotId_state` ON `${TABLE_NAME}` (`ownerSnapshotId`, `state`)"
+          }
+        ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '27076bd29002461764e9edc182402a56')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9306378d42e48ca63272aa371f31a613')"
     ]
   }
 }

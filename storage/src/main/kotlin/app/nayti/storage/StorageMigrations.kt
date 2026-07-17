@@ -9,8 +9,24 @@ object StorageMigrations {
         object : Migration(1, 2) {
             override suspend fun migrate(connection: SQLiteConnection) {
                 connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `ocr_semantic_chunk_set` (" +
+                        "`chunkSetId` TEXT NOT NULL, `assetId` INTEGER NOT NULL, " +
+                        "`sourceFingerprint` TEXT NOT NULL, `ocrPublicationToken` TEXT NOT NULL, " +
+                        "`chunkingVersion` TEXT NOT NULL, `chunkCount` INTEGER NOT NULL, " +
+                        "`payloadSha256` TEXT NOT NULL, `payloadByteLength` INTEGER NOT NULL, " +
+                        "`createdAtMillis` INTEGER NOT NULL, PRIMARY KEY(`chunkSetId`))",
+                )
+                connection.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_ocr_semantic_chunk_set_ocrPublicationToken_chunkingVersion` " +
+                        "ON `ocr_semantic_chunk_set` (`ocrPublicationToken`, `chunkingVersion`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_ocr_semantic_chunk_set_assetId_sourceFingerprint` " +
+                        "ON `ocr_semantic_chunk_set` (`assetId`, `sourceFingerprint`)",
+                )
+                connection.execSQL(
                     "CREATE TABLE IF NOT EXISTS `ocr_semantic_chunk` (" +
-                        "`chunkId` TEXT NOT NULL, `assetId` INTEGER NOT NULL, " +
+                        "`chunkId` TEXT NOT NULL, `chunkSetId` TEXT NOT NULL, `assetId` INTEGER NOT NULL, " +
                         "`sourceFingerprint` TEXT NOT NULL, `ocrPublicationToken` TEXT NOT NULL, " +
                         "`ordinal` INTEGER NOT NULL, `kind` TEXT NOT NULL, `displayText` TEXT NOT NULL, " +
                         "`contentTokenCount` INTEGER NOT NULL, `firstLineOrdinal` INTEGER NOT NULL, " +
@@ -19,8 +35,8 @@ object StorageMigrations {
                         "`createdAtMillis` INTEGER NOT NULL, PRIMARY KEY(`chunkId`))",
                 )
                 connection.execSQL(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_ocr_semantic_chunk_ocrPublicationToken_chunkingVersion_ordinal` " +
-                        "ON `ocr_semantic_chunk` (`ocrPublicationToken`, `chunkingVersion`, `ordinal`)",
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_ocr_semantic_chunk_chunkSetId_ordinal` " +
+                        "ON `ocr_semantic_chunk` (`chunkSetId`, `ordinal`)",
                 )
                 connection.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_ocr_semantic_chunk_assetId_sourceFingerprint` " +

@@ -4,17 +4,37 @@ import androidx.room3.Entity
 import androidx.room3.Index
 import androidx.room3.PrimaryKey
 
+@Entity(
+    tableName = "ocr_semantic_chunk_set",
+    indices = [
+        Index(value = ["ocrPublicationToken", "chunkingVersion"], unique = true),
+        Index(value = ["assetId", "sourceFingerprint"]),
+    ],
+)
+data class OcrSemanticChunkSetEntity(
+    @PrimaryKey val chunkSetId: String,
+    val assetId: Long,
+    val sourceFingerprint: String,
+    val ocrPublicationToken: String,
+    val chunkingVersion: String,
+    val chunkCount: Int,
+    val payloadSha256: String,
+    val payloadByteLength: Long,
+    val createdAtMillis: Long,
+)
+
 /** Immutable semantic input derived from one exact OCR publication. */
 @Entity(
     tableName = "ocr_semantic_chunk",
     indices = [
-        Index(value = ["ocrPublicationToken", "chunkingVersion", "ordinal"], unique = true),
+        Index(value = ["chunkSetId", "ordinal"], unique = true),
         Index(value = ["assetId", "sourceFingerprint"]),
         Index(value = ["ocrPublicationToken"]),
     ],
 )
 data class OcrSemanticChunkEntity(
     @PrimaryKey val chunkId: String,
+    val chunkSetId: String,
     val assetId: Long,
     val sourceFingerprint: String,
     val ocrPublicationToken: String,

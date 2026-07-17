@@ -56,6 +56,9 @@ interface VectorIndexDao {
     @Query("SELECT * FROM model_pack WHERE packId = :packId AND packVersion = :packVersion")
     suspend fun modelPack(packId: String, packVersion: String): ModelPackEntity?
 
+    @Query("SELECT * FROM ocr_semantic_chunk WHERE chunkId = :chunkId")
+    suspend fun semanticChunk(chunkId: String): OcrSemanticChunkEntity?
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertSegmentIfAbsent(segment: VectorSegmentArtifactEntity): Long
 
@@ -276,6 +279,7 @@ interface VectorIndexDao {
         check(publication.snapshotId == snapshot.snapshotId)
         val generation = checkNotNull(generation(publication.generationId))
         validateSegment(generation, segment, records)
+        validateSemanticRecordReferences(generation, records)
 
         val work = publicationWork(publicationToken)
         check(work.isNotEmpty() && work.all { item ->
@@ -335,6 +339,7 @@ interface VectorIndexDao {
         require(manifest.createdAtMillis in 0..nowMillis)
         require(candidateSnapshot.createdAtMillis in 0..nowMillis)
         validateSegment(generation, segment, records)
+        validateSemanticRecordReferences(generation, records)
         val activeId = checkNotNull(activeSnapshotId())
         val active = checkNotNull(snapshot(activeId))
         val activeManifestRevision =
@@ -562,8 +567,27 @@ interface VectorIndexDao {
         require(records.map(VectorSegmentRecordEntity::recordId).distinct().size == records.size)
         require(
             generation.channel != IndexChannel.VISUAL ||
-                records.all { it.recordId == it.assetId && it.chunkOrdinal == 0 },
+                records.all {
+                    it.recordId == it.assetId && it.chunkOrdinal == 0 && it.semanticChunkId == null
+                },
         )
+        require(
+            generation.channel != IndexChannel.OCR_SEMANTIC ||
+                records.all { it.semanticChunkId != null && sha256(it.semanticChunkId) },
+        )
+    }
+
+    private suspend fun validateSemanticRecordReferences(
+        generation: VectorGenerationEntity,
+        records: List<VectorSegmentRecordEntity>,
+    ) {
+        if (generation.channel != IndexChannel.OCR_SEMANTIC) return
+        records.forEach { record ->
+            val chunk = checkNotNull(semanticChunk(checkNotNull(record.semanticChunkId)))
+            check(chunk.assetId == record.assetId)
+            check(chunk.sourceFingerprint == record.sourceFingerprint)
+            check(chunk.ordinal == record.chunkOrdinal)
+        }
     }
 
     private fun identifier(value: String): Boolean = value.length in 1..96 && Identifier.matches(value)

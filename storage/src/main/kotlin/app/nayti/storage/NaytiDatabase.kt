@@ -27,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
         OcrRegionEntity::class,
         OcrLexicalFtsEntity::class,
         OcrTrigramFtsEntity::class,
+        OcrSemanticChunkSetEntity::class,
         OcrSemanticChunkEntity::class,
         OcrSemanticChunkLineEntity::class,
         VectorGenerationEntity::class,
@@ -48,6 +49,7 @@ abstract class NaytiDatabase : RoomDatabase() {
     abstract fun modelPackDao(): ModelPackDao
     abstract fun indexStateDao(): IndexStateDao
     abstract fun ocrDao(): OcrDao
+    abstract fun ocrSemanticDao(): OcrSemanticDao
     abstract fun vectorIndexDao(): VectorIndexDao
 
     companion object {
@@ -72,6 +74,7 @@ class CatalogStorage private constructor(
     val modelPackDao: ModelPackDao = database.modelPackDao()
     val indexStateDao: IndexStateDao = database.indexStateDao()
     val ocrDao: OcrDao = database.ocrDao()
+    val ocrSemanticDao: OcrSemanticDao = database.ocrSemanticDao()
     val vectorIndexDao: VectorIndexDao = database.vectorIndexDao()
 
     override fun close() {

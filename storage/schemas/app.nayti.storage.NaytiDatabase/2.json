@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 2,
-    "identityHash": "154e2d4e7ac7b716854b3f9d4fdaba33",
+    "identityHash": "b1a0f1bcb1049b2e7461a1b02d1f0967",
     "entities": [
       {
         "tableName": "catalog_asset",
@@ -1435,12 +1435,106 @@
         "contentSyncTriggers": []
       },
       {
+        "tableName": "ocr_semantic_chunk_set",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`chunkSetId` TEXT NOT NULL, `assetId` INTEGER NOT NULL, `sourceFingerprint` TEXT NOT NULL, `ocrPublicationToken` TEXT NOT NULL, `chunkingVersion` TEXT NOT NULL, `chunkCount` INTEGER NOT NULL, `payloadSha256` TEXT NOT NULL, `payloadByteLength` INTEGER NOT NULL, `createdAtMillis` INTEGER NOT NULL, PRIMARY KEY(`chunkSetId`))",
+        "fields": [
+          {
+            "fieldPath": "chunkSetId",
+            "columnName": "chunkSetId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assetId",
+            "columnName": "assetId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceFingerprint",
+            "columnName": "sourceFingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ocrPublicationToken",
+            "columnName": "ocrPublicationToken",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chunkingVersion",
+            "columnName": "chunkingVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chunkCount",
+            "columnName": "chunkCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadSha256",
+            "columnName": "payloadSha256",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadByteLength",
+            "columnName": "payloadByteLength",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMillis",
+            "columnName": "createdAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "chunkSetId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_ocr_semantic_chunk_set_ocrPublicationToken_chunkingVersion",
+            "unique": true,
+            "columnNames": [
+              "ocrPublicationToken",
+              "chunkingVersion"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_ocr_semantic_chunk_set_ocrPublicationToken_chunkingVersion` ON `${TABLE_NAME}` (`ocrPublicationToken`, `chunkingVersion`)"
+          },
+          {
+            "name": "index_ocr_semantic_chunk_set_assetId_sourceFingerprint",
+            "unique": false,
+            "columnNames": [
+              "assetId",
+              "sourceFingerprint"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_ocr_semantic_chunk_set_assetId_sourceFingerprint` ON `${TABLE_NAME}` (`assetId`, `sourceFingerprint`)"
+          }
+        ]
+      },
+      {
         "tableName": "ocr_semantic_chunk",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`chunkId` TEXT NOT NULL, `assetId` INTEGER NOT NULL, `sourceFingerprint` TEXT NOT NULL, `ocrPublicationToken` TEXT NOT NULL, `ordinal` INTEGER NOT NULL, `kind` TEXT NOT NULL, `displayText` TEXT NOT NULL, `contentTokenCount` INTEGER NOT NULL, `firstLineOrdinal` INTEGER NOT NULL, `lastLineOrdinal` INTEGER NOT NULL, `meanConfidenceMicros` INTEGER NOT NULL, `reliableAlphabeticWordCount` INTEGER NOT NULL, `chunkingVersion` TEXT NOT NULL, `createdAtMillis` INTEGER NOT NULL, PRIMARY KEY(`chunkId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`chunkId` TEXT NOT NULL, `chunkSetId` TEXT NOT NULL, `assetId` INTEGER NOT NULL, `sourceFingerprint` TEXT NOT NULL, `ocrPublicationToken` TEXT NOT NULL, `ordinal` INTEGER NOT NULL, `kind` TEXT NOT NULL, `displayText` TEXT NOT NULL, `contentTokenCount` INTEGER NOT NULL, `firstLineOrdinal` INTEGER NOT NULL, `lastLineOrdinal` INTEGER NOT NULL, `meanConfidenceMicros` INTEGER NOT NULL, `reliableAlphabeticWordCount` INTEGER NOT NULL, `chunkingVersion` TEXT NOT NULL, `createdAtMillis` INTEGER NOT NULL, PRIMARY KEY(`chunkId`))",
         "fields": [
           {
             "fieldPath": "chunkId",
             "columnName": "chunkId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chunkSetId",
+            "columnName": "chunkSetId",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -1531,15 +1625,14 @@
         },
         "indices": [
           {
-            "name": "index_ocr_semantic_chunk_ocrPublicationToken_chunkingVersion_ordinal",
+            "name": "index_ocr_semantic_chunk_chunkSetId_ordinal",
             "unique": true,
             "columnNames": [
-              "ocrPublicationToken",
-              "chunkingVersion",
+              "chunkSetId",
               "ordinal"
             ],
             "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_ocr_semantic_chunk_ocrPublicationToken_chunkingVersion_ordinal` ON `${TABLE_NAME}` (`ocrPublicationToken`, `chunkingVersion`, `ordinal`)"
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_ocr_semantic_chunk_chunkSetId_ordinal` ON `${TABLE_NAME}` (`chunkSetId`, `ordinal`)"
           },
           {
             "name": "index_ocr_semantic_chunk_assetId_sourceFingerprint",
@@ -2423,7 +2516,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '154e2d4e7ac7b716854b3f9d4fdaba33')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b1a0f1bcb1049b2e7461a1b02d1f0967')"
     ]
   }
 }

@@ -24,6 +24,7 @@ class OcrPublicationInstrumentedTest {
     private lateinit var catalog: CatalogDao
     private lateinit var index: IndexStateDao
     private lateinit var ocr: OcrDao
+    private lateinit var semantic: OcrSemanticDao
 
     @Before
     fun setUp() {
@@ -202,6 +203,70 @@ class OcrPublicationInstrumentedTest {
         assertEquals(IndexWorkState.DONE, index.work(assetId, IndexChannel.OCR)?.state)
     }
 
+    @Test
+    fun semanticChunkSetIsImmutableIdempotentAndBoundToExactOcrPublication() = runBlocking {
+        val assetId = insertAsset(SourceFingerprint)
+        val claim = claimOcr(assetId)
+        val document = document(assetId, "Quarterly product report\nRevenue increased", "", "", "")
+        val regions = listOf(region("Quarterly product report", ""), region("Revenue increased", ""))
+        val publicationToken = "ocr-semantic-source"
+        checkNotNull(
+            ocr.commitOcrPublication(
+                checkNotNull(claim.leaseToken),
+                publicationToken,
+                OcrPublicationCodec.identity(document, regions),
+                document,
+                regions,
+                20,
+            ),
+        )
+        val materialization =
+            OcrSemanticChunkCodec.materialize(
+                OcrSemanticChunkSetDraft(
+                    assetId = assetId,
+                    sourceFingerprint = SourceFingerprint,
+                    ocrPublicationToken = publicationToken,
+                    chunkingVersion = "ocr-semantic-chunks-v1",
+                    chunks =
+                        listOf(
+                            OcrSemanticChunkPayload(
+                                ordinal = 0,
+                                kind = "HEADER",
+                                displayText = "Quarterly product report\nRevenue increased",
+                                contentTokenCount = 5,
+                                lineOrdinals = listOf(0, 1),
+                                meanConfidenceMicros = 950_000,
+                                reliableAlphabeticWordCount = 5,
+                            ),
+                        ),
+                ),
+                createdAtMillis = 21,
+            )
+
+        assertEquals(materialization.chunkSet, semantic.publishChunkSet(materialization))
+        assertEquals(materialization.chunkSet, semantic.publishChunkSet(materialization))
+        assertEquals(materialization.chunks.single(), semantic.chunk(materialization.chunks.single().chunkId))
+        assertEquals(materialization.lines, semantic.chunkLines(materialization.chunks.single().chunkId))
+
+        val stale =
+            OcrSemanticChunkCodec.materialize(
+                OcrSemanticChunkSetDraft(
+                    assetId = assetId,
+                    sourceFingerprint = NewSourceFingerprint,
+                    ocrPublicationToken = publicationToken,
+                    chunkingVersion = "ocr-semantic-chunks-v1",
+                    chunks = emptyList(),
+                ),
+                createdAtMillis = 22,
+            )
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking { semantic.publishChunkSet(stale) }
+        }
+
+        reopenDatabase()
+        assertEquals(materialization.chunkSet, semantic.chunkSet(materialization.chunkSet.chunkSetId))
+    }
+
     private suspend fun claimOcr(assetId: Long): IndexChannelWorkEntity {
         catalog.recordAccessObservation("Full", AccessRevision, 1)
         index.insertOperation(
@@ -314,6 +379,7 @@ class OcrPublicationInstrumentedTest {
         catalog = database.catalogDao()
         index = database.indexStateDao()
         ocr = database.ocrDao()
+        semantic = database.ocrSemanticDao()
     }
 
     private fun reopenDatabase() {

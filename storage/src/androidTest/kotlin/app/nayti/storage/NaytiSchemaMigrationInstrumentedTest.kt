@@ -52,11 +52,18 @@ class NaytiSchemaMigrationInstrumentedTest {
             }
 
             connection.execSQL(
+                "INSERT INTO ocr_semantic_chunk_set " +
+                    "(chunkSetId, assetId, sourceFingerprint, ocrPublicationToken, chunkingVersion, " +
+                    "chunkCount, payloadSha256, payloadByteLength, createdAtMillis) " +
+                    "VALUES ('$SetSha', 7, 'source-v1', 'ocr-token', 'ocr-semantic-chunks-v1', " +
+                    "1, '$SetSha', 100, 100)",
+            )
+            connection.execSQL(
                 "INSERT INTO ocr_semantic_chunk " +
-                    "(chunkId, assetId, sourceFingerprint, ocrPublicationToken, ordinal, kind, " +
+                    "(chunkId, chunkSetId, assetId, sourceFingerprint, ocrPublicationToken, ordinal, kind, " +
                     "displayText, contentTokenCount, firstLineOrdinal, lastLineOrdinal, " +
                     "meanConfidenceMicros, reliableAlphabeticWordCount, chunkingVersion, createdAtMillis) " +
-                    "VALUES ('$ChunkSha', 7, 'source-v1', 'ocr-token', 0, 'HEADER', " +
+                    "VALUES ('$ChunkSha', '$SetSha', 7, 'source-v1', 'ocr-token', 0, 'HEADER', " +
                     "'quarterly report text', 3, 0, 1, 900000, 3, 'ocr-semantic-chunks-v1', 100)",
             )
             connection.execSQL(
@@ -70,5 +77,6 @@ class NaytiSchemaMigrationInstrumentedTest {
         const val DatabaseName = "nayti-schema-migration.db"
         const val SegmentSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         const val ChunkSha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        const val SetSha = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
     }
 }

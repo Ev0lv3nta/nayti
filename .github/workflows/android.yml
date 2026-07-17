@@ -28,20 +28,19 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          cmdline-tools-version: "14742923"
+          log-accepted-android-sdk-licenses: false
+          packages: >-
+            tools platform-tools platforms;android-37.0 build-tools;36.0.0
+            ndk;27.0.12077973 cmake;3.22.1
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
         with:
           validate-wrappers: true
-
-      - name: Install Android build components
-        shell: bash
-        run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager \
-            "platforms;android-37.0" \
-            "build-tools;36.0.0" \
-            "ndk;27.0.12077973" \
-            "cmake;3.22.1"
 
       - name: Run project checks
         env:

@@ -74,6 +74,56 @@ interface VectorIndexDao {
     @Query("SELECT * FROM vector_segment_record WHERE segmentSha256 = :segmentSha256 ORDER BY ordinal")
     suspend fun segmentRecords(segmentSha256: String): List<VectorSegmentRecordEntity>
 
+    @Query(
+        "SELECT vectorRecord.segmentSha256 AS segmentSha256, vectorRecord.recordId AS recordId, " +
+            "vectorRecord.assetId AS assetId, chunk.chunkId AS chunkId, chunk.ordinal AS chunkOrdinal, " +
+            "chunk.displayText AS displayText, chunk.meanConfidenceMicros AS meanConfidenceMicros, " +
+            "chunk.firstLineOrdinal AS firstLineOrdinal, chunk.lastLineOrdinal AS lastLineOrdinal, " +
+            "document.publicationEpoch AS publicationEpoch " +
+            "FROM vector_segment_record AS vectorRecord " +
+            "INNER JOIN vector_manifest_segment AS manifestSegment " +
+            "ON manifestSegment.segmentSha256 = vectorRecord.segmentSha256 " +
+            "INNER JOIN ocr_semantic_chunk AS chunk ON chunk.chunkId = vectorRecord.semanticChunkId " +
+            "INNER JOIN ocr_document AS document ON document.assetId = chunk.assetId " +
+            "INNER JOIN catalog_asset AS asset ON asset.assetId = chunk.assetId " +
+            "INNER JOIN index_channel_work AS semanticWork " +
+            "ON semanticWork.assetId = chunk.assetId AND semanticWork.channel = 'OCR_SEMANTIC' " +
+            "INNER JOIN index_channel_work AS ocrWork " +
+            "ON ocrWork.assetId = chunk.assetId AND ocrWork.channel = 'OCR' " +
+            "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
+            "WHERE manifestSegment.manifestRevision = :manifestRevision " +
+            "AND vectorRecord.recordId IN (:recordIds) " +
+            "AND vectorRecord.assetId = chunk.assetId " +
+            "AND vectorRecord.sourceFingerprint = chunk.sourceFingerprint " +
+            "AND vectorRecord.chunkOrdinal = chunk.ordinal " +
+            "AND chunk.ocrPublicationToken = document.publicationToken " +
+            "AND chunk.sourceFingerprint = document.sourceFingerprint " +
+            "AND asset.availability = 'AVAILABLE' " +
+            "AND asset.sourceFingerprint = document.sourceFingerprint " +
+            "AND semanticWork.state = 'DONE' " +
+            "AND semanticWork.sourceFingerprint = document.sourceFingerprint " +
+            "AND semanticWork.accessRevision = access.processAccessRevision " +
+            "AND semanticWork.pipelineVersion = :semanticPipelineVersion " +
+            "AND semanticWork.componentHash = :componentHash " +
+            "AND ocrWork.state = 'DONE' " +
+            "AND ocrWork.sourceFingerprint = document.sourceFingerprint " +
+            "AND ocrWork.accessRevision = document.accessRevision " +
+            "AND ocrWork.pipelineVersion = document.pipelineVersion " +
+            "AND ocrWork.componentHash = document.componentHash " +
+            "AND document.accessRevision = access.processAccessRevision " +
+            "AND document.componentHash = :componentHash " +
+            "AND document.publicationEpoch <= :maximumPublicationEpoch " +
+            "AND access.accessScope != 'None' " +
+            "ORDER BY vectorRecord.recordId, vectorRecord.segmentSha256",
+    )
+    suspend fun semanticEvidenceRows(
+        manifestRevision: String,
+        recordIds: List<Long>,
+        semanticPipelineVersion: String,
+        componentHash: String,
+        maximumPublicationEpoch: Long,
+    ): List<SemanticVectorEvidence>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertManifest(manifest: VectorManifestEntity)
 
@@ -420,6 +470,38 @@ interface VectorIndexDao {
     }
 
     @Transaction
+    suspend fun currentSemanticEvidence(
+        manifestRevision: String,
+        recordIds: List<Long>,
+        semanticPipelineVersion: String,
+        componentHash: String,
+        maximumPublicationEpoch: Long,
+    ): List<SemanticVectorEvidence> {
+        require(identifier(manifestRevision))
+        require(recordIds.isNotEmpty() && recordIds.size <= MaximumSemanticCandidates)
+        require(recordIds.all { it > 0 } && recordIds.distinct().size == recordIds.size)
+        require(contractValue(semanticPipelineVersion) && sha256(componentHash))
+        require(maximumPublicationEpoch >= 0)
+        val manifest = checkNotNull(manifest(manifestRevision))
+        check(manifest.channel == IndexChannel.OCR_SEMANTIC)
+        return semanticEvidenceRows(
+            manifestRevision = manifestRevision,
+            recordIds = recordIds,
+            semanticPipelineVersion = semanticPipelineVersion,
+            componentHash = componentHash,
+            maximumPublicationEpoch = maximumPublicationEpoch,
+        ).also { evidence ->
+            check(evidence.all { row ->
+                row.recordId in recordIds &&
+                    row.segmentSha256.let(::sha256) &&
+                    row.assetId > 0 &&
+                    row.chunkOrdinal >= 0 &&
+                    row.publicationEpoch in 0..maximumPublicationEpoch
+            })
+        }
+    }
+
+    @Transaction
     suspend fun replaceActiveAfterRecovery(expectedActiveSnapshotId: String?, recoveredSnapshotId: String?): Boolean {
         if (activeSnapshotId() != expectedActiveSnapshotId) return false
         if (recoveredSnapshotId != null) {
@@ -621,6 +703,7 @@ interface VectorIndexDao {
         const val MaximumVectorDimension = 4096
         const val MaximumSegmentRecords = 256
         const val MaximumManifestSegments = 65_536
+        const val MaximumSemanticCandidates = 512
         const val MaximumQueryLeaseMillis = 5 * 60 * 1_000L
     }
 }

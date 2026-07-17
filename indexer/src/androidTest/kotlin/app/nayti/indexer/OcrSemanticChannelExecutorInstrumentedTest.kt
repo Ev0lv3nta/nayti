@@ -74,6 +74,26 @@ class OcrSemanticChannelExecutorInstrumentedTest {
         assertTrue(records.all { record -> storage.ocrSemanticDao.chunk(checkNotNull(record.semanticChunkId)) != null })
         assertEquals(2, engine.encodedTexts.size)
         assertEquals(1L, snapshot.lexicalPublicationEpoch)
+
+        val evidence =
+            storage.vectorIndexDao.currentSemanticEvidence(
+                manifestRevision = manifest.revision,
+                recordIds = records.map { record -> record.recordId },
+                semanticPipelineVersion = OcrSemanticChannelExecutor.PipelineVersion,
+                componentHash = ComponentHash,
+                maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
+            )
+        assertEquals(records.map { it.recordId }.sorted(), evidence.map { it.recordId }.sorted())
+        storage.catalogDao.recordAccessObservation("Full", AccessRevision + 1, now + 1)
+        assertTrue(
+            storage.vectorIndexDao.currentSemanticEvidence(
+                manifestRevision = manifest.revision,
+                recordIds = records.map { record -> record.recordId },
+                semanticPipelineVersion = OcrSemanticChannelExecutor.PipelineVersion,
+                componentHash = ComponentHash,
+                maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
+            ).isEmpty(),
+        )
     }
 
     @Test

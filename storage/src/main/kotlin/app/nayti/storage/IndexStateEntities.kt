@@ -19,6 +19,30 @@ data class IndexOperationEntity(
 )
 
 @Entity(
+    tableName = "index_operation_channel",
+    primaryKeys = ["operationId", "channel"],
+    indices = [Index(value = ["operationId", "priority"], unique = true)],
+)
+data class IndexOperationChannelEntity(
+    val operationId: String,
+    val channel: String,
+    val priority: Int,
+    val pipelineVersion: String,
+    val componentHash: String,
+)
+
+@Entity(
+    tableName = "index_operation_asset",
+    primaryKeys = ["operationId", "assetId"],
+    indices = [Index(value = ["assetId"])],
+)
+data class IndexOperationAssetEntity(
+    val operationId: String,
+    val assetId: Long,
+    val sourceFingerprint: String,
+)
+
+@Entity(
     tableName = "index_execution_window",
     primaryKeys = ["windowId"],
     indices = [

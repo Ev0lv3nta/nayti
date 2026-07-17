@@ -16,6 +16,8 @@ import kotlinx.coroutines.Dispatchers
         CatalogWatermarkEntity::class,
         ModelPackEntity::class,
         IndexOperationEntity::class,
+        IndexOperationChannelEntity::class,
+        IndexOperationAssetEntity::class,
         IndexExecutionWindowEntity::class,
         IndexChannelWorkEntity::class,
         IndexChannelPublicationEntity::class,

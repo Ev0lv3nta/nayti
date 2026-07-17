@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "770bf49f958a0e07301881adf7bb6cdb",
+    "identityHash": "27076bd29002461764e9edc182402a56",
     "entities": [
       {
         "tableName": "catalog_asset",
@@ -526,6 +526,103 @@
         }
       },
       {
+        "tableName": "index_operation_channel",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`operationId` TEXT NOT NULL, `channel` TEXT NOT NULL, `priority` INTEGER NOT NULL, `pipelineVersion` TEXT NOT NULL, `componentHash` TEXT NOT NULL, PRIMARY KEY(`operationId`, `channel`))",
+        "fields": [
+          {
+            "fieldPath": "operationId",
+            "columnName": "operationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "channel",
+            "columnName": "channel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "priority",
+            "columnName": "priority",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pipelineVersion",
+            "columnName": "pipelineVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "componentHash",
+            "columnName": "componentHash",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "operationId",
+            "channel"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_index_operation_channel_operationId_priority",
+            "unique": true,
+            "columnNames": [
+              "operationId",
+              "priority"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_index_operation_channel_operationId_priority` ON `${TABLE_NAME}` (`operationId`, `priority`)"
+          }
+        ]
+      },
+      {
+        "tableName": "index_operation_asset",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`operationId` TEXT NOT NULL, `assetId` INTEGER NOT NULL, `sourceFingerprint` TEXT NOT NULL, PRIMARY KEY(`operationId`, `assetId`))",
+        "fields": [
+          {
+            "fieldPath": "operationId",
+            "columnName": "operationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "assetId",
+            "columnName": "assetId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceFingerprint",
+            "columnName": "sourceFingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "operationId",
+            "assetId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_index_operation_asset_assetId",
+            "unique": false,
+            "columnNames": [
+              "assetId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_index_operation_asset_assetId` ON `${TABLE_NAME}` (`assetId`)"
+          }
+        ]
+      },
+      {
         "tableName": "index_execution_window",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`windowId` TEXT NOT NULL, `operationId` TEXT NOT NULL, `hostType` TEXT NOT NULL, `leaseToken` TEXT NOT NULL, `state` TEXT NOT NULL, `startedAtMillis` INTEGER NOT NULL, `expiresAtMillis` INTEGER NOT NULL, `finishedAtMillis` INTEGER, PRIMARY KEY(`windowId`))",
         "fields": [
@@ -874,7 +971,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '770bf49f958a0e07301881adf7bb6cdb')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '27076bd29002461764e9edc182402a56')"
     ]
   }
 }

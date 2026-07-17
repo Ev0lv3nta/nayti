@@ -15,6 +15,18 @@ interface IndexStateDao {
     @Query("SELECT * FROM index_operation WHERE operationId = :operationId")
     suspend fun operation(operationId: String): IndexOperationEntity?
 
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertOperationChannels(channels: List<IndexOperationChannelEntity>)
+
+    @Query("SELECT * FROM index_operation_channel WHERE operationId = :operationId ORDER BY priority")
+    suspend fun operationChannels(operationId: String): List<IndexOperationChannelEntity>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertOperationAssets(assets: List<IndexOperationAssetEntity>)
+
+    @Query("SELECT * FROM index_operation_asset WHERE operationId = :operationId ORDER BY assetId")
+    suspend fun operationAssets(operationId: String): List<IndexOperationAssetEntity>
+
     @Query("UPDATE index_operation SET state = :state, updatedAtMillis = :nowMillis WHERE operationId = :operationId")
     suspend fun updateOperationState(operationId: String, state: String, nowMillis: Long): Int
 
@@ -62,6 +74,12 @@ interface IndexStateDao {
             "AND asset.sourceFingerprint = work.sourceFingerprint " +
             "AND access.processAccessRevision = work.accessRevision " +
             "AND access.accessScope != 'None' " +
+            "AND (work.channel != 'OCR_SEMANTIC' OR EXISTS (" +
+            "SELECT 1 FROM index_channel_work AS dependency " +
+            "WHERE dependency.assetId = work.assetId AND dependency.channel = 'OCR' " +
+            "AND dependency.state = 'DONE' " +
+            "AND dependency.sourceFingerprint = work.sourceFingerprint" +
+            ")) " +
             "ORDER BY work.assetId LIMIT :limit",
     )
     suspend fun eligibleWork(channel: String, nowMillis: Long, limit: Int): List<IndexChannelWorkEntity>
@@ -162,6 +180,58 @@ interface IndexStateDao {
 
     @Query("SELECT * FROM catalog_access_observation WHERE singletonId = 1")
     suspend fun currentAccessObservation(): CatalogAccessObservationEntity?
+
+    @Transaction
+    suspend fun createOperation(
+        operation: IndexOperationEntity,
+        channels: List<IndexOperationChannelEntity>,
+        assets: List<IndexOperationAssetEntity>,
+    ) {
+        require(identifier(operation.operationId))
+        require(identifier(operation.profileId))
+        require(identifier(operation.targetPackId))
+        require(contractValue(operation.targetPackVersion))
+        require(operation.denominatorCatalogRevision >= 0)
+        require(operation.denominatorAssetCount >= 0)
+        require(operation.state == IndexOperationState.PLANNED)
+        require(channels.isNotEmpty() && channels.size <= IndexChannel.all.size)
+        require(channels.all { channel ->
+            channel.operationId == operation.operationId &&
+                channel.channel in IndexChannel.all &&
+                channel.priority >= 0 &&
+                contractValue(channel.pipelineVersion) &&
+                Sha256.matches(channel.componentHash)
+        })
+        require(channels.map(IndexOperationChannelEntity::channel).toSet().size == channels.size)
+        require(channels.map(IndexOperationChannelEntity::priority).toSet().size == channels.size)
+        require(assets.size.toLong() == operation.denominatorAssetCount)
+        require(assets.all { asset ->
+            asset.operationId == operation.operationId &&
+                asset.assetId > 0 &&
+                asset.sourceFingerprint.isNotBlank() &&
+                asset.sourceFingerprint.length <= 128
+        })
+        require(assets.map(IndexOperationAssetEntity::assetId).toSet().size == assets.size)
+        insertOperation(operation)
+        insertOperationChannels(channels)
+        if (assets.isNotEmpty()) insertOperationAssets(assets)
+    }
+
+    @Transaction
+    suspend fun ensureWorkBatch(
+        assetIds: List<Long>,
+        channel: String,
+        accessRevision: Long,
+        pipelineVersion: String,
+        componentHash: String,
+        nowMillis: Long,
+    ): Int {
+        require(assetIds.isNotEmpty() && assetIds.size <= MaximumBatchSize)
+        assetIds.forEach { assetId ->
+            ensureWork(assetId, channel, accessRevision, pipelineVersion, componentHash, nowMillis)
+        }
+        return assetIds.size
+    }
 
     @Transaction
     suspend fun ensureWork(

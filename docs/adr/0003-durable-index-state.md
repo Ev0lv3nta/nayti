@@ -12,6 +12,8 @@ Room хранит одну запись `index_channel_work` для каждой
 
 `IndexOperation` хранит долговечное намерение и denominator snapshot. `ExecutionWindow` представляет один ограниченный запуск приложения, FGS либо Worker. Claim разрешён только живому window и атомарно выдаёт небольшой batch из самих channel rows; отдельного списка задач нет. Lease ограничен сроком window, а поздний commit отклоняется.
 
+Operation отдельно фиксирует exact набор `assetId` и упорядоченные channel contracts, поэтому restart не пересчитывает denominator по уже изменившейся библиотеке. Coordinator требует executor для каждого declared channel до создания operation; скрытых fallback-процессоров нет. Один execution loop обрабатывает claims последовательно, а OCR-semantic становится eligible только после `DONE` OCR того же asset и fingerprint.
+
 Перед SQL-publication одна Room transaction повторно сверяет:
 
 - живой lease и его token;

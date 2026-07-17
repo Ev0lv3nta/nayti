@@ -7,15 +7,19 @@ import app.nayti.storage.ModelPackEntity
 import app.nayti.storage.ModelPackStatus
 import java.nio.file.Path
 
+fun interface RegisteredModelPackInstaller {
+    suspend fun install(source: ModelPackSource): ModelPackEntity
+}
+
 class ModelPackInstallCoordinator(
     private val installer: ModelPackCandidateInstaller,
     private val registry: ModelPackDao,
     modelPackRoot: Path,
     private val nowMillis: () -> Long,
-) {
+) : RegisteredModelPackInstaller {
     private val root = modelPackRoot.toAbsolutePath().normalize()
 
-    suspend fun install(source: ModelPackSource): ModelPackEntity {
+    override suspend fun install(source: ModelPackSource): ModelPackEntity {
         val verified = installer.install(source)
         val directory = verified.directory.toAbsolutePath().normalize()
         if (!directory.startsWith(root)) error("Verified pack directory escaped the model-pack root")

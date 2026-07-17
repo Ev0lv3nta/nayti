@@ -74,6 +74,9 @@ class OcrLexicalSearchInstrumentedTest {
         val person = search.search("Иван Иванов", PipelineVersion, ComponentHash)
         assertEquals(listOf(contractId), person.hits.map(OcrLexicalHit::assetId))
         assertEquals(LexicalEvidence.PERSON_NAME, person.hits.single().evidence)
+        val viewerEvidence = checkNotNull(storage.ocrDao.eligibleAsset(receiptId, PipelineVersion, ComponentHash))
+        assertEquals("Счёт за кофе ABC-123", viewerEvidence.document.displayText)
+        assertEquals(1, viewerEvidence.regions.size)
 
         storage.catalogDao.replaceAccessObservation(
             CatalogAccessObservationEntity(
@@ -84,6 +87,7 @@ class OcrLexicalSearchInstrumentedTest {
             ),
         )
         assertTrue(search.search("договор", PipelineVersion, ComponentHash).hits.isEmpty())
+        assertTrue(storage.ocrDao.eligibleAsset(receiptId, PipelineVersion, ComponentHash) == null)
     }
 
     private suspend fun startAndClaim(assetIds: List<Long>): Map<Long, IndexChannelWorkEntity> {

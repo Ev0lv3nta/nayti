@@ -134,3 +134,8 @@ data class OcrCandidateSnapshot(
     val documents: List<OcrDocumentEntity>,
     val regions: List<OcrRegionEntity>,
 )
+
+data class EligibleOcrAsset(
+    val document: OcrDocumentEntity,
+    val regions: List<OcrRegionEntity>,
+)

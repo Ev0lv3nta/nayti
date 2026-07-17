@@ -323,6 +323,20 @@ interface OcrDao {
         )
     }
 
+    @Transaction
+    suspend fun eligibleAsset(
+        assetId: Long,
+        pipelineVersion: String,
+        componentHash: String,
+    ): EligibleOcrAsset? {
+        require(assetId > 0)
+        validateContract(pipelineVersion, componentHash)
+        val epoch = publicationClock()?.lastEpoch ?: 0
+        val document = eligibleDocuments(listOf(assetId), pipelineVersion, componentHash, epoch).singleOrNull()
+            ?: return null
+        return EligibleOcrAsset(document, regions(assetId))
+    }
+
     private fun validateSearch(
         matchQuery: String,
         pipelineVersion: String,
@@ -331,10 +345,14 @@ interface OcrDao {
         limit: Int,
     ) {
         require(matchQuery.isNotBlank() && matchQuery.length <= MaximumMatchCharacters)
-        require(ContractValue.matches(pipelineVersion))
-        require(Sha256.matches(componentHash))
+        validateContract(pipelineVersion, componentHash)
         require(maximumPublicationEpoch >= 0)
         require(limit in 1..MaximumCandidates)
+    }
+
+    private fun validateContract(pipelineVersion: String, componentHash: String) {
+        require(ContractValue.matches(pipelineVersion))
+        require(Sha256.matches(componentHash))
     }
 
     private fun OcrDocumentDraft.toEntity(

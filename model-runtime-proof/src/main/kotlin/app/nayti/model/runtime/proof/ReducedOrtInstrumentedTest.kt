@@ -33,7 +33,7 @@ class ReducedOrtInstrumentedTest {
         val manifestFile = resolveChild(root, "manifest.json")
         val manifest = JSONObject(manifestFile.readText(Charsets.UTF_8))
 
-        assertEquals(1, manifest.getInt("schemaVersion"))
+        assertEquals(2, manifest.getInt("schemaVersion"))
         assertEquals("little", manifest.getString("byteOrder"))
         assertEquals(20260717, manifest.getInt("seed"))
 
@@ -153,14 +153,44 @@ class ReducedOrtInstrumentedTest {
         val expected = readDirect(expectedFile).asFloatBuffer()
         val actual = actualTensor.floatBuffer
         assertEquals(expected.remaining(), actual.remaining())
-        val tolerance = contract.getJSONObject("tolerance")
-        val absoluteTolerance = tolerance.getDouble("absolute")
-        val relativeTolerance = tolerance.getDouble("relative")
+        val comparison = contract.getJSONObject("comparison")
+        val expectedValues = FloatArray(expected.remaining()) { index -> expected.get(index) }
+        val actualValues = FloatArray(actual.remaining()) { index -> actual.get(index) }
+        for (index in actualValues.indices) {
+            assertTrue("non-finite $modelName/$outputName[$index]", actualValues[index].isFinite())
+        }
+        when (val kind = comparison.getString("kind")) {
+            "allclose" -> compareAllClose(
+                modelName,
+                outputName,
+                expectedValues,
+                actualValues,
+                comparison,
+            )
+            "cosine" -> compareCosine(
+                modelName,
+                outputName,
+                expectedValues,
+                actualValues,
+                comparison,
+            )
+            else -> error("unsupported float comparison: $kind")
+        }
+    }
+
+    private fun compareAllClose(
+        modelName: String,
+        outputName: String,
+        expected: FloatArray,
+        actual: FloatArray,
+        comparison: JSONObject,
+    ) {
+        val absoluteTolerance = comparison.getDouble("absolute")
+        val relativeTolerance = comparison.getDouble("relative")
         var maximumAbsoluteError = 0.0
-        for (index in 0 until expected.remaining()) {
-            val expectedValue = expected.get(index)
-            val actualValue = actual.get(index)
-            assertTrue("non-finite $modelName/$outputName[$index]", actualValue.isFinite())
+        for (index in expected.indices) {
+            val expectedValue = expected[index]
+            val actualValue = actual[index]
             val error = abs(actualValue.toDouble() - expectedValue.toDouble())
             maximumAbsoluteError = maxOf(maximumAbsoluteError, error)
             val bound = absoluteTolerance + relativeTolerance * abs(expectedValue.toDouble())
@@ -170,6 +200,41 @@ class ReducedOrtInstrumentedTest {
             )
         }
         Log.i(TAG, "$modelName/$outputName maxAbs=$maximumAbsoluteError")
+    }
+
+    private fun compareCosine(
+        modelName: String,
+        outputName: String,
+        expected: FloatArray,
+        actual: FloatArray,
+        comparison: JSONObject,
+    ) {
+        var dot = 0.0
+        var expectedSquaredNorm = 0.0
+        var actualSquaredNorm = 0.0
+        var maximumAbsoluteError = 0.0
+        for (index in expected.indices) {
+            val expectedValue = expected[index].toDouble()
+            val actualValue = actual[index].toDouble()
+            dot += expectedValue * actualValue
+            expectedSquaredNorm += expectedValue * expectedValue
+            actualSquaredNorm += actualValue * actualValue
+            maximumAbsoluteError = maxOf(maximumAbsoluteError, abs(actualValue - expectedValue))
+        }
+        assertTrue("zero expected norm $modelName/$outputName", expectedSquaredNorm > 0.0)
+        assertTrue("zero actual norm $modelName/$outputName", actualSquaredNorm > 0.0)
+        val cosine = dot / kotlin.math.sqrt(expectedSquaredNorm * actualSquaredNorm)
+        val minimumCosine = comparison.getDouble("minimumCosine")
+        val maximumAllowedError = comparison.getDouble("maximumAbsoluteError")
+        assertTrue(
+            "$modelName/$outputName cosine=$cosine minimum=$minimumCosine",
+            cosine >= minimumCosine,
+        )
+        assertTrue(
+            "$modelName/$outputName maxAbs=$maximumAbsoluteError maximum=$maximumAllowedError",
+            maximumAbsoluteError <= maximumAllowedError,
+        )
+        Log.i(TAG, "$modelName/$outputName cosine=$cosine maxAbs=$maximumAbsoluteError")
     }
 
     private fun compareLongOutput(

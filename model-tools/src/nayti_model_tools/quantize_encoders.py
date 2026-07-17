@@ -39,23 +39,21 @@ class EncoderSpec:
     name: str
     source: str
     output: str
+    dynamic_matmul: bool
 
 
 SPECS = (
     EncoderSpec(
-        name="siglip2_image",
-        source="exports/siglip2/siglip2_image_fp32.onnx",
-        output="siglip2_image_dynamic_int8.onnx",
-    ),
-    EncoderSpec(
         name="siglip2_text",
         source="exports/siglip2/siglip2_text_fp32.onnx",
-        output="siglip2_text_dynamic_int8.onnx",
+        output="siglip2_text_rowwise_int8.onnx",
+        dynamic_matmul=False,
     ),
     EncoderSpec(
         name="user2_encoder",
         source="exports/user2/user2_fp32.onnx",
         output="user2_encoder_dynamic_int8.onnx",
+        dynamic_matmul=True,
     ),
 )
 
@@ -110,19 +108,25 @@ def quantize_encoders(lab_root: Path, force: bool) -> Path:
                 )
                 quantization_source = prepared
                 _preflight(lab_root, psutil)
-            nodes_to_quantize = _quantizable_nodes(onnx, quantization_source, spec.name)
-            if not nodes_to_quantize:
-                raise RuntimeError(f"no constant-weight nodes found in {source.name}")
-            quantize_dynamic(
-                model_input=quantization_source,
-                model_output=output,
-                op_types_to_quantize=["Gemm", "MatMul"],
-                nodes_to_quantize=nodes_to_quantize,
-                per_channel=True,
-                reduce_range=False,
-                weight_type=QuantType.QInt8,
-                use_external_data_format=False,
-            )
+            nodes_to_quantize: list[str] = []
+            if spec.dynamic_matmul:
+                nodes_to_quantize = _quantizable_nodes(onnx, quantization_source, spec.name)
+                if not nodes_to_quantize:
+                    raise RuntimeError(f"no constant-weight nodes found in {source.name}")
+                quantize_dynamic(
+                    model_input=quantization_source,
+                    model_output=output,
+                    op_types_to_quantize=["Gemm", "MatMul"],
+                    nodes_to_quantize=nodes_to_quantize,
+                    per_channel=True,
+                    reduce_range=False,
+                    weight_type=QuantType.QInt8,
+                    use_external_data_format=False,
+                )
+            else:
+                if embedding_report is None:
+                    raise RuntimeError(f"no deployment transformation selected for {spec.name}")
+                prepared.replace(output)
             onnx_model = onnx.load(output, load_external_data=False)
             onnx.checker.check_model(onnx_model, full_check=True)
             del onnx_model
@@ -133,9 +137,9 @@ def quantize_encoders(lab_root: Path, force: bool) -> Path:
                 "output": _identity(output),
                 "quantizedConstantWeightNodes": len(nodes_to_quantize),
                 "nodeSelection": (
-                    "MLP projections only"
-                    if spec.name == "siglip2_image"
-                    else "all constant-weight MatMul/Gemm"
+                    "all constant-weight MatMul/Gemm"
+                    if spec.dynamic_matmul
+                    else "token embedding only; transformer remains FP32"
                 ),
                 "tokenEmbedding": embedding_report,
                 "elapsedSeconds": round(time.monotonic() - model_started, 3),
@@ -152,16 +156,16 @@ def quantize_encoders(lab_root: Path, force: bool) -> Path:
                 "onnxruntimeExtensions": ortx.__version__,
             },
             "configuration": {
-                "method": "dynamic",
-                "format": "integer operators with per-input activation parameters",
+                "method": "mixed after ARM64 gate",
+                "format": "row-wise token embeddings plus selective dynamic integer operators",
                 "weightType": "QInt8",
                 "perChannel": True,
                 "opTypes": ["Gemm", "MatMul"],
                 "nodeSelection": {
-                    "common": "constant second input only; dynamic attention score/value matmuls excluded",
-                    "siglip2Image": "MLP projections only; measured QKV/projection quantization failed p1 cosine",
+                    "siglip2Image": "FP32; dynamic MLP candidate failed Android cosine",
+                    "siglip2Text": "row-wise token embedding only; dynamic MatMul candidate failed Android cosine",
+                    "user2": "all constant-weight MatMul/Gemm; ARM64 cosine passed",
                 },
-                "patchEmbeddingConv": "FP32",
                 "tokenEmbeddings": "row-wise symmetric QInt8; Gather before FP32 dequantization",
                 "sourceGraphs": "fixed-shape FP32 exports validated before quantization",
             },
@@ -360,6 +364,11 @@ def _evaluate(
         ortx,
     )
     sessions: dict[str, tuple[Any, Any]] = {}
+    siglip2_image_source = lab_root / "exports/siglip2/siglip2_image_fp32.onnx"
+    sessions["siglip2_image"] = (
+        _session(ort, siglip2_image_source, ortx),
+        _session(ort, siglip2_image_source, ortx),
+    )
     for spec in SPECS:
         sessions[spec.name] = (
             _session(ort, lab_root / spec.source, ortx),

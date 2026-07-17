@@ -29,11 +29,11 @@ ARTIFACTS = (
     ModelArtifact("ppocrv6_detector", "upstream/ppocrv6-small-det-onnx/inference.onnx"),
     ModelArtifact(
         "siglip2_image",
-        "quantized-encoders/siglip2_image_dynamic_int8.onnx",
+        "exports/siglip2/siglip2_image_fp32.onnx",
     ),
     ModelArtifact(
         "siglip2_text",
-        "quantized-encoders/siglip2_text_dynamic_int8.onnx",
+        "quantized-encoders/siglip2_text_rowwise_int8.onnx",
     ),
     ModelArtifact("siglip2_tokenizer", "exports/siglip2/siglip2_tokenizer.onnx"),
     ModelArtifact(
@@ -43,7 +43,8 @@ ARTIFACTS = (
     ModelArtifact("user2_tokenizer", "exports/user2/user2_tokenizer.onnx"),
 )
 
-ANDROID_KAT_SCHEMA_VERSION = 1
+ANDROID_KAT_SCHEMA_VERSION = 2
+EMBEDDING_MODELS = {"siglip2_image", "siglip2_text", "user2_encoder"}
 
 
 def convert_models_to_ort(lab_root: Path, force: bool) -> Path:
@@ -304,7 +305,18 @@ def prepare_android_kat(lab_root: Path, force: bool) -> Path:
                 "sha256": hashlib.sha256(payload).hexdigest(),
             }
             if contiguous.dtype == np.dtype("float32"):
-                descriptor["tolerance"] = {"absolute": 2e-5, "relative": 2e-5}
+                if artifact.name in EMBEDDING_MODELS:
+                    descriptor["comparison"] = {
+                        "kind": "cosine",
+                        "minimumCosine": 0.995,
+                        "maximumAbsoluteError": 0.02,
+                    }
+                else:
+                    descriptor["comparison"] = {
+                        "kind": "allclose",
+                        "absolute": 2e-5,
+                        "relative": 2e-5,
+                    }
             output_descriptors.append(descriptor)
         manifest_models[artifact.name] = {
             "model": _file_identity(model),

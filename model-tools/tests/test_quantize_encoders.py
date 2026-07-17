@@ -8,12 +8,22 @@ except ModuleNotFoundError:  # Host policy tests run without the model toolchain
     np = None
 
 from nayti_model_tools.quantize_encoders import (
+    SPECS,
     cosine_distribution,
     mean_top_k_overlap,
     procedural_image,
     rowwise_symmetric_int8,
     semantic_retrieval_image,
 )
+
+
+class DeploymentProfileTest(unittest.TestCase):
+    def test_only_measured_quantized_candidates_are_built(self) -> None:
+        self.assertEqual(["siglip2_text", "user2_encoder"], [spec.name for spec in SPECS])
+        self.assertEqual("siglip2_text_rowwise_int8.onnx", SPECS[0].output)
+        self.assertFalse(SPECS[0].dynamic_matmul)
+        self.assertEqual("user2_encoder_dynamic_int8.onnx", SPECS[1].output)
+        self.assertTrue(SPECS[1].dynamic_matmul)
 
 
 @unittest.skipIf(np is None, "numpy is available in the pinned model-tools environment")

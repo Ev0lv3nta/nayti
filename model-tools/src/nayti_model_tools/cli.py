@@ -54,7 +54,7 @@ def main() -> None:
     android_kat.add_argument("--force", action="store_true")
     quantize = subparsers.add_parser(
         "quantize-encoders",
-        help="build and verify dynamic INT8 deployment encoders",
+        help="build and verify the measured mixed-precision deployment profile",
     )
     quantize.add_argument("--force", action="store_true")
     keygen = subparsers.add_parser(
@@ -155,7 +155,7 @@ def main() -> None:
         from .quantize_encoders import quantize_encoders
 
         report = quantize_encoders(lab_root, args.force)
-        print(f"verified dynamic INT8 encoders: {report}")
+        print(f"verified mixed-precision deployment profile: {report}")
         return
     if args.command in {"pack-keygen", "pack-assemble", "pack-inspect"}:
         from .pack_format import generate_key_pair, inspect_pack

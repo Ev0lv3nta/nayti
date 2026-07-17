@@ -15,6 +15,12 @@ interface VectorIndexDao {
     @Query("SELECT * FROM vector_generation WHERE generationId = :generationId")
     suspend fun generation(generationId: String): VectorGenerationEntity?
 
+    @Query(
+        "UPDATE vector_generation SET state = 'SEALED', sealedAtMillis = :nowMillis " +
+            "WHERE generationId = :generationId AND state = 'BUILDING'",
+    )
+    suspend fun sealGenerationRow(generationId: String, nowMillis: Long): Int
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertPublicationRow(publication: VectorPublicationEntity)
 
@@ -311,6 +317,65 @@ interface VectorIndexDao {
         check(completePublicationWork(publicationToken, nowMillis) == work.size)
         check(completePublicationRow(publicationToken, nowMillis) == 1)
         return snapshot
+    }
+
+    @Transaction
+    suspend fun commitVectorCompaction(
+        generationId: String,
+        segment: VectorSegmentArtifactEntity,
+        records: List<VectorSegmentRecordEntity>,
+        manifest: VectorManifestEntity,
+        manifestEntries: List<VectorManifestSegmentEntity>,
+        candidateSnapshot: ActivationSnapshotEntity,
+        nowMillis: Long,
+    ): ActivationSnapshotEntity {
+        val generation = checkNotNull(generation(generationId))
+        check(generation.state in setOf(VectorGenerationState.BUILDING, VectorGenerationState.SEALED))
+        require(segment.createdAtMillis in 0..nowMillis)
+        require(manifest.createdAtMillis in 0..nowMillis)
+        require(candidateSnapshot.createdAtMillis in 0..nowMillis)
+        validateSegment(generation, segment, records)
+        val activeId = checkNotNull(activeSnapshotId())
+        val active = checkNotNull(snapshot(activeId))
+        val activeManifestRevision =
+            if (generation.channel == IndexChannel.VISUAL) {
+                active.visualManifestRevision
+            } else {
+                active.semanticManifestRevision
+            }
+        check(manifest.parentRevision == activeManifestRevision)
+        val parentManifest = checkNotNull(activeManifestRevision?.let { manifest(it) })
+        check(parentManifest.generationId == generationId)
+        check(manifest.recordCount == parentManifest.recordCount)
+
+        insertSegmentIfAbsent(segment)
+        check(segment(segment.sha256) == segment)
+        insertSegmentRecordsIfAbsent(records)
+        check(segmentRecords(segment.sha256) == records.sortedBy(VectorSegmentRecordEntity::ordinal))
+        validateManifest(generation, manifest, manifestEntries)
+        check(manifestEntries.any { it.segmentSha256 == segment.sha256 })
+        insertManifest(manifest)
+        insertManifestSegments(manifestEntries)
+        validateSnapshot(candidateSnapshot, generation, manifest)
+        insertSnapshot(candidateSnapshot)
+        replaceActivePointer(ActiveSnapshotPointerEntity(snapshotId = candidateSnapshot.snapshotId))
+        return candidateSnapshot
+    }
+
+    @Transaction
+    suspend fun sealGeneration(generationId: String, expectedActiveManifestRevision: String, nowMillis: Long) {
+        val generation = checkNotNull(generation(generationId))
+        check(generation.state == VectorGenerationState.BUILDING)
+        val active = checkNotNull(activeSnapshotId()?.let { snapshot(it) })
+        val revision =
+            if (generation.channel == IndexChannel.VISUAL) {
+                active.visualManifestRevision
+            } else {
+                active.semanticManifestRevision
+            }
+        check(revision == expectedActiveManifestRevision)
+        check(manifest(expectedActiveManifestRevision)?.generationId == generationId)
+        check(sealGenerationRow(generationId, nowMillis) == 1)
     }
 
     @Transaction

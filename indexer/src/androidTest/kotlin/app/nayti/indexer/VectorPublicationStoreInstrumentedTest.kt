@@ -196,8 +196,70 @@ class VectorPublicationStoreInstrumentedTest {
         })
     }
 
+    @Test
+    fun sealedGenerationCompactsAdjacentSegmentsWithoutInPlaceRewrite() = runBlocking {
+        var active = publishSingle(301, 1)
+        active = publishSingle(302, 2)
+        active = publishSingle(303, 3)
+        val originalRevision = checkNotNull(active.visualManifestRevision)
+        val originalEntries = storage.vectorIndexDao.manifestSegments(originalRevision)
+        assertEquals(3, originalEntries.size)
+        storage.vectorIndexDao.sealGeneration(GenerationId, originalRevision, now)
+        assertEquals(VectorGenerationState.SEALED, storage.vectorIndexDao.generation(GenerationId)?.state)
+
+        val failed = runCatching {
+            VectorCompactionStore(root, storage.vectorIndexDao, { now }) { boundary ->
+                if (boundary == VectorCompactionBoundary.AFTER_MANIFEST_RENAME) throw SimulatedCompactionDeath()
+            }.compact(compactionRequest("failed-compaction", "compact-failed", "compact-failed-snapshot"))
+        }.exceptionOrNull()
+        assertTrue(failed is SimulatedCompactionDeath)
+        assertEquals(active.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        reopenStorage()
+        val recovery = VectorIndexRecovery(root, storage.vectorIndexDao).recover(now + 1_000, 0, true)
+        assertEquals(active.snapshotId, recovery.activeAfter)
+        assertTrue(recovery.deletedOrphans >= 2)
+
+        val compacted = VectorCompactionStore(root, storage.vectorIndexDao, { now }).compact(
+            compactionRequest("compact-success", "compact-r1", "compact-snapshot"),
+        )
+        val compactedManifest = checkNotNull(storage.vectorIndexDao.manifest(compacted.visualManifestRevision!!))
+        val compactedEntries = storage.vectorIndexDao.manifestSegments(compactedManifest.revision)
+        assertEquals(active.snapshotId, compacted.parentSnapshotId)
+        assertEquals(originalEntries.size - 1, compactedEntries.size)
+        assertEquals(3L, compactedManifest.recordCount)
+        val merged = checkNotNull(storage.vectorIndexDao.segment(compactedEntries.first().segmentSha256))
+        assertEquals(2, merged.recordCount)
+        assertEquals(2, storage.vectorIndexDao.segmentRecords(merged.sha256).size)
+        assertTrue(root.resolve(merged.relativePath).isFile)
+        assertTrue(originalEntries.all { entry ->
+            val artifact = checkNotNull(storage.vectorIndexDao.segment(entry.segmentSha256))
+            root.resolve(artifact.relativePath).isFile
+        })
+    }
+
     private fun store(observer: (VectorPublicationBoundary) -> Unit = {}) =
         VectorPublicationStore(root, storage.vectorIndexDao, { now }, observer)
+
+    private suspend fun publishSingle(iteration: Int, mediaStoreId: Long): app.nayti.storage.ActivationSnapshotEntity {
+        now += 100
+        val assetId = insertAsset(mediaStoreId)
+        return store().publish(request(iteration, assetId, stageRunningWork(assetId, "lease-$iteration")))
+    }
+
+    private fun compactionRequest(token: String, revision: String, snapshotId: String) =
+        VectorCompactionRequest(
+            compactionToken = token,
+            generationId = GenerationId,
+            firstSegmentOrdinal = 0,
+            segmentCount = 2,
+            manifestRevision = revision,
+            snapshotId = snapshotId,
+            rankingConfigVersion = "ranking-v1",
+            lexicalPublicationEpoch = 303,
+            pHashPublicationEpoch = 303,
+            catalogWatermark = 303,
+            segmentId = UUID.nameUUIDFromBytes("$token-segment".encodeToByteArray()),
+        )
 
     private fun request(iteration: Int, assetId: Long, leaseToken: String) =
         VectorPublicationRequest(
@@ -309,6 +371,7 @@ class VectorPublicationStoreInstrumentedTest {
 
     private class SimulatedProcessDeath(val boundary: VectorPublicationBoundary) : RuntimeException()
     private class SimulatedGcDeath : RuntimeException()
+    private class SimulatedCompactionDeath : RuntimeException()
 
     private companion object {
         const val AccessRevision = 7L

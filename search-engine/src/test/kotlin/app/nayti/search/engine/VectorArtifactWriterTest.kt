@@ -52,6 +52,29 @@ class VectorArtifactWriterTest {
         assertTrue(text.endsWith("\n"))
     }
 
+    @Test
+    fun readerRoundTripsCanonicalSegmentAndRejectsTrailingBytes() {
+        val encoded = VectorSegmentV1Writer.encode(
+            channel = VectorSegmentChannel.OCR_SEMANTIC,
+            embeddingSpaceHash = Hash,
+            records = listOf(
+                VectorSegmentRecord(101, 41, 0, byteArrayOf(1, 2, 3, 4)),
+                VectorSegmentRecord(102, 41, 1, byteArrayOf(5, 6, 7, 8)),
+            ),
+            segmentId = UUID.fromString("87654321-4321-6789-abcd-ef0123456789"),
+        )
+
+        val decoded = VectorSegmentV1Reader.decode(encoded.bytes)
+
+        assertEquals(encoded.segmentId, decoded.segmentId)
+        assertEquals(encoded.channel, decoded.channel)
+        assertEquals(encoded.dimension, decoded.dimension)
+        assertEquals(encoded.embeddingSpaceHash, decoded.embeddingSpaceHash)
+        assertEquals(2, decoded.records.size)
+        assertArrayEquals(encoded.bytes.copyOfRange(encoded.bytes.size - 8, encoded.bytes.size), decoded.records.flatMap { it.vector.toList() }.toByteArray())
+        assertTrue(runCatching { VectorSegmentV1Reader.decode(encoded.bytes + 0) }.isFailure)
+    }
+
     private companion object {
         val Hash = "5a".repeat(32)
     }

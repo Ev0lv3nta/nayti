@@ -1,7 +1,5 @@
 package app.nayti.indexer
 
-import android.system.Os
-import android.system.OsConstants
 import app.nayti.search.engine.NativeVectorIndex
 import app.nayti.search.engine.VectorManifestSegment
 import app.nayti.search.engine.VectorManifestV1
@@ -18,11 +16,6 @@ import app.nayti.storage.VectorPublicationState
 import app.nayti.storage.VectorSegmentArtifactEntity
 import app.nayti.storage.VectorSegmentRecordEntity
 import java.io.File
-import java.nio.ByteBuffer
-import java.nio.channels.FileChannel
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
-import java.nio.file.StandardOpenOption
 import java.util.UUID
 
 data class PublishedVectorRecord(
@@ -63,16 +56,7 @@ class VectorPublicationStore(
     private val nowMillis: () -> Long = System::currentTimeMillis,
     private val boundaryObserver: (VectorPublicationBoundary) -> Unit = {},
 ) {
-    private val root = rootDirectory.canonicalFile
-    private val stagingDirectory = root.resolve("staging")
-    private val segmentDirectory = root.resolve("segments")
-    private val manifestDirectory = root.resolve("manifests")
-
-    init {
-        listOf(root, stagingDirectory, segmentDirectory, manifestDirectory).forEach { directory ->
-            check(directory.mkdirs() || directory.isDirectory)
-        }
-    }
+    private val files = ImmutableVectorFiles(rootDirectory)
 
     suspend fun publish(request: VectorPublicationRequest): ActivationSnapshotEntity {
         require(request.records.isNotEmpty())
@@ -94,16 +78,17 @@ class VectorPublicationStore(
         )
         check(encodedSegment.dimension == generation.dimension)
 
-        val segmentRelativePath = "segments/${encodedSegment.sha256}.naytivec"
-        val segmentFile = root.resolveChecked(segmentRelativePath)
-        val segmentTemp = uniqueTemp(request.publicationToken, "segment")
-        writeAndSync(segmentTemp, encodedSegment.bytes)
-        boundaryObserver(VectorPublicationBoundary.AFTER_SEGMENT_FSYNC)
-        seal(segmentTemp, segmentFile, encodedSegment.bytes.size.toLong(), encodedSegment.sha256)
-        boundaryObserver(VectorPublicationBoundary.AFTER_SEGMENT_RENAME)
+        val sealedSegment = files.sealSegment(
+            token = request.publicationToken,
+            bytes = encodedSegment.bytes,
+            sha256 = encodedSegment.sha256,
+            afterFsync = { boundaryObserver(VectorPublicationBoundary.AFTER_SEGMENT_FSYNC) },
+            afterRename = { boundaryObserver(VectorPublicationBoundary.AFTER_SEGMENT_RENAME) },
+        )
+        val segmentRelativePath = sealedSegment.relativePath
         check(
             NativeVectorIndex.mappedRecordCount(
-                path = segmentFile.absolutePath,
+                path = sealedSegment.file.absolutePath,
                 expectedLength = encodedSegment.bytes.size.toLong(),
                 expectedSha256 = decodeSha256(encodedSegment.sha256),
             ) == request.records.size,
@@ -167,13 +152,14 @@ class VectorPublicationStore(
             dimension = generation.dimension,
             segments = existingDescriptors + newDescriptor,
         )
-        val manifestRelativePath = "manifests/${encodedManifest.sha256}.naytimanifest"
-        val manifestFile = root.resolveChecked(manifestRelativePath)
-        val manifestTemp = uniqueTemp(request.publicationToken, "manifest")
-        writeAndSync(manifestTemp, encodedManifest.bytes)
-        boundaryObserver(VectorPublicationBoundary.AFTER_MANIFEST_FSYNC)
-        seal(manifestTemp, manifestFile, encodedManifest.bytes.size.toLong(), encodedManifest.sha256)
-        boundaryObserver(VectorPublicationBoundary.AFTER_MANIFEST_RENAME)
+        val sealedManifest = files.sealManifest(
+            token = request.publicationToken,
+            bytes = encodedManifest.bytes,
+            sha256 = encodedManifest.sha256,
+            afterFsync = { boundaryObserver(VectorPublicationBoundary.AFTER_MANIFEST_FSYNC) },
+            afterRename = { boundaryObserver(VectorPublicationBoundary.AFTER_MANIFEST_RENAME) },
+        )
+        val manifestRelativePath = sealedManifest.relativePath
 
         val segment = VectorSegmentArtifactEntity(
             sha256 = encodedSegment.sha256,
@@ -251,56 +237,6 @@ class VectorPublicationStore(
         return committed
     }
 
-    private fun writeAndSync(file: File, bytes: ByteArray) {
-        FileChannel.open(
-            file.toPath(),
-            StandardOpenOption.CREATE_NEW,
-            StandardOpenOption.WRITE,
-        ).use { channel ->
-            val buffer = ByteBuffer.wrap(bytes)
-            while (buffer.hasRemaining()) check(channel.write(buffer) > 0)
-            channel.force(true)
-        }
-    }
-
-    private fun seal(temp: File, target: File, expectedLength: Long, expectedSha256: String) {
-        if (target.exists()) {
-            check(target.isFile && target.length() == expectedLength)
-            check(sha256Hex(target) == expectedSha256)
-            check(temp.delete())
-        } else {
-            Files.move(temp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
-        }
-        syncDirectory(stagingDirectory)
-        syncDirectory(target.parentFile!!)
-        check(target.setReadOnly())
-    }
-
-    private fun syncDirectory(directory: File) {
-        val descriptor = Os.open(directory.absolutePath, OsConstants.O_RDONLY or OsConstants.O_CLOEXEC, 0)
-        try {
-            Os.fsync(descriptor)
-        } finally {
-            Os.close(descriptor)
-        }
-    }
-
-    private fun uniqueTemp(token: String, role: String): File {
-        require(Token.matches(token))
-        return stagingDirectory.resolve("$token-${UUID.randomUUID()}.$role.tmp")
-    }
-
-    private fun File.resolveChecked(relativePath: String): File {
-        val resolved = resolve(relativePath).canonicalFile
-        check(resolved.toPath().startsWith(toPath()))
-        return resolved
-    }
-
-    private fun sha256Hex(file: File): String =
-        java.security.MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") { byte ->
-            "%02x".format(byte.toInt() and 0xff)
-        }
-
     private fun decodeSha256(value: String): ByteArray =
         ByteArray(32) { index -> value.substring(index * 2, index * 2 + 2).toInt(16).toByte() }
 
@@ -308,9 +244,5 @@ class VectorPublicationStore(
         IndexChannel.VISUAL -> VectorSegmentChannel.VISUAL
         IndexChannel.OCR_SEMANTIC -> VectorSegmentChannel.OCR_SEMANTIC
         else -> error("Unsupported vector channel $this")
-    }
-
-    private companion object {
-        val Token = Regex("[A-Za-z0-9][A-Za-z0-9._:-]*")
     }
 }

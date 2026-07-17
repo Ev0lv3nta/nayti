@@ -36,6 +36,7 @@ gradle.projectsEvaluated {
         ":benchmark" to emptySet(),
         ":indexer" to setOf(":ml-runtime", ":platform-media", ":search-engine", ":storage"),
         ":ml-runtime" to emptySet(),
+        ":model-runtime-proof" to emptySet(),
         ":platform-media" to emptySet(),
         ":search-engine" to setOf(":ml-runtime", ":storage"),
         ":storage" to emptySet(),

@@ -22,6 +22,12 @@ uv run --project model-tools nayti-model verify-ocr
 model-tools/scripts/build_ortx_validation.sh
 uv run --project model-tools --no-sync nayti-model export-user2-tokenizer
 uv run --project model-tools --no-sync nayti-model export-siglip2-tokenizer
+uv run --project model-tools --no-sync nayti-model convert-ort
+uv run --project model-tools --no-sync nayti-model verify-ort
+uv run --project model-tools --no-sync nayti-model prepare-android-kat
+model-tools/scripts/build_reduced_ort_android.sh
+model-tools/scripts/verify_reduced_ort_aar.sh
+model-tools/scripts/run_reduced_ort_android_smoke.sh
 uv run --project model-tools pytest
 ```
 
@@ -32,5 +38,13 @@ uv run --project model-tools pytest
 `export-user2-tokenizer` требует локальную сборку ONNX Runtime Extensions с revision из `manifests/runtime-sources.v1.json`. Он создаёт fixed-shape `[1,128]` graph и требует NFC-normalized UTF-8 input; BPE, special tokens, truncation, padding и attention mask находятся в graph. Gate сравнивает все 500 синтетических строк с official tokenizer byte-for-byte.
 
 Pinned validation build создаётся командой `model-tools/scripts/build_ortx_validation.sh`. Скрипт отказывается работать вне project-local `model-lab`, проверяет 100 ГБ свободного места и чистоту checkout, устанавливает source build только в `UV_PROJECT_ENVIRONMENT` и ограничивает C++ compilation двумя workers. Следующий tokenizer export запускается с `uv run --no-sync`, чтобы `uv` намеренно не заменил validation build опубликованным wheel из основного lockfile.
+
+`convert-ort` берёт ровно семь проверенных graphs, создаёт Fixed/ARM ORT artifacts с type reduction и генерирует operator config для minimal runtime. Для legacy IR3 Paddle recognizer меняется только IR marker на 4: иначе ORT converter ошибочно превращает embedded initializers в обязательные runtime inputs. Исходный graph не изменяется. `verify-ort` требует тот же public input/output contract и сравнивает выходы каждой пары ONNX↔ORT.
+
+`build_reduced_ort_android.sh` проверяет exact ORT/Extensions revisions, 100 ГиБ free-space gate и нулевой swap, затем собирает только `arm64-v8a` Release AAR с двумя workers. Pinned Extensions generator ещё не знает имя `HfJsonTokenizer`, хотя сам op уже входит в GPT2-tokenizer family. Build-only config выбирает ту же family через известное generator имя `GPT2Tokenizer`; deploy graph и runtime contract не меняются. Upstream checkouts не патчатся, лишний standalone Extensions C API не собирается. Released ORT tag собирается с `--compile_no_warning_as_error`: это сохраняет предупреждения в логе, но не ломает воспроизводимую сборку из-за новых диагностик pinned Android NDK.
+
+После сборки `verify_reduced_ort_aar.sh` проверяет exact ARM64 library set, 16 KiB ELF LOAD alignment, AArch64 headers, системные зависимости и наличие публичного ORT API вместе с `HfJsonTokenizer`. AAR и распакованные библиотеки остаются только в `model-lab`.
+
+`prepare-android-kat` сохраняет synthetic raw inputs, cross-platform reference outputs, tensor contracts и exact model identities в локальный `android-kat`. `run_reduced_ort_android_smoke.sh` требует одно подключённое ARM64-устройство, включает test-only Gradle module только через explicit `NAYTI_ORT_AAR`, проверяет ELF/APK ZIP alignment, потоково помещает KAT и семь models в private app storage, запускает их последовательно и всегда очищает временные bytes/package. Ожидаемый page size можно зафиксировать через `NAYTI_EXPECTED_PAGE_SIZE`.
 
 Непинованные revisions, глобальный Hugging Face cache и пользовательские фотографии в этом toolchain запрещены.

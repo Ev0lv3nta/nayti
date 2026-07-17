@@ -23,7 +23,7 @@ python3 -m unittest discover -s scripts/tests
 PYTHONPATH=model-tools/src python3 -m unittest discover -s model-tools/tests
 
 debug_apk="app/build/outputs/apk/debug/app-debug.apk"
-python3 scripts/verify_native_page_size.py "$debug_apk"
+python3 scripts/verify_native_page_size.py "$debug_apk" --check-zip-alignment
 
 sdk_root="${ANDROID_SDK_ROOT:-}"
 if [[ -z "$sdk_root" ]] && [[ -f local.properties ]]; then
@@ -41,8 +41,14 @@ if [[ -z "$zipalign_bin" ]]; then
   echo "Android SDK zipalign is required for the 16 KiB APK check." >&2
   exit 1
 fi
-"$zipalign_bin" -c -P 16 -v 4 "$debug_apk" >/dev/null
-echo "APK ZIP alignment supports 16 KiB pages."
+if "$zipalign_bin" -c -P 16 -v 4 "$debug_apk" >/dev/null 2>&1; then
+  echo "APK ZIP alignment supports 16 KiB pages (zipalign + portable parser)."
+elif [[ "$(uname -m)" == "arm64" ]] && file "$zipalign_bin" | grep -q 'x86_64'; then
+  echo "APK ZIP alignment supports 16 KiB pages (portable parser; Rosetta unavailable)."
+else
+  echo "Android SDK zipalign rejected the APK." >&2
+  exit 1
+fi
 
 if [[ "${NAYTI_SKIP_HOST_NATIVE_TESTS:-0}" != "1" ]]; then
   cmake_bin="${CMAKE_BIN:-}"

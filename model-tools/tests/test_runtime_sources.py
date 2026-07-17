@@ -8,6 +8,9 @@ import unittest
 
 MANIFEST = Path(__file__).parents[1] / "manifests" / "runtime-sources.v1.json"
 BUILD_SCRIPT = Path(__file__).parents[1] / "scripts" / "build_ortx_validation.sh"
+ANDROID_BUILD_SCRIPT = Path(__file__).parents[1] / "scripts" / "build_reduced_ort_android.sh"
+ANDROID_VERIFY_SCRIPT = Path(__file__).parents[1] / "scripts" / "verify_reduced_ort_aar.sh"
+ANDROID_SMOKE_SCRIPT = Path(__file__).parents[1] / "scripts" / "run_reduced_ort_android_smoke.sh"
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}")
 
 
@@ -28,6 +31,33 @@ class RuntimeSourcesTest(unittest.TestCase):
         build_script = BUILD_SCRIPT.read_text(encoding="utf-8")
         self.assertIn(extensions["revision"], build_script)
         self.assertIn(extensions["pythonBuildVersion"], build_script)
+
+        android_build_script = ANDROID_BUILD_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn(manifest["onnxRuntime"]["revision"], android_build_script)
+        self.assertIn(extensions["revision"], android_build_script)
+        self.assertIn("--parallel \"$workers\"", android_build_script)
+        self.assertIn("--compile_no_warning_as_error", android_build_script)
+        self.assertIn("ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON", android_build_script)
+        self.assertIn("--minimal_build custom_ops", android_build_script)
+        self.assertIn('print "ai.onnx.contrib;1;GPT2Tokenizer"', android_build_script)
+        self.assertIn("OCOS_ENABLE_C_API=OFF", android_build_script)
+        self.assertIn('cmp -s "$build_operator_config_tmp"', android_build_script)
+        self.assertIn(
+            'Release/java/build/android/outputs/aar/onnxruntime-release.aar',
+            android_build_script,
+        )
+
+        android_verify_script = ANDROID_VERIFY_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("HfJsonTokenizer", android_verify_script)
+        self.assertIn("OrtGetApiBase", android_verify_script)
+        self.assertIn("--native-root jni", android_verify_script)
+        self.assertIn("llvm-readobj", android_verify_script)
+
+        android_smoke_script = ANDROID_SMOKE_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn(":model-runtime-proof:assembleDebug", android_smoke_script)
+        self.assertIn("--check-zip-alignment", android_smoke_script)
+        self.assertIn("NAYTI_EXPECTED_PAGE_SIZE", android_smoke_script)
+        self.assertIn("OK (1 test)", android_smoke_script)
 
 
 if __name__ == "__main__":

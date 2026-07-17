@@ -38,6 +38,20 @@ def main() -> None:
     )
     siglip2_tokenizer.add_argument("--force", action="store_true")
     subparsers.add_parser("verify-ocr", help="verify official PaddleOCR graphs and contracts")
+    convert_ort = subparsers.add_parser(
+        "convert-ort",
+        help="convert the seven verified deployment graphs to fixed ARM ORT format",
+    )
+    convert_ort.add_argument("--force", action="store_true")
+    subparsers.add_parser(
+        "verify-ort",
+        help="execute every ONNX and ORT graph and compare their outputs",
+    )
+    android_kat = subparsers.add_parser(
+        "prepare-android-kat",
+        help="create deterministic Android inputs and known-answer ORT outputs",
+    )
+    android_kat.add_argument("--force", action="store_true")
     args = parser.parse_args()
 
     manifest = load_manifest(args.manifest.resolve())
@@ -89,6 +103,24 @@ def main() -> None:
 
         report = verify_ocr(manifest, lab_root)
         print(f"verified PaddleOCR contracts: {report}")
+        return
+    if args.command == "convert-ort":
+        from .convert_ort import convert_models_to_ort
+
+        report = convert_models_to_ort(lab_root, args.force)
+        print(f"converted seven ARM ORT graphs: {report}")
+        return
+    if args.command == "verify-ort":
+        from .convert_ort import verify_ort_models
+
+        report = verify_ort_models(lab_root)
+        print(f"verified seven ARM ORT graphs: {report}")
+        return
+    if args.command == "prepare-android-kat":
+        from .convert_ort import prepare_android_kat
+
+        manifest_path = prepare_android_kat(lab_root, args.force)
+        print(f"prepared Android known-answer bundle: {manifest_path}")
         return
     raise AssertionError(f"unhandled command: {args.command}")
 

@@ -292,30 +292,52 @@ interface OcrDao {
         componentHash: String,
         limit: Int,
     ): OcrCandidateSnapshot {
+        val epoch = publicationClock()?.lastEpoch ?: 0
+        return candidateSnapshotAt(
+            lexicalMatchQuery = lexicalMatchQuery,
+            trigramMatchQuery = trigramMatchQuery,
+            pipelineVersion = pipelineVersion,
+            componentHash = componentHash,
+            maximumPublicationEpoch = epoch,
+            limit = limit,
+        )
+    }
+
+    @Transaction
+    suspend fun candidateSnapshotAt(
+        lexicalMatchQuery: String?,
+        trigramMatchQuery: String?,
+        pipelineVersion: String,
+        componentHash: String,
+        maximumPublicationEpoch: Long,
+        limit: Int,
+    ): OcrCandidateSnapshot {
         require(lexicalMatchQuery != null || trigramMatchQuery != null)
         lexicalMatchQuery?.let { query ->
-            validateSearch(query, pipelineVersion, componentHash, 0, limit)
+            validateSearch(query, pipelineVersion, componentHash, maximumPublicationEpoch, limit)
         }
         trigramMatchQuery?.let { query ->
-            validateSearch(query, pipelineVersion, componentHash, 0, limit)
+            validateSearch(query, pipelineVersion, componentHash, maximumPublicationEpoch, limit)
         }
-        val epoch = publicationClock()?.lastEpoch ?: 0
+        require(maximumPublicationEpoch <= (publicationClock()?.lastEpoch ?: 0))
         val lexical =
             lexicalMatchQuery?.let { query ->
-                lexicalCandidatesRow(query, pipelineVersion, componentHash, epoch, limit)
+                lexicalCandidatesRow(query, pipelineVersion, componentHash, maximumPublicationEpoch, limit)
             }.orEmpty()
         val trigram =
             trigramMatchQuery?.let { query ->
-                trigramCandidatesRow(query, pipelineVersion, componentHash, epoch, limit)
+                trigramCandidatesRow(query, pipelineVersion, componentHash, maximumPublicationEpoch, limit)
             }.orEmpty()
         val assetIds = (lexical.map(OcrLexicalCandidate::assetId) + trigram.map(OcrLexicalCandidate::assetId)).distinct()
-        if (assetIds.isEmpty()) return OcrCandidateSnapshot(epoch, lexical, trigram, emptyList(), emptyList())
-        val documents = eligibleDocuments(assetIds, pipelineVersion, componentHash, epoch)
+        if (assetIds.isEmpty()) {
+            return OcrCandidateSnapshot(maximumPublicationEpoch, lexical, trigram, emptyList(), emptyList())
+        }
+        val documents = eligibleDocuments(assetIds, pipelineVersion, componentHash, maximumPublicationEpoch)
         val eligibleIds = documents.map(OcrDocumentEntity::assetId)
         val filteredLexical = lexical.filter { candidate -> candidate.assetId in eligibleIds }
         val filteredTrigram = trigram.filter { candidate -> candidate.assetId in eligibleIds }
         return OcrCandidateSnapshot(
-            maximumPublicationEpoch = epoch,
+            maximumPublicationEpoch = maximumPublicationEpoch,
             lexicalCandidates = filteredLexical,
             trigramCandidates = filteredTrigram,
             documents = documents,

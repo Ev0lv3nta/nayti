@@ -13,6 +13,7 @@
     <string name="search_waiting_model_pack">Импортируйте подписанный model pack на вкладке «Данные».</string>
     <string name="search_action">Найти</string>
     <string name="search_failed">Поиск остановлен: %1$s</string>
+    <string name="search_lexical_only">Поиск по смыслу ещё готовится; сейчас показаны совпадения по тексту.</string>
     <plurals name="search_result_count">
         <item quantity="one">Найден %1$d результат</item>
         <item quantity="few">Найдено %1$d результата</item>
@@ -24,6 +25,7 @@
     <string name="evidence_person">Совпадение имени</string>
     <string name="evidence_text">Совпадение текста</string>
     <string name="evidence_fuzzy">Похожее написание</string>
+    <string name="evidence_semantic">Текст по смыслу</string>
     <string name="library_not_connected">Медиатека пока не подключена</string>
     <string name="library_not_connected_details">Nayti попросит доступ только к фотографиям и покажет, что уже готово к поиску.</string>
     <string name="library_connected">Медиатека подключена</string>

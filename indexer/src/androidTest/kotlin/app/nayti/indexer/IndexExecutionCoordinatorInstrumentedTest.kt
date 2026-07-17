@@ -115,6 +115,45 @@ class IndexExecutionCoordinatorInstrumentedTest {
     }
 
     @Test
+    fun oneOperationCanRunInSeparateModelBoundChannelWindows() = runBlocking {
+        insertAsset(mediaStoreId = 1)
+        storage.catalogDao.recordAccessObservation("Full", AccessRevision, 1)
+        val clock = MutableClock(10)
+        val request =
+            request(
+                IndexChannelContract(IndexChannel.OCR, 0, "ocr-v1", ComponentHash),
+                IndexChannelContract(IndexChannel.OCR_SEMANTIC, 1, "semantic-v1", ComponentHash),
+            )
+        val operation = coordinator(clock, "planner", emptyMap()).planOperation(request)
+
+        val ocr = DeterministicExecutor(storage.indexStateDao, clock)
+        val ocrCoordinator = coordinator(clock, "ocr-phase", mapOf(IndexChannel.OCR to ocr))
+        val ocrWindow = ocrCoordinator.startExecutionWindow(operation.operationId, "TEST", 1_000)
+        val ocrReport =
+            ocrCoordinator.runWindow(
+                ocrWindow.windowId,
+                itemLimit = 1,
+                channelsToRun = setOf(IndexChannel.OCR),
+            )
+        assertEquals(1, ocrReport.published)
+        assertEquals(IndexWorkState.PENDING, storage.indexStateDao.work(1, IndexChannel.OCR_SEMANTIC)?.state)
+
+        val semantic = DeterministicExecutor(storage.indexStateDao, clock)
+        val semanticCoordinator =
+            coordinator(clock, "semantic-phase", mapOf(IndexChannel.OCR_SEMANTIC to semantic))
+        val semanticWindow = semanticCoordinator.startExecutionWindow(operation.operationId, "TEST", 1_000)
+        val semanticReport =
+            semanticCoordinator.runWindow(
+                semanticWindow.windowId,
+                itemLimit = 1,
+                channelsToRun = setOf(IndexChannel.OCR_SEMANTIC),
+            )
+
+        assertEquals(1, semanticReport.published)
+        assertEquals(IndexOperationState.COMPLETED, storage.indexStateDao.operation(OperationId)?.state)
+    }
+
+    @Test
     fun permanentItemFailureCompletesWithVisibleGapAndLedgerEvidence() = runBlocking {
         insertAsset(mediaStoreId = 1)
         storage.catalogDao.recordAccessObservation("Full", AccessRevision, 1)
@@ -150,17 +189,19 @@ class IndexExecutionCoordinatorInstrumentedTest {
     }
 
     @Test
-    fun missingExecutorIsRejectedBeforeOperationOrClaimsExist() = runBlocking {
+    fun planningIsExecutorIndependentButExecutionRejectsMissingChannelBeforeClaims() = runBlocking {
         insertAsset(mediaStoreId = 1)
         storage.catalogDao.recordAccessObservation("Full", AccessRevision, 1)
         val coordinator = coordinator(MutableClock(10), "missing", emptyMap())
         val request = request(IndexChannelContract(IndexChannel.VISUAL, 0, "visual-v1", ComponentHash))
+        val operation = coordinator.planOperation(request)
+        val window = coordinator.startExecutionWindow(operation.operationId, "TEST", 1_000)
 
-        val failure = runCatching { coordinator.planOperation(request) }.exceptionOrNull()
+        val failure = runCatching { coordinator.runWindow(window.windowId) }.exceptionOrNull()
 
-        assertTrue(failure is IllegalArgumentException)
-        assertNull(storage.indexStateDao.operation(OperationId))
-        assertTrue(storage.indexStateDao.workStateCounts().isEmpty())
+        assertTrue(failure is IllegalStateException)
+        assertEquals(IndexWorkState.PENDING, storage.indexStateDao.work(1, IndexChannel.VISUAL)?.state)
+        assertTrue(storage.indexStateDao.publication(1, IndexChannel.VISUAL) == null)
     }
 
     @Test

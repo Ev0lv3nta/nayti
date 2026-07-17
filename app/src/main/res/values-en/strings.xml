@@ -13,6 +13,7 @@
     <string name="search_waiting_model_pack">Import a signed model pack on the Data tab.</string>
     <string name="search_action">Search</string>
     <string name="search_failed">Search stopped: %1$s</string>
+    <string name="search_lexical_only">Meaning-based search is still being prepared; these results match the text.</string>
     <plurals name="search_result_count">
         <item quantity="one">%1$d result found</item>
         <item quantity="other">%1$d results found</item>
@@ -22,6 +23,7 @@
     <string name="evidence_person">Person name match</string>
     <string name="evidence_text">Text match</string>
     <string name="evidence_fuzzy">Similar spelling</string>
+    <string name="evidence_semantic">Meaning of the text</string>
     <string name="library_not_connected">Your library is not connected yet</string>
     <string name="library_not_connected_details">Nayti will request access to photos only and show what is already searchable.</string>
     <string name="library_connected">Library connected</string>

@@ -65,12 +65,13 @@ class VectorCompactionStore(
         val endExclusive = Math.addExact(request.firstSegmentOrdinal, request.segmentCount)
         require(endExclusive <= parentEntries.size)
         val selectedEntries = parentEntries.subList(request.firstSegmentOrdinal, endExclusive)
-        val selectedRecordCount = selectedEntries.sumOf { entry -> checkNotNull(dao.segment(entry.segmentSha256)).recordCount }
+        val selectedArtifacts = selectedEntries.map { entry -> checkNotNull(dao.segment(entry.segmentSha256)) }
+        check(selectedArtifacts.map { it.compactionLevel }.distinct().size == 1)
+        val selectedRecordCount = selectedArtifacts.sumOf { artifact -> artifact.recordCount }
         require(selectedRecordCount in 1..VectorSegmentV1Writer.MaximumRecordCount)
 
         val compactedRecords = mutableListOf<PublishedVectorRecord>()
-        selectedEntries.forEach { entry ->
-            val artifact = checkNotNull(dao.segment(entry.segmentSha256))
+        selectedArtifacts.forEach { artifact ->
             check(artifact.channel == generation.channel)
             check(artifact.embeddingSpaceHash == generation.embeddingSpaceHash)
             check(artifact.dimension == generation.dimension)
@@ -100,6 +101,7 @@ class VectorCompactionStore(
                     chunkOrdinal = record.ordinal,
                     sourceFingerprint = stored.sourceFingerprint,
                     vector = record.vector,
+                    semanticChunkId = stored.semanticChunkId,
                 )
             }
         }
@@ -134,6 +136,7 @@ class VectorCompactionStore(
                     dimension = generation.dimension,
                     recordCount = compactedRecords.size,
                     createdAtMillis = nowMillis(),
+                    compactionLevel = Math.incrementExact(selectedArtifacts.first().compactionLevel),
                 ),
             )
             parentEntries.drop(endExclusive).forEach { add(checkNotNull(dao.segment(it.segmentSha256))) }
@@ -173,6 +176,7 @@ class VectorCompactionStore(
                 assetId = record.assetId,
                 sourceFingerprint = record.sourceFingerprint,
                 chunkOrdinal = record.chunkOrdinal,
+                semanticChunkId = record.semanticChunkId,
             )
         }
         val manifest = VectorManifestEntity(

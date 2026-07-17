@@ -293,6 +293,53 @@ class VectorPublicationStoreInstrumentedTest {
         }
     }
 
+    @Test
+    fun expiredLeaseIsTypedRejectionAndSealedOrphanIsRecoverable() = runBlocking {
+        val assetId = insertAsset(999)
+        val lease = stageRunningWork(assetId, "expired-lease")
+        now += 20_000
+
+        val failure = runCatching { store().publish(request(999, assetId, lease)) }.exceptionOrNull()
+
+        assertTrue(failure is VectorPublicationLeaseRejectedException)
+        assertNull(storage.vectorIndexDao.publication("publication-999"))
+        assertNull(storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(1, root.resolve("segments").listFiles().orEmpty().size)
+        val recovery =
+            IndexStartupRecovery(root, storage.indexStateDao, storage.vectorIndexDao).recover(
+                nowMillis = now,
+                orphanGraceMillis = 0,
+                deepVerifySegments = true,
+            )
+        assertEquals(1, recovery.vector.deletedOrphans)
+        assertTrue(root.resolve("segments").listFiles().orEmpty().isEmpty())
+    }
+
+    @Test
+    fun newEmbeddingGenerationStartsFreshManifestFromActiveSnapshot() = runBlocking {
+        val firstAsset = insertAsset(1)
+        val first = store().publish(request(1_001, firstAsset, stageRunningWork(firstAsset, "first-generation")))
+        val secondGeneration = generation().copy(
+            generationId = SecondGenerationId,
+            embeddingSpaceHash = SecondEmbeddingHash,
+        )
+        storage.vectorIndexDao.createGeneration(secondGeneration)
+        now += 100
+        val secondAsset = insertAsset(2)
+        val second =
+            store().publish(
+                request(1_002, secondAsset, stageRunningWork(secondAsset, "second-generation")).copy(
+                    generationId = SecondGenerationId,
+                ),
+            )
+
+        assertEquals(first.snapshotId, second.parentSnapshotId)
+        val manifest = checkNotNull(storage.vectorIndexDao.manifest(checkNotNull(second.visualManifestRevision)))
+        assertNull(manifest.parentRevision)
+        assertEquals(SecondGenerationId, manifest.generationId)
+        assertEquals(1, storage.vectorIndexDao.manifestSegments(manifest.revision).size)
+    }
+
     private fun store(observer: (VectorPublicationBoundary) -> Unit = {}) =
         VectorPublicationStore(root, storage.vectorIndexDao, { now }, observer)
 
@@ -434,9 +481,11 @@ class VectorPublicationStoreInstrumentedTest {
         const val PackId = "nayti-offline-search"
         const val PackVersion = "0.1.0-alpha.1"
         const val GenerationId = "visual-generation-1"
+        const val SecondGenerationId = "visual-generation-2"
         const val Dimension = 8
         const val ComponentHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         const val EmbeddingHash = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        const val SecondEmbeddingHash = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
         const val PackManifestHash = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
         const val CrashIterations = 100
         val Boundaries = VectorPublicationBoundary.entries

@@ -27,6 +27,9 @@ import kotlinx.coroutines.Dispatchers
         OcrRegionEntity::class,
         OcrLexicalFtsEntity::class,
         OcrTrigramFtsEntity::class,
+        OcrSemanticChunkSetEntity::class,
+        OcrSemanticChunkEntity::class,
+        OcrSemanticChunkLineEntity::class,
         VectorGenerationEntity::class,
         VectorSegmentArtifactEntity::class,
         VectorSegmentRecordEntity::class,
@@ -38,7 +41,7 @@ import kotlinx.coroutines.Dispatchers
         VectorPublicationEntity::class,
         ArtifactDeleteIntentEntity::class,
     ],
-    version = StorageContract.InitialSchemaVersion,
+    version = StorageContract.CurrentSchemaVersion,
     exportSchema = true,
 )
 abstract class NaytiDatabase : RoomDatabase() {
@@ -46,6 +49,7 @@ abstract class NaytiDatabase : RoomDatabase() {
     abstract fun modelPackDao(): ModelPackDao
     abstract fun indexStateDao(): IndexStateDao
     abstract fun ocrDao(): OcrDao
+    abstract fun ocrSemanticDao(): OcrSemanticDao
     abstract fun vectorIndexDao(): VectorIndexDao
 
     companion object {
@@ -55,6 +59,7 @@ abstract class NaytiDatabase : RoomDatabase() {
                 NaytiDatabase::class.java,
                 StorageContract.DatabaseFileName,
             ).setDriver(BundledSQLiteDriver())
+                .addMigrations(*StorageMigrations.All)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
                 .setMultipleConnectionPool(maxNumOfReaders = 4, maxNumOfWriters = 1)
                 .setQueryCoroutineContext(Dispatchers.IO)
@@ -69,6 +74,7 @@ class CatalogStorage private constructor(
     val modelPackDao: ModelPackDao = database.modelPackDao()
     val indexStateDao: IndexStateDao = database.indexStateDao()
     val ocrDao: OcrDao = database.ocrDao()
+    val ocrSemanticDao: OcrSemanticDao = database.ocrSemanticDao()
     val vectorIndexDao: VectorIndexDao = database.vectorIndexDao()
 
     override fun close() {

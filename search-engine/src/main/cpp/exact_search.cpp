@@ -108,7 +108,7 @@ ScanError ExactTopKScanner::scan(const SegmentView &segment,
   const auto records = segment.records();
   for (std::size_t index = 0; index < records.size(); ++index) {
     const auto &record = records[index];
-    if (filter != nullptr && !filter(record.asset_id, filter_context)) {
+    if (filter != nullptr && !filter(record, filter_context)) {
       continue;
     }
     SearchHit hit{

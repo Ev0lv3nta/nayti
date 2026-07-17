@@ -59,6 +59,31 @@ class OcrLexicalSearch(
         return assemble(plan, snapshot, limit)
     }
 
+    suspend fun searchAtEpoch(
+        query: String,
+        pipelineVersion: String,
+        componentHash: String,
+        maximumPublicationEpoch: Long,
+        limit: Int = DefaultLimit,
+    ): OcrLexicalSearchResult {
+        require(limit in 1..MaximumResultLimit)
+        require(maximumPublicationEpoch >= 0)
+        val plan = planner.plan(query)
+        if (plan.intent == LexicalIntent.EMPTY || (plan.ftsMatch == null && plan.trigramMatch == null)) {
+            return OcrLexicalSearchResult(plan.intent, maximumPublicationEpoch, emptyList())
+        }
+        val snapshot =
+            ocr.candidateSnapshotAt(
+                lexicalMatchQuery = plan.ftsMatch,
+                trigramMatchQuery = plan.trigramMatch,
+                pipelineVersion = pipelineVersion,
+                componentHash = componentHash,
+                maximumPublicationEpoch = maximumPublicationEpoch,
+                limit = OcrDao.MaximumCandidates,
+            )
+        return assemble(plan, snapshot, limit)
+    }
+
     internal fun assemble(
         plan: LexicalQueryPlan,
         snapshot: OcrCandidateSnapshot,

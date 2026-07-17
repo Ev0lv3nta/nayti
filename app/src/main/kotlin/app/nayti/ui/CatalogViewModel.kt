@@ -10,10 +10,11 @@ import app.nayti.indexer.CatalogRuntimeState
 import app.nayti.indexer.ModelPackRuntime
 import app.nayti.indexer.ModelPackRuntimeState
 import app.nayti.indexer.ModelPackRuntimeStatus
-import app.nayti.indexer.OcrLexicalHit
-import app.nayti.indexer.OcrLexicalSearch
+import app.nayti.indexer.HybridOcrHit
+import app.nayti.indexer.OcrHybridSearch
 import app.nayti.indexer.OcrIndexingRuntime
 import app.nayti.indexer.OcrIndexingState
+import app.nayti.indexer.OcrSemanticSearchStatus
 import app.nayti.platform.media.DecodedMediaImage
 import app.nayti.ml.runtime.pack.SafModelPackSource
 import app.nayti.storage.CatalogAssetEntity
@@ -46,7 +47,7 @@ sealed interface ViewerProbeState {
 
 data class SearchResultItem(
     val asset: CatalogAssetEntity,
-    val hit: OcrLexicalHit,
+    val hit: HybridOcrHit,
 )
 
 sealed interface SearchUiState {
@@ -54,7 +55,11 @@ sealed interface SearchUiState {
 
     data object Searching : SearchUiState
 
-    data class Ready(val query: String, val results: List<SearchResultItem>) : SearchUiState
+    data class Ready(
+        val query: String,
+        val results: List<SearchResultItem>,
+        val semanticStatus: OcrSemanticSearchStatus,
+    ) : SearchUiState
 
     data class Failed(val code: String) : SearchUiState
 }
@@ -64,6 +69,7 @@ class CatalogViewModel @Inject constructor(
     private val runtime: CatalogRuntime,
     private val modelPacks: ModelPackRuntime,
     private val ocrIndexing: OcrIndexingRuntime,
+    private val hybridSearch: OcrHybridSearch,
     private val indexingService: IndexingServiceController,
     private val storage: CatalogStorage,
     @param:ApplicationContext private val context: Context,
@@ -180,16 +186,16 @@ class CatalogViewModel @Inject constructor(
         viewModelScope.launch {
             val result =
                 try {
-                    val hits =
-                        OcrLexicalSearch(storage.ocrDao).search(
+                    val searchResult =
+                        hybridSearch.search(
                             query = normalizedQuery,
                             pipelineVersion = OcrIndexingRuntime.PipelineVersion,
-                            componentHash = pack.manifestSha256,
-                        ).hits
-                    val hydrated = hits.mapNotNull { hit ->
+                            fallbackComponentHash = pack.manifestSha256,
+                        )
+                    val hydrated = searchResult.hits.mapNotNull { hit ->
                         storage.catalogDao.asset(hit.assetId)?.let { asset -> SearchResultItem(asset, hit) }
                     }
-                    SearchUiState.Ready(normalizedQuery, hydrated)
+                    SearchUiState.Ready(normalizedQuery, hydrated, searchResult.semanticStatus)
                 } catch (failure: Exception) {
                     SearchUiState.Failed(failure::class.java.simpleName.uppercase())
                 }

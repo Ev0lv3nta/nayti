@@ -21,16 +21,26 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@RunWith(AndroidJUnit4::class)
-class ReducedOrtInstrumentedTest {
-    @Test
-    fun runsEveryGraphWithPinnedReducedRuntime() {
-        val arguments = InstrumentationRegistry.getArguments()
-        val rootArgument = requireNotNull(arguments.getString("katRoot")) {
-            "instrumentation argument katRoot is required"
-        }
-        val root = File(rootArgument).canonicalFile
-        val manifestFile = resolveChild(root, "manifest.json")
+internal class OrtKnownAnswerGate {
+    fun validateDirectBundle(root: File) {
+        val canonicalRoot = root.canonicalFile
+        validate(
+            modelRoot = canonicalRoot,
+            fixtureRoot = canonicalRoot,
+            manifestFile = resolveChild(canonicalRoot, "manifest.json"),
+        )
+    }
+
+    fun validatePackPayload(payloadRoot: File) {
+        val canonicalRoot = payloadRoot.canonicalFile
+        validate(
+            modelRoot = resolveChild(canonicalRoot, "models"),
+            fixtureRoot = resolveChild(canonicalRoot, "tests"),
+            manifestFile = resolveChild(canonicalRoot, "tests/manifest.json"),
+        )
+    }
+
+    private fun validate(modelRoot: File, fixtureRoot: File, manifestFile: File) {
         val manifest = JSONObject(manifestFile.readText(Charsets.UTF_8))
 
         assertEquals(2, manifest.getInt("schemaVersion"))
@@ -45,18 +55,19 @@ class ReducedOrtInstrumentedTest {
         environment.setTelemetry(false)
 
         for (modelName in MODEL_ORDER) {
-            runModel(environment, root, modelName, models.getJSONObject(modelName))
+            runModel(environment, modelRoot, fixtureRoot, modelName, models.getJSONObject(modelName))
         }
     }
 
     private fun runModel(
         environment: OrtEnvironment,
-        root: File,
+        modelRoot: File,
+        fixtureRoot: File,
         modelName: String,
         contract: JSONObject,
     ) {
         val modelContract = contract.getJSONObject("model")
-        val modelFile = resolveChild(root, modelContract.getString("path"))
+        val modelFile = resolveChild(modelRoot, modelContract.getString("path"))
         assertFileIdentity(modelFile, modelContract)
 
         OrtSession.SessionOptions().use { options ->
@@ -71,12 +82,12 @@ class ReducedOrtInstrumentedTest {
                     for (inputName in session.inputNames.sorted()) {
                         feeds[inputName] = createInput(
                             environment,
-                            root,
+                            fixtureRoot,
                             inputContracts.getJSONObject(inputName),
                         )
                     }
                     session.run(feeds).use { result ->
-                        verifyOutputs(modelName, root, contract.getJSONArray("outputs"), result)
+                        verifyOutputs(modelName, fixtureRoot, contract.getJSONArray("outputs"), result)
                     }
                 } finally {
                     feeds.values.forEach(OnnxTensor::close)
@@ -310,5 +321,16 @@ class ReducedOrtInstrumentedTest {
             "user2_encoder",
             "user2_tokenizer",
         )
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+class ReducedOrtInstrumentedTest {
+    @Test
+    fun runsEveryGraphWithPinnedReducedRuntime() {
+        val rootArgument = requireNotNull(InstrumentationRegistry.getArguments().getString("katRoot")) {
+            "instrumentation argument katRoot is required"
+        }
+        OrtKnownAnswerGate().validateDirectBundle(File(rootArgument))
     }
 }

@@ -29,6 +29,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":ml-runtime"))
     implementation(files(reducedOrtAar))
     implementation(libs.androidx.test.ext.junit)
     implementation(libs.androidx.test.runner)

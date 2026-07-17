@@ -15,6 +15,7 @@ import app.nayti.storage.IndexOperationState
 import app.nayti.storage.IndexStateDao
 import app.nayti.storage.IndexWorkState
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 
 data class IndexChannelContract(
     val channel: String,
@@ -54,6 +55,10 @@ fun interface IndexCoordinatorClock {
 
 fun interface IndexIdFactory {
     fun create(purpose: String): String
+}
+
+fun interface IndexExecutionControl {
+    fun shouldContinue(): Boolean
 }
 
 data class IndexExecutionReport(
@@ -111,6 +116,7 @@ class IndexExecutionCoordinator(
     suspend fun runWindow(
         windowId: String,
         itemLimit: Int = DefaultWindowItemLimit,
+        control: IndexExecutionControl = ContinueExecution,
     ): IndexExecutionReport {
         require(itemLimit in 1..MaximumWindowItemLimit)
         val window = checkNotNull(indexState.executionWindow(windowId))
@@ -125,76 +131,94 @@ class IndexExecutionCoordinator(
         var retryable = 0
         var permanent = 0
         var rejected = 0
-        while (claimedCount < itemLimit) {
-            var madeProgress = false
-            for (target in channels) {
-                val remaining = itemLimit - claimedCount
-                if (remaining == 0) break
-                val now = clock.nowMillis()
-                val claims =
-                    indexState.claimBatch(
-                        windowId = windowId,
-                        channel = target.channel,
-                        claimNonce = ids.create("claim"),
-                        nowMillis = now,
-                        leaseDurationMillis = DefaultItemLeaseMillis,
-                        limit = minOf(DefaultClaimBatchSize, remaining),
-                    )
-                if (claims.isEmpty()) continue
-                madeProgress = true
-                claimedCount += claims.size
-                val executor = checkNotNull(executors[target.channel])
-                for (work in claims) {
-                    val context = IndexClaimContext(work, ids.create("publication"))
-                    when (val outcome = executor.execute(context)) {
-                        IndexExecutionOutcome.Published -> {
-                            val committed = checkNotNull(indexState.work(work.assetId, work.channel))
-                            check(committed.state == IndexWorkState.DONE)
-                            check(committed.publicationToken == context.publicationToken)
-                            indexState.resolveItemErrors(work.assetId, work.channel, clock.nowMillis())
-                            published += 1
-                        }
-                        IndexExecutionOutcome.LeaseRejected -> rejected += 1
-                        is IndexExecutionOutcome.Retryable -> {
-                            val failureState =
-                                indexState.recordFailure(
-                                    leaseToken = checkNotNull(work.leaseToken),
-                                    errorCode = outcome.errorCode,
-                                    nextEligibleAtMillis = retryAt(work.attempt, clock.nowMillis()),
-                                    nowMillis = clock.nowMillis(),
-                                )
-                            when (failureState) {
-                                IndexWorkState.PERMANENT_ERROR -> permanent += 1
-                                IndexWorkState.RETRYABLE_ERROR -> retryable += 1
-                                null -> rejected += 1
-                                else -> error("Unexpected failure state: $failureState")
+        try {
+            while (claimedCount < itemLimit && control.shouldContinue()) {
+                var madeProgress = false
+                for (target in channels) {
+                    if (!control.shouldContinue()) break
+                    val remaining = itemLimit - claimedCount
+                    if (remaining == 0) break
+                    val now = clock.nowMillis()
+                    val claims =
+                        indexState.claimBatch(
+                            windowId = windowId,
+                            channel = target.channel,
+                            claimNonce = ids.create("claim"),
+                            nowMillis = now,
+                            leaseDurationMillis = DefaultItemLeaseMillis,
+                            limit = minOf(DefaultClaimBatchSize, remaining),
+                        )
+                    if (claims.isEmpty()) continue
+                    madeProgress = true
+                    claimedCount += claims.size
+                    val executor = checkNotNull(executors[target.channel])
+                    for (work in claims) {
+                        if (!control.shouldContinue()) break
+                        val context = IndexClaimContext(work, ids.create("publication"))
+                        when (val outcome = executor.execute(context)) {
+                            IndexExecutionOutcome.Published -> {
+                                val committed = checkNotNull(indexState.work(work.assetId, work.channel))
+                                check(committed.state == IndexWorkState.DONE)
+                                check(committed.publicationToken == context.publicationToken)
+                                indexState.resolveItemErrors(work.assetId, work.channel, clock.nowMillis())
+                                published += 1
                             }
-                            if (failureState != null) recordItemError(window, work, outcome.errorCode, failureState != IndexWorkState.PERMANENT_ERROR)
-                        }
-                        is IndexExecutionOutcome.Permanent -> {
-                            val nowMillis = clock.nowMillis()
-                            val failureState =
-                                indexState.recordFailure(
-                                    leaseToken = checkNotNull(work.leaseToken),
-                                    errorCode = outcome.errorCode,
-                                    nextEligibleAtMillis = nowMillis,
-                                    nowMillis = nowMillis,
-                                    maximumAttempts = 1,
-                                )
-                            if (failureState == IndexWorkState.PERMANENT_ERROR) permanent += 1 else rejected += 1
-                            if (failureState != null) recordItemError(window, work, outcome.errorCode, retryable = false)
+                            IndexExecutionOutcome.LeaseRejected -> rejected += 1
+                            is IndexExecutionOutcome.Retryable -> {
+                                val failureState =
+                                    indexState.recordFailure(
+                                        leaseToken = checkNotNull(work.leaseToken),
+                                        errorCode = outcome.errorCode,
+                                        nextEligibleAtMillis = retryAt(work.attempt, clock.nowMillis()),
+                                        nowMillis = clock.nowMillis(),
+                                    )
+                                when (failureState) {
+                                    IndexWorkState.PERMANENT_ERROR -> permanent += 1
+                                    IndexWorkState.RETRYABLE_ERROR -> retryable += 1
+                                    null -> rejected += 1
+                                    else -> error("Unexpected failure state: $failureState")
+                                }
+                                if (failureState != null) {
+                                    recordItemError(
+                                        window,
+                                        work,
+                                        outcome.errorCode,
+                                        failureState != IndexWorkState.PERMANENT_ERROR,
+                                    )
+                                }
+                            }
+                            is IndexExecutionOutcome.Permanent -> {
+                                val nowMillis = clock.nowMillis()
+                                val failureState =
+                                    indexState.recordFailure(
+                                        leaseToken = checkNotNull(work.leaseToken),
+                                        errorCode = outcome.errorCode,
+                                        nextEligibleAtMillis = nowMillis,
+                                        nowMillis = nowMillis,
+                                        maximumAttempts = 1,
+                                    )
+                                if (failureState == IndexWorkState.PERMANENT_ERROR) permanent += 1 else rejected += 1
+                                if (failureState != null) {
+                                    recordItemError(window, work, outcome.errorCode, retryable = false)
+                                }
+                            }
                         }
                     }
                 }
+                if (!madeProgress) break
             }
-            if (!madeProgress) break
-        }
-        check(
+        } catch (failure: CancellationException) {
             indexState.stopExecutionWindow(
                 windowId,
-                IndexExecutionWindowState.FINISHED,
+                IndexExecutionWindowState.CANCELLED,
                 clock.nowMillis(),
-            ) == 1,
+            )
+            throw failure
+        }
+        indexState.stopExecutionWindow(
+            windowId,
+            IndexExecutionWindowState.FINISHED,
+            clock.nowMillis(),
         )
         indexState.refreshOperationTerminalState(window.operationId, clock.nowMillis())
         return IndexExecutionReport(claimedCount, published, retryable, permanent, rejected)
@@ -335,5 +359,6 @@ class IndexExecutionCoordinator(
         const val DefaultItemLeaseMillis = 5 * 60 * 1_000L
         const val BaseRetryDelayMillis = 5_000L
         const val MaximumRetryDelayMillis = 5 * 60 * 1_000L
+        val ContinueExecution = IndexExecutionControl { true }
     }
 }

@@ -14,6 +14,10 @@ Room хранит одну запись `index_channel_work` для каждой
 
 Operation отдельно фиксирует exact набор `assetId` и упорядоченные channel contracts, поэтому restart не пересчитывает denominator по уже изменившейся библиотеке. Coordinator требует executor для каждого declared channel до создания operation; скрытых fallback-процессоров нет. Один execution loop обрабатывает claims последовательно, а OCR-semantic становится eligible только после `DONE` OCR того же asset и fingerprint.
 
+Пользовательские и системные остановки меняют durable operation state одной Room transaction. `PAUSED_USER`, `PAUSED_CONSTRAINT`, `WAITING_SYSTEM` и `CANCELLED` сначала переводят все живые windows в `CANCELLED` и возвращают их незавершённые claims в `PENDING`; после transaction поздний inference не может commit. `WAITING_SYSTEM` с `autoResume=false` означает «остановить пока что» и запрещает новый window до явного перехода в `PLANNED`. Терминальные operation нельзя возобновить.
+
+Execution loop получает только process-local cooperative control signal и проверяет его между неделимыми items. Уже выданный небольшой batch не становится второй очередью: неисполненные claims освобождаются при закрытии window. Coroutine cancellation закрывает window немедленно; неожиданный process failure по-прежнему оставляет ограниченные leases для startup recovery, потому что реальный kill не выполняет `finally`.
+
 Committed progress вычисляется join-ом captured operation assets/channels с текущими work rows при точном совпадении fingerprint, pipeline и component hash. Он не хранится вторым счётчиком. Operation становится `COMPLETED` только когда каждый planned item имеет `DONE`, либо `COMPLETED_WITH_GAPS`, если часть items завершилась `PERMANENT_ERROR`; transient и отсутствующие outcomes остаются outstanding.
 
 Покрытие query capability считается отдельно от прогресса конкретной operation. Оно сопоставляет всю текущую доступную библиотеку с точным контрактом channel и делит assets на committed, permanent gaps и outstanding; сумма категорий обязана совпадать с числом доступных assets. Поэтому завершённая старая operation не может ошибочно объявить актуальный индекс полным после изменения MediaStore либо версии модели.
@@ -33,6 +37,7 @@ Committed progress вычисляется join-ом captured operation assets/ch
 
 - process death возвращает только истёкшие leases в `PENDING`, не угадывая состояние из памяти;
 - остановка execution window инвалидирует outstanding work, поэтому поздний native callback не публикует результат;
+- Pause, stop-for-now, constraint pause, resume и cancel не зависят от жизненного цикла конкретного Android host;
 - новый fingerprint, access revision, pipeline или component contract создаёт новое `PENDING` evidence, а прежняя публикация остаётся недействительной для query;
 - три исчерпанных transient attempts становятся видимым `PERMANENT_ERROR`, а не бесконечным retry;
 - publication token имеет глобальную уникальность и не может заменить evidence другого asset;

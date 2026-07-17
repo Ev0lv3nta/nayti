@@ -1,0 +1,37 @@
+<resources>
+    <string name="app_name">Nayti</string>
+    <string name="nav_search">Search</string>
+    <string name="nav_readiness">Readiness</string>
+    <string name="nav_data">Data</string>
+    <string name="local_only">On-device only</string>
+    <string name="search_eyebrow">Local search</string>
+    <string name="search_title">Find what you remember</string>
+    <string name="search_subtitle">Text in a photo, document meaning, or a visual scene — without the cloud.</string>
+    <string name="search_hint">For example, “coffee shop receipt”</string>
+    <string name="search_preparing">Search becomes available after connecting your library.</string>
+    <string name="library_not_connected">Your library is not connected yet</string>
+    <string name="library_not_connected_details">Nayti will request access to photos only and show what is already searchable.</string>
+    <string name="examples_title">What you will be able to find</string>
+    <string name="example_receipt">June receipt</string>
+    <string name="example_seaside">Sunset by the sea</string>
+    <string name="example_contract">Contract with Ivanov</string>
+    <string name="readiness_eyebrow">Index</string>
+    <string name="readiness_title">Search readiness</string>
+    <string name="readiness_subtitle">See how many photos are ready in each search channel.</string>
+    <string name="searchable_photos">Searchable</string>
+    <plurals name="of_discovered">
+        <item quantity="one">of %1$d discovered</item>
+        <item quantity="other">of %1$d discovered</item>
+    </plurals>
+    <string name="first_step_title">First step</string>
+    <string name="first_step_details">Connect your full library or selected photos. Android remains in control of the originals.</string>
+    <string name="connect_library">Connect library</string>
+    <string name="catalog_stage_note">MediaStore access arrives in the next implementation stage.</string>
+    <string name="data_eyebrow">Control</string>
+    <string name="data_title">Data and models</string>
+    <string name="data_subtitle">Manage the local index, model pack, and diagnostics without hidden sync.</string>
+    <string name="privacy_title">Privacy</string>
+    <string name="privacy_details">The app has no INTERNET permission. Photos, OCR text, and queries stay on the device.</string>
+    <string name="model_pack_title">Model pack</string>
+    <string name="model_pack_missing">Not installed. A signed offline pack will be imported separately from the APK.</string>
+</resources>

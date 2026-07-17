@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "3c600e67aae3c248ff64760fb3d1e588",
+    "identityHash": "770bf49f958a0e07301881adf7bb6cdb",
     "entities": [
       {
         "tableName": "catalog_asset",
@@ -447,11 +447,434 @@
             "createSql": "CREATE INDEX IF NOT EXISTS `index_model_pack_status` ON `${TABLE_NAME}` (`status`)"
           }
         ]
+      },
+      {
+        "tableName": "index_operation",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`operationId` TEXT NOT NULL, `profileId` TEXT NOT NULL, `targetPackId` TEXT NOT NULL, `targetPackVersion` TEXT NOT NULL, `denominatorCatalogRevision` INTEGER NOT NULL, `denominatorAssetCount` INTEGER NOT NULL, `state` TEXT NOT NULL, `autoResume` INTEGER NOT NULL, `createdAtMillis` INTEGER NOT NULL, `updatedAtMillis` INTEGER NOT NULL, `completedAtMillis` INTEGER, PRIMARY KEY(`operationId`))",
+        "fields": [
+          {
+            "fieldPath": "operationId",
+            "columnName": "operationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileId",
+            "columnName": "profileId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetPackId",
+            "columnName": "targetPackId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "targetPackVersion",
+            "columnName": "targetPackVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "denominatorCatalogRevision",
+            "columnName": "denominatorCatalogRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "denominatorAssetCount",
+            "columnName": "denominatorAssetCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "autoResume",
+            "columnName": "autoResume",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMillis",
+            "columnName": "createdAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMillis",
+            "columnName": "updatedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAtMillis",
+            "columnName": "completedAtMillis",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "operationId"
+          ]
+        }
+      },
+      {
+        "tableName": "index_execution_window",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`windowId` TEXT NOT NULL, `operationId` TEXT NOT NULL, `hostType` TEXT NOT NULL, `leaseToken` TEXT NOT NULL, `state` TEXT NOT NULL, `startedAtMillis` INTEGER NOT NULL, `expiresAtMillis` INTEGER NOT NULL, `finishedAtMillis` INTEGER, PRIMARY KEY(`windowId`))",
+        "fields": [
+          {
+            "fieldPath": "windowId",
+            "columnName": "windowId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "operationId",
+            "columnName": "operationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hostType",
+            "columnName": "hostType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "leaseToken",
+            "columnName": "leaseToken",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAtMillis",
+            "columnName": "startedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expiresAtMillis",
+            "columnName": "expiresAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "finishedAtMillis",
+            "columnName": "finishedAtMillis",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "windowId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_index_execution_window_operationId_state",
+            "unique": false,
+            "columnNames": [
+              "operationId",
+              "state"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_index_execution_window_operationId_state` ON `${TABLE_NAME}` (`operationId`, `state`)"
+          },
+          {
+            "name": "index_index_execution_window_leaseToken",
+            "unique": true,
+            "columnNames": [
+              "leaseToken"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_index_execution_window_leaseToken` ON `${TABLE_NAME}` (`leaseToken`)"
+          }
+        ]
+      },
+      {
+        "tableName": "index_channel_work",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`assetId` INTEGER NOT NULL, `channel` TEXT NOT NULL, `state` TEXT NOT NULL, `sourceFingerprint` TEXT NOT NULL, `accessRevision` INTEGER NOT NULL, `pipelineVersion` TEXT NOT NULL, `componentHash` TEXT NOT NULL, `attempt` INTEGER NOT NULL, `leaseToken` TEXT, `leaseExpiresAtMillis` INTEGER, `executionWindowId` TEXT, `publicationToken` TEXT, `stagedArtifactPath` TEXT, `stagedArtifactLength` INTEGER, `stagedArtifactSha256` TEXT, `nextEligibleAtMillis` INTEGER, `errorCode` TEXT, `updatedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`assetId`, `channel`))",
+        "fields": [
+          {
+            "fieldPath": "assetId",
+            "columnName": "assetId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "channel",
+            "columnName": "channel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceFingerprint",
+            "columnName": "sourceFingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accessRevision",
+            "columnName": "accessRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pipelineVersion",
+            "columnName": "pipelineVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "componentHash",
+            "columnName": "componentHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attempt",
+            "columnName": "attempt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "leaseToken",
+            "columnName": "leaseToken",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "leaseExpiresAtMillis",
+            "columnName": "leaseExpiresAtMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "executionWindowId",
+            "columnName": "executionWindowId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "publicationToken",
+            "columnName": "publicationToken",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "stagedArtifactPath",
+            "columnName": "stagedArtifactPath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "stagedArtifactLength",
+            "columnName": "stagedArtifactLength",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "stagedArtifactSha256",
+            "columnName": "stagedArtifactSha256",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "nextEligibleAtMillis",
+            "columnName": "nextEligibleAtMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "errorCode",
+            "columnName": "errorCode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "updatedAtMillis",
+            "columnName": "updatedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "assetId",
+            "channel"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_index_channel_work_channel_state_nextEligibleAtMillis",
+            "unique": false,
+            "columnNames": [
+              "channel",
+              "state",
+              "nextEligibleAtMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_index_channel_work_channel_state_nextEligibleAtMillis` ON `${TABLE_NAME}` (`channel`, `state`, `nextEligibleAtMillis`)"
+          },
+          {
+            "name": "index_index_channel_work_leaseToken",
+            "unique": true,
+            "columnNames": [
+              "leaseToken"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_index_channel_work_leaseToken` ON `${TABLE_NAME}` (`leaseToken`)"
+          },
+          {
+            "name": "index_index_channel_work_executionWindowId",
+            "unique": false,
+            "columnNames": [
+              "executionWindowId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_index_channel_work_executionWindowId` ON `${TABLE_NAME}` (`executionWindowId`)"
+          },
+          {
+            "name": "index_index_channel_work_publicationToken",
+            "unique": false,
+            "columnNames": [
+              "publicationToken"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_index_channel_work_publicationToken` ON `${TABLE_NAME}` (`publicationToken`)"
+          }
+        ]
+      },
+      {
+        "tableName": "index_channel_publication",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`assetId` INTEGER NOT NULL, `channel` TEXT NOT NULL, `publicationToken` TEXT NOT NULL, `sourceFingerprint` TEXT NOT NULL, `accessRevision` INTEGER NOT NULL, `pipelineVersion` TEXT NOT NULL, `componentHash` TEXT NOT NULL, `resultSha256` TEXT NOT NULL, `resultLength` INTEGER NOT NULL, `publicationEpoch` INTEGER NOT NULL, `publishedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`assetId`, `channel`))",
+        "fields": [
+          {
+            "fieldPath": "assetId",
+            "columnName": "assetId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "channel",
+            "columnName": "channel",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "publicationToken",
+            "columnName": "publicationToken",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceFingerprint",
+            "columnName": "sourceFingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accessRevision",
+            "columnName": "accessRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pipelineVersion",
+            "columnName": "pipelineVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "componentHash",
+            "columnName": "componentHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "resultSha256",
+            "columnName": "resultSha256",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "resultLength",
+            "columnName": "resultLength",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "publicationEpoch",
+            "columnName": "publicationEpoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "publishedAtMillis",
+            "columnName": "publishedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "assetId",
+            "channel"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_index_channel_publication_publicationToken",
+            "unique": true,
+            "columnNames": [
+              "publicationToken"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_index_channel_publication_publicationToken` ON `${TABLE_NAME}` (`publicationToken`)"
+          }
+        ]
+      },
+      {
+        "tableName": "index_publication_clock",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`singletonId` INTEGER NOT NULL, `lastEpoch` INTEGER NOT NULL, PRIMARY KEY(`singletonId`))",
+        "fields": [
+          {
+            "fieldPath": "singletonId",
+            "columnName": "singletonId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastEpoch",
+            "columnName": "lastEpoch",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "singletonId"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3c600e67aae3c248ff64760fb3d1e588')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '770bf49f958a0e07301881adf7bb6cdb')"
     ]
   }
 }

@@ -15,6 +15,11 @@ import kotlinx.coroutines.Dispatchers
         CatalogAccessObservationEntity::class,
         CatalogWatermarkEntity::class,
         ModelPackEntity::class,
+        IndexOperationEntity::class,
+        IndexExecutionWindowEntity::class,
+        IndexChannelWorkEntity::class,
+        IndexChannelPublicationEntity::class,
+        IndexPublicationClockEntity::class,
     ],
     version = StorageContract.InitialSchemaVersion,
     exportSchema = true,
@@ -22,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 abstract class NaytiDatabase : RoomDatabase() {
     abstract fun catalogDao(): CatalogDao
     abstract fun modelPackDao(): ModelPackDao
+    abstract fun indexStateDao(): IndexStateDao
 
     companion object {
         fun open(context: Context): NaytiDatabase =
@@ -42,6 +48,7 @@ class CatalogStorage private constructor(
 ) : AutoCloseable {
     val catalogDao: CatalogDao = database.catalogDao()
     val modelPackDao: ModelPackDao = database.modelPackDao()
+    val indexStateDao: IndexStateDao = database.indexStateDao()
 
     override fun close() {
         database.close()

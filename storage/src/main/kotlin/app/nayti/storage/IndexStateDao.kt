@@ -175,6 +175,61 @@ interface IndexStateDao {
     @Query("SELECT state, COUNT(*) AS count FROM index_channel_work GROUP BY state ORDER BY state")
     suspend fun workStateCounts(): List<IndexWorkStateCount>
 
+    @Query(
+        "SELECT :operationId AS operationId, " +
+            "(SELECT COUNT(*) FROM index_operation_asset WHERE operationId = :operationId) * " +
+            "(SELECT COUNT(*) FROM index_operation_channel WHERE operationId = :operationId) AS plannedCount, " +
+            "(SELECT COUNT(*) FROM index_operation_asset AS asset " +
+            "CROSS JOIN index_operation_channel AS channel " +
+            "INNER JOIN index_channel_work AS work ON work.assetId = asset.assetId AND work.channel = channel.channel " +
+            "WHERE asset.operationId = :operationId AND channel.operationId = :operationId " +
+            "AND work.sourceFingerprint = asset.sourceFingerprint " +
+            "AND work.pipelineVersion = channel.pipelineVersion AND work.componentHash = channel.componentHash " +
+            "AND work.state = 'DONE') AS committedCount, " +
+            "(SELECT COUNT(*) FROM index_operation_asset AS asset " +
+            "CROSS JOIN index_operation_channel AS channel " +
+            "INNER JOIN index_channel_work AS work ON work.assetId = asset.assetId AND work.channel = channel.channel " +
+            "WHERE asset.operationId = :operationId AND channel.operationId = :operationId " +
+            "AND work.sourceFingerprint = asset.sourceFingerprint " +
+            "AND work.pipelineVersion = channel.pipelineVersion AND work.componentHash = channel.componentHash " +
+            "AND work.state = 'PERMANENT_ERROR') AS permanentGapCount, " +
+            "((SELECT COUNT(*) FROM index_operation_asset WHERE operationId = :operationId) * " +
+            "(SELECT COUNT(*) FROM index_operation_channel WHERE operationId = :operationId) - " +
+            "(SELECT COUNT(*) FROM index_operation_asset AS asset " +
+            "CROSS JOIN index_operation_channel AS channel " +
+            "INNER JOIN index_channel_work AS work ON work.assetId = asset.assetId AND work.channel = channel.channel " +
+            "WHERE asset.operationId = :operationId AND channel.operationId = :operationId " +
+            "AND work.sourceFingerprint = asset.sourceFingerprint " +
+            "AND work.pipelineVersion = channel.pipelineVersion AND work.componentHash = channel.componentHash " +
+            "AND work.state IN ('DONE', 'PERMANENT_ERROR'))) AS outstandingCount",
+    )
+    suspend fun operationProgress(operationId: String): IndexOperationProgress
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertErrorIfAbsent(error: IndexErrorLedgerEntity): Long
+
+    @Query("SELECT * FROM index_error_ledger WHERE errorKey = :errorKey")
+    suspend fun ledgerError(errorKey: String): IndexErrorLedgerEntity?
+
+    @Query(
+        "UPDATE index_error_ledger SET occurrenceCount = occurrenceCount + 1, " +
+            "lastSeenAtMillis = :nowMillis, retryable = retryable AND :retryable, resolvedAtMillis = NULL " +
+            "WHERE errorKey = :errorKey",
+    )
+    suspend fun bumpLedgerError(errorKey: String, retryable: Boolean, nowMillis: Long): Int
+
+    @Query(
+        "UPDATE index_error_ledger SET resolvedAtMillis = :nowMillis " +
+            "WHERE assetId = :assetId AND channel = :channel AND resolvedAtMillis IS NULL",
+    )
+    suspend fun resolveItemErrors(assetId: Long, channel: String, nowMillis: Long): Int
+
+    @Query(
+        "UPDATE index_operation SET state = :state, updatedAtMillis = :nowMillis, completedAtMillis = :nowMillis " +
+            "WHERE operationId = :operationId AND state NOT IN ('CANCELLED', 'COMPLETED', 'COMPLETED_WITH_GAPS')",
+    )
+    suspend fun completeOperationRow(operationId: String, state: String, nowMillis: Long): Int
+
     @Query("SELECT * FROM catalog_asset WHERE assetId = :assetId")
     suspend fun catalogAsset(assetId: Long): CatalogAssetEntity?
 
@@ -442,6 +497,59 @@ interface IndexStateDao {
         return windows to work
     }
 
+    @Transaction
+    suspend fun recordLedgerError(error: IndexErrorLedgerEntity) {
+        require(error.errorKey.length in 1..240 && ErrorKey.matches(error.errorKey))
+        require(error.scope in setOf(IndexErrorScope.ITEM, IndexErrorScope.OPERATION, IndexErrorScope.PROCESS))
+        require(error.operationId == null || identifier(error.operationId))
+        require(error.executionWindowId == null || identifier(error.executionWindowId))
+        require(error.assetId == null || error.assetId > 0)
+        require(error.channel == null || error.channel in IndexChannel.all)
+        require(ErrorCode.matches(error.code))
+        require(error.occurrenceCount == 1)
+        require(error.firstSeenAtMillis == error.lastSeenAtMillis && error.resolvedAtMillis == null)
+        require(
+            error.scope != IndexErrorScope.ITEM ||
+                (error.operationId != null && error.assetId != null && error.channel != null),
+        )
+        val inserted = insertErrorIfAbsent(error)
+        if (inserted == -1L) {
+            val current = checkNotNull(ledgerError(error.errorKey))
+            check(
+                current.copy(
+                    retryable = error.retryable,
+                    occurrenceCount = 1,
+                    firstSeenAtMillis = error.firstSeenAtMillis,
+                    lastSeenAtMillis = error.lastSeenAtMillis,
+                    resolvedAtMillis = null,
+                ) == error,
+            )
+            check(bumpLedgerError(error.errorKey, error.retryable, error.lastSeenAtMillis) == 1)
+        }
+    }
+
+    @Transaction
+    suspend fun refreshOperationTerminalState(operationId: String, nowMillis: Long): IndexOperationProgress {
+        val operation = checkNotNull(operation(operationId))
+        val progress = operationProgress(operationId)
+        check(progress.plannedCount >= 0)
+        check(progress.committedCount >= 0 && progress.permanentGapCount >= 0 && progress.outstandingCount >= 0)
+        check(progress.committedCount + progress.permanentGapCount + progress.outstandingCount == progress.plannedCount)
+        if (
+            progress.outstandingCount == 0L &&
+            operation.state !in setOf(IndexOperationState.CANCELLED, IndexOperationState.COMPLETED, IndexOperationState.COMPLETED_WITH_GAPS)
+        ) {
+            val terminal =
+                if (progress.permanentGapCount == 0L) {
+                    IndexOperationState.COMPLETED
+                } else {
+                    IndexOperationState.COMPLETED_WITH_GAPS
+                }
+            check(completeOperationRow(operationId, terminal, nowMillis) == 1)
+        }
+        return progress
+    }
+
     private fun identifier(value: String): Boolean = value.length in 1..96 && Identifier.matches(value)
 
     private fun contractValue(value: String): Boolean = value.length in 1..128 && ContractValue.matches(value)
@@ -451,6 +559,7 @@ interface IndexStateDao {
         private val ContractValue = Regex("[A-Za-z0-9][A-Za-z0-9._:+/-]*")
         private val Sha256 = Regex("[0-9a-f]{64}")
         private val ErrorCode = Regex("[A-Z][A-Z0-9_]{0,63}")
+        private val ErrorKey = Regex("[A-Za-z0-9][A-Za-z0-9._:-]*")
         const val MaximumLeaseDurationMillis = 15 * 60 * 1_000L
         const val MaximumBatchSize = 256
         const val MaximumClaimNonceLength = 48

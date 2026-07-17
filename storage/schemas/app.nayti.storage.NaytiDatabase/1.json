@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "9306378d42e48ca63272aa371f31a613",
+    "identityHash": "cbe9220eeceef4db22b215e796d1f49b",
     "entities": [
       {
         "tableName": "catalog_asset",
@@ -969,6 +969,118 @@
         }
       },
       {
+        "tableName": "index_error_ledger",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`errorKey` TEXT NOT NULL, `scope` TEXT NOT NULL, `operationId` TEXT, `executionWindowId` TEXT, `assetId` INTEGER, `channel` TEXT, `code` TEXT NOT NULL, `retryable` INTEGER NOT NULL, `occurrenceCount` INTEGER NOT NULL, `firstSeenAtMillis` INTEGER NOT NULL, `lastSeenAtMillis` INTEGER NOT NULL, `resolvedAtMillis` INTEGER, PRIMARY KEY(`errorKey`))",
+        "fields": [
+          {
+            "fieldPath": "errorKey",
+            "columnName": "errorKey",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "scope",
+            "columnName": "scope",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "operationId",
+            "columnName": "operationId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "executionWindowId",
+            "columnName": "executionWindowId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "assetId",
+            "columnName": "assetId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "channel",
+            "columnName": "channel",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "code",
+            "columnName": "code",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "retryable",
+            "columnName": "retryable",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "occurrenceCount",
+            "columnName": "occurrenceCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstSeenAtMillis",
+            "columnName": "firstSeenAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSeenAtMillis",
+            "columnName": "lastSeenAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "resolvedAtMillis",
+            "columnName": "resolvedAtMillis",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "errorKey"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_index_error_ledger_operationId_resolvedAtMillis",
+            "unique": false,
+            "columnNames": [
+              "operationId",
+              "resolvedAtMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_index_error_ledger_operationId_resolvedAtMillis` ON `${TABLE_NAME}` (`operationId`, `resolvedAtMillis`)"
+          },
+          {
+            "name": "index_index_error_ledger_assetId_channel_resolvedAtMillis",
+            "unique": false,
+            "columnNames": [
+              "assetId",
+              "channel",
+              "resolvedAtMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_index_error_ledger_assetId_channel_resolvedAtMillis` ON `${TABLE_NAME}` (`assetId`, `channel`, `resolvedAtMillis`)"
+          },
+          {
+            "name": "index_index_error_ledger_scope_code",
+            "unique": false,
+            "columnNames": [
+              "scope",
+              "code"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_index_error_ledger_scope_code` ON `${TABLE_NAME}` (`scope`, `code`)"
+          }
+        ]
+      },
+      {
         "tableName": "vector_generation",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`generationId` TEXT NOT NULL, `channel` TEXT NOT NULL, `packId` TEXT NOT NULL, `packVersion` TEXT NOT NULL, `pipelineVersion` TEXT NOT NULL, `componentHash` TEXT NOT NULL, `embeddingSpaceHash` TEXT NOT NULL, `dimension` INTEGER NOT NULL, `state` TEXT NOT NULL, `createdAtMillis` INTEGER NOT NULL, `sealedAtMillis` INTEGER, PRIMARY KEY(`generationId`))",
         "fields": [
@@ -1756,7 +1868,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9306378d42e48ca63272aa371f31a613')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'cbe9220eeceef4db22b215e796d1f49b')"
     ]
   }
 }

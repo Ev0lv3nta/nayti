@@ -14,6 +14,10 @@ Room хранит одну запись `index_channel_work` для каждой
 
 Operation отдельно фиксирует exact набор `assetId` и упорядоченные channel contracts, поэтому restart не пересчитывает denominator по уже изменившейся библиотеке. Coordinator требует executor для каждого declared channel до создания operation; скрытых fallback-процессоров нет. Один execution loop обрабатывает claims последовательно, а OCR-semantic становится eligible только после `DONE` OCR того же asset и fingerprint.
 
+Committed progress вычисляется join-ом captured operation assets/channels с текущими work rows при точном совпадении fingerprint, pipeline и component hash. Он не хранится вторым счётчиком. Operation становится `COMPLETED` только когда каждый planned item имеет `DONE`, либо `COMPLETED_WITH_GAPS`, если часть items завершилась `PERMANENT_ERROR`; transient и отсутствующие outcomes остаются outstanding.
+
+Отдельный error ledger агрегирует redacted code по стабильному ключу и различает item, operation и process scope. Work row остаётся источником retry state, а ledger — наблюдаемой историей occurrence/resolution; подробности пользовательского контента туда не записываются.
+
 Перед SQL-publication одна Room transaction повторно сверяет:
 
 - живой lease и его token;

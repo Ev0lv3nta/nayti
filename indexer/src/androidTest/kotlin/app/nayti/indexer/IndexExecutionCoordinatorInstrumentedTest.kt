@@ -7,6 +7,7 @@ import app.nayti.storage.CatalogAssetEntity
 import app.nayti.storage.CatalogAvailability
 import app.nayti.storage.CatalogStorage
 import app.nayti.storage.IndexChannel
+import app.nayti.storage.IndexOperationState
 import app.nayti.storage.IndexStateDao
 import app.nayti.storage.IndexWorkState
 import app.nayti.storage.StorageContract
@@ -73,6 +74,8 @@ class IndexExecutionCoordinatorInstrumentedTest {
         repeat(3) { index ->
             assertTrue(storage.indexStateDao.publication(index + 1L, IndexChannel.OCR) != null)
         }
+        assertEquals(IndexOperationState.COMPLETED, storage.indexStateDao.operation(OperationId)?.state)
+        assertEquals(0L, storage.indexStateDao.operationProgress(OperationId).outstandingCount)
     }
 
     @Test
@@ -103,6 +106,37 @@ class IndexExecutionCoordinatorInstrumentedTest {
             listOf(IndexChannel.OCR, IndexChannel.OCR, IndexChannel.OCR_SEMANTIC, IndexChannel.OCR_SEMANTIC),
             order,
         )
+        assertEquals(IndexOperationState.COMPLETED, storage.indexStateDao.operation(OperationId)?.state)
+    }
+
+    @Test
+    fun permanentItemFailureCompletesWithVisibleGapAndLedgerEvidence() = runBlocking {
+        insertAsset(mediaStoreId = 1)
+        storage.catalogDao.recordAccessObservation("Full", AccessRevision, 1)
+        val clock = MutableClock(10)
+        val coordinator = coordinator(
+            clock,
+            "gap",
+            mapOf(IndexChannel.VISUAL to IndexChannelExecutor { IndexExecutionOutcome.Permanent("DECODE_FAILED") }),
+        )
+        val operation = coordinator.planOperation(
+            request(IndexChannelContract(IndexChannel.VISUAL, 0, "visual-v1", ComponentHash)),
+        )
+        val window = coordinator.startExecutionWindow(operation.operationId, "TEST", 1_000)
+
+        val report = coordinator.runWindow(window.windowId)
+
+        assertEquals(1, report.permanentFailures)
+        assertEquals(IndexOperationState.COMPLETED_WITH_GAPS, storage.indexStateDao.operation(OperationId)?.state)
+        val progress = storage.indexStateDao.operationProgress(OperationId)
+        assertEquals(1L, progress.plannedCount)
+        assertEquals(0L, progress.committedCount)
+        assertEquals(1L, progress.permanentGapCount)
+        assertEquals(0L, progress.outstandingCount)
+        val error = storage.indexStateDao.ledgerError("item:$OperationId:1:${IndexChannel.VISUAL}:DECODE_FAILED")
+        assertEquals("DECODE_FAILED", error?.code)
+        assertEquals(false, error?.retryable)
+        assertNull(error?.resolvedAtMillis)
     }
 
     @Test

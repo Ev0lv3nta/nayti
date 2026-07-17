@@ -122,6 +122,44 @@ data class IndexWorkStateCount(
     val count: Long,
 )
 
+@Entity(
+    tableName = "index_error_ledger",
+    primaryKeys = ["errorKey"],
+    indices = [
+        Index(value = ["operationId", "resolvedAtMillis"]),
+        Index(value = ["assetId", "channel", "resolvedAtMillis"]),
+        Index(value = ["scope", "code"]),
+    ],
+)
+data class IndexErrorLedgerEntity(
+    val errorKey: String,
+    val scope: String,
+    val operationId: String?,
+    val executionWindowId: String?,
+    val assetId: Long?,
+    val channel: String?,
+    val code: String,
+    val retryable: Boolean,
+    val occurrenceCount: Int,
+    val firstSeenAtMillis: Long,
+    val lastSeenAtMillis: Long,
+    val resolvedAtMillis: Long?,
+)
+
+data class IndexOperationProgress(
+    val operationId: String,
+    val plannedCount: Long,
+    val committedCount: Long,
+    val permanentGapCount: Long,
+    val outstandingCount: Long,
+)
+
+object IndexErrorScope {
+    const val ITEM = "ITEM"
+    const val OPERATION = "OPERATION"
+    const val PROCESS = "PROCESS"
+}
+
 object IndexChannel {
     const val OCR = "OCR"
     const val OCR_SEMANTIC = "OCR_SEMANTIC"

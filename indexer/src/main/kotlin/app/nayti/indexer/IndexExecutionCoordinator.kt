@@ -6,6 +6,8 @@ import app.nayti.storage.IndexChannel
 import app.nayti.storage.IndexChannelWorkEntity
 import app.nayti.storage.IndexExecutionWindowEntity
 import app.nayti.storage.IndexExecutionWindowState
+import app.nayti.storage.IndexErrorLedgerEntity
+import app.nayti.storage.IndexErrorScope
 import app.nayti.storage.IndexOperationAssetEntity
 import app.nayti.storage.IndexOperationChannelEntity
 import app.nayti.storage.IndexOperationEntity
@@ -149,6 +151,7 @@ class IndexExecutionCoordinator(
                             val committed = checkNotNull(indexState.work(work.assetId, work.channel))
                             check(committed.state == IndexWorkState.DONE)
                             check(committed.publicationToken == context.publicationToken)
+                            indexState.resolveItemErrors(work.assetId, work.channel, clock.nowMillis())
                             published += 1
                         }
                         IndexExecutionOutcome.LeaseRejected -> rejected += 1
@@ -166,6 +169,7 @@ class IndexExecutionCoordinator(
                                 null -> rejected += 1
                                 else -> error("Unexpected failure state: $failureState")
                             }
+                            if (failureState != null) recordItemError(window, work, outcome.errorCode, failureState != IndexWorkState.PERMANENT_ERROR)
                         }
                         is IndexExecutionOutcome.Permanent -> {
                             val nowMillis = clock.nowMillis()
@@ -178,6 +182,7 @@ class IndexExecutionCoordinator(
                                     maximumAttempts = 1,
                                 )
                             if (failureState == IndexWorkState.PERMANENT_ERROR) permanent += 1 else rejected += 1
+                            if (failureState != null) recordItemError(window, work, outcome.errorCode, retryable = false)
                         }
                     }
                 }
@@ -191,6 +196,7 @@ class IndexExecutionCoordinator(
                 clock.nowMillis(),
             ) == 1,
         )
+        indexState.refreshOperationTerminalState(window.operationId, clock.nowMillis())
         return IndexExecutionReport(claimedCount, published, retryable, permanent, rejected)
     }
 
@@ -293,6 +299,31 @@ class IndexExecutionCoordinator(
         val shift = (attempt - 1).coerceIn(0, 5)
         val delay = minOf(MaximumRetryDelayMillis, BaseRetryDelayMillis shl shift)
         return Math.addExact(nowMillis, delay)
+    }
+
+    private suspend fun recordItemError(
+        window: IndexExecutionWindowEntity,
+        work: IndexChannelWorkEntity,
+        errorCode: String,
+        retryable: Boolean,
+    ) {
+        val now = clock.nowMillis()
+        indexState.recordLedgerError(
+            IndexErrorLedgerEntity(
+                errorKey = "item:${window.operationId}:${work.assetId}:${work.channel}:$errorCode",
+                scope = IndexErrorScope.ITEM,
+                operationId = window.operationId,
+                executionWindowId = null,
+                assetId = work.assetId,
+                channel = work.channel,
+                code = errorCode,
+                retryable = retryable,
+                occurrenceCount = 1,
+                firstSeenAtMillis = now,
+                lastSeenAtMillis = now,
+                resolvedAtMillis = null,
+            ),
+        )
     }
 
     private companion object {

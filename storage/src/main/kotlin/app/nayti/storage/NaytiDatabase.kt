@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
         IndexChannelWorkEntity::class,
         IndexChannelPublicationEntity::class,
         IndexPublicationClockEntity::class,
+        IndexErrorLedgerEntity::class,
         VectorGenerationEntity::class,
         VectorSegmentArtifactEntity::class,
         VectorSegmentRecordEntity::class,

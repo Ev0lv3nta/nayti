@@ -52,6 +52,30 @@ def main() -> None:
         help="create deterministic Android inputs and known-answer ORT outputs",
     )
     android_kat.add_argument("--force", action="store_true")
+    keygen = subparsers.add_parser(
+        "pack-keygen",
+        help="create a workspace-local Ed25519 model-pack signing key",
+    )
+    keygen.add_argument("--private-key", type=Path)
+    keygen.add_argument("--public-key", type=Path)
+    assemble = subparsers.add_parser(
+        "pack-assemble",
+        help="assemble and sign a deterministic Nayti model pack",
+    )
+    assemble.add_argument(
+        "--profile",
+        type=Path,
+        default=Path(__file__).parents[2] / "manifests" / "pack-profile.alpha1.json",
+    )
+    assemble.add_argument("--private-key", type=Path)
+    assemble.add_argument("--public-key", type=Path)
+    assemble.add_argument("--output", type=Path)
+    inspect = subparsers.add_parser(
+        "pack-inspect",
+        help="verify a signed pack without extracting it",
+    )
+    inspect.add_argument("--pack", type=Path, required=True)
+    inspect.add_argument("--public-key", type=Path)
     args = parser.parse_args()
 
     manifest = load_manifest(args.manifest.resolve())
@@ -121,6 +145,43 @@ def main() -> None:
 
         manifest_path = prepare_android_kat(lab_root, args.force)
         print(f"prepared Android known-answer bundle: {manifest_path}")
+        return
+    if args.command in {"pack-keygen", "pack-assemble", "pack-inspect"}:
+        from .pack_format import generate_key_pair, inspect_pack
+
+        keys_root = lab_root / "keys"
+        private_key = (
+            getattr(args, "private_key", None) or keys_root / "alpha-pack-ed25519.pem"
+        ).resolve()
+        public_key = (args.public_key or keys_root / "alpha-pack-ed25519.pub.pem").resolve()
+        if args.command == "pack-keygen":
+            identifier = generate_key_pair(private_key, public_key)
+            print(f"created Ed25519 public key {identifier}: {public_key}")
+            return
+        if args.command == "pack-inspect":
+            inspection = inspect_pack(args.pack.resolve(), public_key)
+            print(
+                f"verified {inspection.pack_id}@{inspection.pack_version}: "
+                f"{inspection.file_count} files, {inspection.payload_bytes} bytes, "
+                f"manifest {inspection.manifest_sha256}",
+            )
+            return
+
+        from .pack_profile import assemble_profile
+
+        output = (args.output or lab_root / "model-packs" / "nayti-alpha.naytipack").resolve()
+        inspection = assemble_profile(
+            args.profile.resolve(),
+            Path(__file__).parents[3].resolve(),
+            lab_root,
+            private_key,
+            public_key,
+            output,
+        )
+        print(
+            f"assembled {inspection.pack_id}@{inspection.pack_version}: "
+            f"{inspection.file_count} files, {inspection.payload_bytes} bytes, {output}",
+        )
         return
     raise AssertionError(f"unhandled command: {args.command}")
 

@@ -25,6 +25,9 @@ uv run --project model-tools --no-sync nayti-model export-siglip2-tokenizer
 uv run --project model-tools --no-sync nayti-model convert-ort
 uv run --project model-tools --no-sync nayti-model verify-ort
 uv run --project model-tools --no-sync nayti-model prepare-android-kat
+uv run --project model-tools --no-sync nayti-model pack-keygen
+uv run --project model-tools --no-sync nayti-model pack-assemble
+uv run --project model-tools --no-sync nayti-model pack-inspect --pack "$NAYTI_MODEL_LAB/model-packs/nayti-alpha.naytipack"
 model-tools/scripts/build_reduced_ort_android.sh
 model-tools/scripts/verify_reduced_ort_aar.sh
 model-tools/scripts/run_reduced_ort_android_smoke.sh
@@ -46,5 +49,7 @@ Pinned validation build создаётся командой `model-tools/scripts
 После сборки `verify_reduced_ort_aar.sh` проверяет exact ARM64 library set, 16 KiB ELF LOAD alignment, AArch64 headers, системные зависимости и наличие публичного ORT API вместе с `HfJsonTokenizer`. AAR и распакованные библиотеки остаются только в `model-lab`.
 
 `prepare-android-kat` сохраняет synthetic raw inputs, cross-platform reference outputs, tensor contracts и exact model identities в локальный `android-kat`. `run_reduced_ort_android_smoke.sh` требует одно подключённое ARM64-устройство, включает test-only Gradle module только через explicit `NAYTI_ORT_AAR`, проверяет ELF/APK ZIP alignment, потоково помещает KAT и семь models в private app storage, запускает их последовательно и всегда очищает временные bytes/package. Ожидаемый page size можно зафиксировать через `NAYTI_EXPECTED_PAGE_SIZE`.
+
+`pack-keygen` создаёт отдельную workspace-local пару Ed25519 для alpha model pack; private key никогда не попадает в Git и не связан с APK signing. `pack-assemble` строит deterministic uncompressed container из reviewable profile, подписывает canonical manifest и затем заново проверяет подпись, exact lengths и SHA-256 всего payload. `pack-inspect` выполняет ту же потоковую проверку без извлечения файлов. Формат и threat model зафиксированы в `docs/adr/0001-model-pack-container.md`.
 
 Непинованные revisions, глобальный Hugging Face cache и пользовательские фотографии в этом toolchain запрещены.

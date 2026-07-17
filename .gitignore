@@ -3,6 +3,8 @@
 **/build/
 local.properties
 .kotlin/
+__pycache__/
+*.py[cod]
 .cxx/
 .externalNativeBuild/
 captures/

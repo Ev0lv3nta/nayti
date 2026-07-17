@@ -11,6 +11,7 @@ cd "$repo_dir"
   :app:assembleDebug \
   :benchmark:assemble \
   :ml-runtime:assembleDebugAndroidTest \
+  :search-engine:assembleDebugAndroidTest \
   :storage:assembleDebugAndroidTest \
   --no-daemon \
   --max-workers="${NAYTI_GRADLE_WORKERS:-2}"
@@ -59,4 +60,9 @@ if [[ "${NAYTI_SKIP_HOST_NATIVE_TESTS:-0}" != "1" ]]; then
   "$cmake_bin" -S ml-runtime/src/main/cpp -B "$host_build" -DCMAKE_BUILD_TYPE=Release
   "$cmake_bin" --build "$host_build" --parallel 2
   "$cmake_bin" --build "$host_build" --target test
+
+  search_host_build="$repo_dir/build/search-native-host"
+  "$cmake_bin" -S search-engine/src/main/cpp -B "$search_host_build" -DCMAKE_BUILD_TYPE=Release
+  "$cmake_bin" --build "$search_host_build" --parallel 2
+  "$cmake_bin" --build "$search_host_build" --target test
 fi

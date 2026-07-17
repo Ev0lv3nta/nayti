@@ -8,6 +8,7 @@ plugins {
 android {
     namespace = "app.nayti"
     compileSdk { version = release(37) }
+    ndkVersion = "27.0.12077973"
 
     defaultConfig {
         applicationId = "app.nayti"

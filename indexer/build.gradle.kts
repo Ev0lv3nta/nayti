@@ -6,7 +6,10 @@ android {
     namespace = "app.nayti.indexer"
     compileSdk { version = release(37) }
 
-    defaultConfig { minSdk = 30 }
+    defaultConfig {
+        minSdk = 30
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -23,6 +26,8 @@ dependencies {
     implementation(project(":storage"))
     implementation(libs.kotlinx.coroutines.core)
 
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
     testImplementation(libs.junit4)
     testImplementation(libs.kotlinx.coroutines.test)
 }

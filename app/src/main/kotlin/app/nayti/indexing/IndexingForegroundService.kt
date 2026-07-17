@@ -6,11 +6,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
-import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import androidx.core.app.ServiceCompat
 import app.nayti.MainActivity
 import app.nayti.R
 import app.nayti.indexer.ModelPackRuntime
@@ -24,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -93,6 +92,7 @@ class IndexingForegroundService : Service() {
                 val pack = packState.installed
                 if (pack == null) {
                     notifications.notify(NotificationId, notification(indexing.state.value, modelMissing = true))
+                    delay(ModelMissingNoticeMillis)
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelfResult(startId)
                     return@launch
@@ -113,13 +113,8 @@ class IndexingForegroundService : Service() {
     }
 
     private fun startInForeground() {
-        val type =
-            if (Build.VERSION.SDK_INT >= 35) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING
-            } else {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            }
-        ServiceCompat.startForeground(this, NotificationId, notification(indexing.state.value), type)
+        val type = IndexingForegroundPolicy.serviceType(Build.VERSION.SDK_INT)
+        startForeground(NotificationId, notification(indexing.state.value), type)
     }
 
     private fun notification(state: OcrIndexingState, modelMissing: Boolean = false): Notification {
@@ -194,5 +189,6 @@ class IndexingForegroundService : Service() {
         private const val RequestOpen = 1
         private const val RequestPause = 2
         private const val RequestStop = 3
+        private const val ModelMissingNoticeMillis = 1_000L
     }
 }

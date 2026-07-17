@@ -55,8 +55,9 @@ class VectorPublicationStore(
     private val dao: VectorIndexDao,
     private val nowMillis: () -> Long = System::currentTimeMillis,
     private val boundaryObserver: (VectorPublicationBoundary) -> Unit = {},
+    fileFaultInjector: (VectorArtifactRole, VectorFileOperation) -> Unit = { _, _ -> },
 ) {
-    private val files = ImmutableVectorFiles(rootDirectory)
+    private val files = ImmutableVectorFiles(rootDirectory, fileFaultInjector)
 
     suspend fun publish(request: VectorPublicationRequest): ActivationSnapshotEntity {
         require(request.records.isNotEmpty())

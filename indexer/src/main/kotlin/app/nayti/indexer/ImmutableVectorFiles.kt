@@ -17,7 +17,22 @@ data class SealedVectorFile(
     val file: File,
 )
 
-class ImmutableVectorFiles(rootDirectory: File) {
+enum class VectorFileOperation {
+    BEFORE_WRITE_CHUNK,
+    BEFORE_FILE_FSYNC,
+    BEFORE_ATOMIC_MOVE,
+    BEFORE_DIRECTORY_FSYNC,
+}
+
+enum class VectorArtifactRole {
+    SEGMENT,
+    MANIFEST,
+}
+
+class ImmutableVectorFiles(
+    rootDirectory: File,
+    private val faultInjector: (VectorArtifactRole, VectorFileOperation) -> Unit = { _, _ -> },
+) {
     val root: File = rootDirectory.canonicalFile
     private val stagingDirectory = root.resolve("staging")
     private val segmentDirectory = root.resolve("segments")
@@ -36,7 +51,7 @@ class ImmutableVectorFiles(rootDirectory: File) {
         afterFsync: () -> Unit = {},
         afterRename: () -> Unit = {},
     ): SealedVectorFile =
-        seal(token, "segment", "segments/$sha256.naytivec", bytes, sha256, afterFsync, afterRename)
+        seal(token, VectorArtifactRole.SEGMENT, "segments/$sha256.naytivec", bytes, sha256, afterFsync, afterRename)
 
     fun sealManifest(
         token: String,
@@ -45,7 +60,7 @@ class ImmutableVectorFiles(rootDirectory: File) {
         afterFsync: () -> Unit = {},
         afterRename: () -> Unit = {},
     ): SealedVectorFile =
-        seal(token, "manifest", "manifests/$sha256.naytimanifest", bytes, sha256, afterFsync, afterRename)
+        seal(token, VectorArtifactRole.MANIFEST, "manifests/$sha256.naytimanifest", bytes, sha256, afterFsync, afterRename)
 
     fun readVerified(relativePath: String, expectedLength: Long, expectedSha256: String): ByteArray {
         require(expectedLength in 1..MaximumInMemoryArtifactBytes)
@@ -58,7 +73,7 @@ class ImmutableVectorFiles(rootDirectory: File) {
 
     private fun seal(
         token: String,
-        role: String,
+        role: VectorArtifactRole,
         relativePath: String,
         bytes: ByteArray,
         expectedSha256: String,
@@ -68,27 +83,32 @@ class ImmutableVectorFiles(rootDirectory: File) {
         require(Token.matches(token) && Sha256.matches(expectedSha256))
         require(bytes.isNotEmpty() && sha256Hex(bytes) == expectedSha256)
         val target = resolve(relativePath)
-        val temp = stagingDirectory.resolve("$token-${UUID.randomUUID()}.$role.tmp")
-        writeAndSync(temp, bytes)
+        val temp = stagingDirectory.resolve("$token-${UUID.randomUUID()}.${role.name.lowercase()}.tmp")
+        writeAndSync(role, temp, bytes)
         afterFsync()
         if (target.exists()) {
             check(target.isFile && target.length() == bytes.size.toLong())
             check(sha256Hex(target) == expectedSha256)
             check(temp.delete())
         } else {
+            faultInjector(role, VectorFileOperation.BEFORE_ATOMIC_MOVE)
             Files.move(temp.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
         }
         check(target.setReadOnly())
-        syncDirectory(stagingDirectory)
-        syncDirectory(target.parentFile!!)
+        syncDirectory(role, stagingDirectory)
+        syncDirectory(role, target.parentFile!!)
         afterRename()
         return SealedVectorFile(relativePath, target)
     }
 
-    private fun writeAndSync(file: File, bytes: ByteArray) {
+    private fun writeAndSync(role: VectorArtifactRole, file: File, bytes: ByteArray) {
         FileChannel.open(file.toPath(), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE).use { channel ->
             val buffer = ByteBuffer.wrap(bytes)
-            while (buffer.hasRemaining()) check(channel.write(buffer) > 0)
+            while (buffer.hasRemaining()) {
+                faultInjector(role, VectorFileOperation.BEFORE_WRITE_CHUNK)
+                check(channel.write(buffer) > 0)
+            }
+            faultInjector(role, VectorFileOperation.BEFORE_FILE_FSYNC)
             channel.force(true)
         }
     }
@@ -99,7 +119,8 @@ class ImmutableVectorFiles(rootDirectory: File) {
         return resolved
     }
 
-    private fun syncDirectory(directory: File) {
+    private fun syncDirectory(role: VectorArtifactRole, directory: File) {
+        faultInjector(role, VectorFileOperation.BEFORE_DIRECTORY_FSYNC)
         val descriptor = Os.open(directory.absolutePath, OsConstants.O_RDONLY or OsConstants.O_CLOEXEC, 0)
         try {
             Os.fsync(descriptor)

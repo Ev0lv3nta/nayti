@@ -16,6 +16,7 @@ import app.nayti.storage.StorageContract
 import app.nayti.storage.VectorGenerationEntity
 import app.nayti.storage.VectorGenerationState
 import app.nayti.storage.VectorPublicationState
+import java.io.IOException
 import java.io.RandomAccessFile
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
@@ -208,9 +209,16 @@ class VectorPublicationStoreInstrumentedTest {
         assertEquals(VectorGenerationState.SEALED, storage.vectorIndexDao.generation(GenerationId)?.state)
 
         val failed = runCatching {
-            VectorCompactionStore(root, storage.vectorIndexDao, { now }) { boundary ->
-                if (boundary == VectorCompactionBoundary.AFTER_MANIFEST_RENAME) throw SimulatedCompactionDeath()
-            }.compact(compactionRequest("failed-compaction", "compact-failed", "compact-failed-snapshot"))
+            VectorCompactionStore(
+                rootDirectory = root,
+                dao = storage.vectorIndexDao,
+                nowMillis = { now },
+                boundaryObserver = { boundary ->
+                    if (boundary == VectorCompactionBoundary.AFTER_MANIFEST_RENAME) {
+                        throw SimulatedCompactionDeath()
+                    }
+                },
+            ).compact(compactionRequest("failed-compaction", "compact-failed", "compact-failed-snapshot"))
         }.exceptionOrNull()
         assertTrue(failed is SimulatedCompactionDeath)
         assertEquals(active.snapshotId, storage.vectorIndexDao.activeSnapshotId())
@@ -235,6 +243,43 @@ class VectorPublicationStoreInstrumentedTest {
             val artifact = checkNotNull(storage.vectorIndexDao.segment(entry.segmentSha256))
             root.resolve(artifact.relativePath).isFile
         })
+    }
+
+    @Test
+    fun filesystemFailuresRemainInvisibleAndRecoverable() = runBlocking {
+        val faultPoints = VectorArtifactRole.entries.flatMap { role -> VectorFileOperation.entries.map { role to it } }
+        faultPoints.forEachIndexed { iteration, (failingRole, failingOperation) ->
+            now += 100
+            val assetId = insertAsset(iteration + 1L)
+            val lease = stageRunningWork(assetId, "io-lease-$iteration")
+            var injected = false
+            val failure = runCatching {
+                VectorPublicationStore(
+                    rootDirectory = root,
+                    dao = storage.vectorIndexDao,
+                    nowMillis = { now },
+                    fileFaultInjector = { role, operation ->
+                        if (!injected && role == failingRole && operation == failingOperation) {
+                            injected = true
+                            throw IOException("Injected ENOSPC at $role/$operation")
+                        }
+                    },
+                ).publish(request(401 + iteration, assetId, lease))
+            }.exceptionOrNull()
+            assertTrue(failure is IOException)
+            assertNull(storage.vectorIndexDao.activeSnapshotId())
+
+            reopenStorage()
+            val report = IndexStartupRecovery(root, storage.indexStateDao, storage.vectorIndexDao).recover(
+                nowMillis = now + 20_000,
+                orphanGraceMillis = 0,
+                deepVerifySegments = true,
+            )
+            assertNull(report.vector.activeAfter)
+            assertEquals(0, root.resolve("staging").listFiles().orEmpty().count { it.extension == "tmp" })
+            assertEquals(0, root.resolve("segments").listFiles().orEmpty().size)
+            assertEquals(0, root.resolve("manifests").listFiles().orEmpty().size)
+        }
     }
 
     private fun store(observer: (VectorPublicationBoundary) -> Unit = {}) =

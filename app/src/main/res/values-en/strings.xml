@@ -34,7 +34,11 @@
     <string name="readiness_subtitle">See how many photos are ready in each search channel.</string>
     <string name="ocr_readiness_title">Text in photos</string>
     <string name="ocr_readiness_counts">Ready %1$d of %2$d · errors %3$d</string>
-    <string name="ocr_run_slice">Process the next 8 photos</string>
+    <string name="ocr_start">Start preparing</string>
+    <string name="ocr_resume">Resume</string>
+    <string name="ocr_pause">Pause</string>
+    <string name="ocr_stop_for_now">Stop for now</string>
+    <string name="ocr_cancel">Cancel task</string>
     <string name="ocr_index_failed">Indexing stopped safely: %1$s</string>
     <string name="connect_library">Connect library</string>
     <string name="access_none_title">Photo access is required</string>
@@ -75,6 +79,13 @@
     <string name="model_pack_installing">Checking the signature, files, and seven neural graphs. Keep the app open.</string>
     <string name="model_pack_ready">Version %1$s · %2$d MB · verified locally</string>
     <string name="model_pack_failed">Import was safely rejected: %1$s</string>
+    <string name="model_pack_failed_using_previous">Import was safely rejected: %1$s. Continuing with verified version %2$s.</string>
     <string name="model_pack_import">Import pack</string>
     <string name="model_pack_replace">Import another version</string>
+    <string name="indexing_notification_channel">Search preparation</string>
+    <string name="indexing_notification_title">Nayti is preparing photos for search</string>
+    <string name="indexing_notification_progress">Ready %1$d of %2$d</string>
+    <string name="indexing_notification_model_missing">Import a model pack first</string>
+    <string name="indexing_notification_pause">Pause</string>
+    <string name="indexing_notification_stop">Stop</string>
 </resources>

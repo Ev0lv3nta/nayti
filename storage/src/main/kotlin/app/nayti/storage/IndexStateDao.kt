@@ -15,6 +15,12 @@ interface IndexStateDao {
     @Query("SELECT * FROM index_operation WHERE operationId = :operationId")
     suspend fun operation(operationId: String): IndexOperationEntity?
 
+    @Query(
+        "SELECT * FROM index_operation WHERE targetPackId = :packId AND targetPackVersion = :packVersion " +
+            "ORDER BY createdAtMillis DESC, operationId DESC LIMIT 1",
+    )
+    suspend fun latestOperation(packId: String, packVersion: String): IndexOperationEntity?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertOperationChannels(channels: List<IndexOperationChannelEntity>)
 

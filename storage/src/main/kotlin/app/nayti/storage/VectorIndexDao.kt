@@ -169,6 +169,67 @@ interface VectorIndexDao {
         maximumPublicationEpoch: Long,
     ): List<Long>
 
+    @Query(
+        "SELECT vectorRecord.segmentSha256 AS segmentSha256, " +
+            "vectorRecord.recordId AS recordId, vectorRecord.assetId AS assetId, " +
+            "vectorRecord.sourceFingerprint AS sourceFingerprint " +
+            "FROM vector_segment_record AS vectorRecord " +
+            "INNER JOIN vector_manifest_segment AS manifestSegment " +
+            "ON manifestSegment.segmentSha256 = vectorRecord.segmentSha256 " +
+            "INNER JOIN catalog_asset AS asset ON asset.assetId = vectorRecord.assetId " +
+            "INNER JOIN index_channel_work AS visualWork " +
+            "ON visualWork.assetId = vectorRecord.assetId AND visualWork.channel = 'VISUAL' " +
+            "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
+            "WHERE manifestSegment.manifestRevision = :manifestRevision " +
+            "AND vectorRecord.recordId IN (:recordIds) " +
+            "AND vectorRecord.recordId = vectorRecord.assetId " +
+            "AND vectorRecord.chunkOrdinal = 0 AND vectorRecord.semanticChunkId IS NULL " +
+            "AND asset.availability = 'AVAILABLE' " +
+            "AND asset.sourceFingerprint = vectorRecord.sourceFingerprint " +
+            "AND visualWork.state = 'DONE' " +
+            "AND visualWork.sourceFingerprint = vectorRecord.sourceFingerprint " +
+            "AND visualWork.accessRevision = access.processAccessRevision " +
+            "AND visualWork.pipelineVersion = :visualPipelineVersion " +
+            "AND visualWork.componentHash = :componentHash " +
+            "AND access.accessScope != 'None' " +
+            "ORDER BY vectorRecord.recordId, vectorRecord.segmentSha256",
+    )
+    suspend fun visualEvidenceRows(
+        manifestRevision: String,
+        recordIds: List<Long>,
+        visualPipelineVersion: String,
+        componentHash: String,
+    ): List<VisualVectorEvidence>
+
+    @Query(
+        "SELECT vectorRecord.recordId FROM vector_segment_record AS vectorRecord " +
+            "INNER JOIN vector_manifest_segment AS manifestSegment " +
+            "ON manifestSegment.segmentSha256 = vectorRecord.segmentSha256 " +
+            "INNER JOIN catalog_asset AS asset ON asset.assetId = vectorRecord.assetId " +
+            "INNER JOIN index_channel_work AS visualWork " +
+            "ON visualWork.assetId = vectorRecord.assetId AND visualWork.channel = 'VISUAL' " +
+            "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
+            "WHERE manifestSegment.manifestRevision = :manifestRevision " +
+            "AND vectorRecord.segmentSha256 = :segmentSha256 " +
+            "AND vectorRecord.recordId = vectorRecord.assetId " +
+            "AND vectorRecord.chunkOrdinal = 0 AND vectorRecord.semanticChunkId IS NULL " +
+            "AND asset.availability = 'AVAILABLE' " +
+            "AND asset.sourceFingerprint = vectorRecord.sourceFingerprint " +
+            "AND visualWork.state = 'DONE' " +
+            "AND visualWork.sourceFingerprint = vectorRecord.sourceFingerprint " +
+            "AND visualWork.accessRevision = access.processAccessRevision " +
+            "AND visualWork.pipelineVersion = :visualPipelineVersion " +
+            "AND visualWork.componentHash = :componentHash " +
+            "AND access.accessScope != 'None' " +
+            "ORDER BY vectorRecord.recordId",
+    )
+    suspend fun visualEligibleRecordIds(
+        manifestRevision: String,
+        segmentSha256: String,
+        visualPipelineVersion: String,
+        componentHash: String,
+    ): List<Long>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertManifest(manifest: VectorManifestEntity)
 
@@ -469,7 +530,11 @@ interface VectorIndexDao {
         check(manifest.parentRevision == activeManifestRevision)
         val parentManifest = checkNotNull(activeManifestRevision?.let { manifest(it) })
         check(parentManifest.generationId == generationId)
-        check(manifest.recordCount == parentManifest.recordCount)
+        if (generation.channel == IndexChannel.VISUAL) {
+            check(manifest.recordCount in 1..parentManifest.recordCount)
+        } else {
+            check(manifest.recordCount == parentManifest.recordCount)
+        }
 
         insertSegmentIfAbsent(segment)
         check(segment(segment.sha256) == segment)
@@ -611,6 +676,56 @@ interface VectorIndexDao {
             semanticPipelineVersion = semanticPipelineVersion,
             componentHash = componentHash,
             maximumPublicationEpoch = maximumPublicationEpoch,
+        ).also { recordIds ->
+            check(recordIds.size <= MaximumSegmentRecords)
+            check(recordIds.all { it > 0 } && recordIds.zipWithNext().all { (left, right) -> left < right })
+        }
+    }
+
+    @Transaction
+    suspend fun currentVisualEvidence(
+        manifestRevision: String,
+        recordIds: List<Long>,
+        visualPipelineVersion: String,
+        componentHash: String,
+    ): List<VisualVectorEvidence> {
+        require(identifier(manifestRevision))
+        require(recordIds.isNotEmpty() && recordIds.size <= MaximumVisualCandidates)
+        require(recordIds.all { it > 0 } && recordIds.distinct().size == recordIds.size)
+        require(contractValue(visualPipelineVersion) && sha256(componentHash))
+        val manifest = checkNotNull(manifest(manifestRevision))
+        check(manifest.channel == IndexChannel.VISUAL)
+        return visualEvidenceRows(
+            manifestRevision = manifestRevision,
+            recordIds = recordIds,
+            visualPipelineVersion = visualPipelineVersion,
+            componentHash = componentHash,
+        ).also { evidence ->
+            check(evidence.all { row ->
+                row.recordId in recordIds &&
+                    row.recordId == row.assetId &&
+                    row.segmentSha256.let(::sha256) &&
+                    row.sourceFingerprint.isNotBlank()
+            })
+        }
+    }
+
+    @Transaction
+    suspend fun currentEligibleVisualRecordIds(
+        manifestRevision: String,
+        segmentSha256: String,
+        visualPipelineVersion: String,
+        componentHash: String,
+    ): List<Long> {
+        require(identifier(manifestRevision) && sha256(segmentSha256))
+        require(contractValue(visualPipelineVersion) && sha256(componentHash))
+        val manifest = checkNotNull(manifest(manifestRevision))
+        check(manifest.channel == IndexChannel.VISUAL)
+        return visualEligibleRecordIds(
+            manifestRevision = manifestRevision,
+            segmentSha256 = segmentSha256,
+            visualPipelineVersion = visualPipelineVersion,
+            componentHash = componentHash,
         ).also { recordIds ->
             check(recordIds.size <= MaximumSegmentRecords)
             check(recordIds.all { it > 0 } && recordIds.zipWithNext().all { (left, right) -> left < right })
@@ -821,6 +936,7 @@ interface VectorIndexDao {
         const val MaximumSegmentRecords = 256
         const val MaximumManifestSegments = 65_536
         const val MaximumSemanticCandidates = 512
+        const val MaximumVisualCandidates = 512
         const val MaximumQueryLeaseMillis = 5 * 60 * 1_000L
     }
 }

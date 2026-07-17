@@ -70,7 +70,7 @@ class VectorCompactionStore(
         val selectedRecordCount = selectedArtifacts.sumOf { artifact -> artifact.recordCount }
         require(selectedRecordCount in 1..VectorSegmentV1Writer.MaximumRecordCount)
 
-        val compactedRecords = mutableListOf<PublishedVectorRecord>()
+        val selectedRecords = mutableListOf<PublishedVectorRecord>()
         selectedArtifacts.forEach { artifact ->
             check(artifact.channel == generation.channel)
             check(artifact.embeddingSpaceHash == generation.embeddingSpaceHash)
@@ -95,7 +95,7 @@ class VectorCompactionStore(
                 check(stored.recordId == record.recordId)
                 check(stored.assetId == record.assetId)
                 check(stored.chunkOrdinal == record.ordinal)
-                compactedRecords += PublishedVectorRecord(
+                selectedRecords += PublishedVectorRecord(
                     recordId = record.recordId,
                     assetId = record.assetId,
                     chunkOrdinal = record.ordinal,
@@ -105,7 +105,18 @@ class VectorCompactionStore(
                 )
             }
         }
-        check(compactedRecords.size == selectedRecordCount)
+        check(selectedRecords.size == selectedRecordCount)
+        val compactedRecords =
+            if (generation.channel == IndexChannel.VISUAL) {
+                selectedRecords.mapIndexed { index, record -> record.recordId to (index to record) }
+                    .toMap()
+                    .values
+                    .sortedBy { (index, _) -> index }
+                    .map { (_, record) -> record }
+            } else {
+                selectedRecords
+            }
+        check(compactedRecords.isNotEmpty() && compactedRecords.size <= selectedRecordCount)
         val encodedSegment = VectorSegmentV1Writer.encode(
             channel = generation.channel.toSegmentChannel(),
             embeddingSpaceHash = generation.embeddingSpaceHash,
@@ -157,7 +168,12 @@ class VectorCompactionStore(
                 )
             },
         )
-        check(encodedManifest.recordCount == parentManifest.recordCount)
+        val expectedRecordCount =
+            Math.addExact(
+                Math.subtractExact(parentManifest.recordCount, selectedRecordCount.toLong()),
+                compactedRecords.size.toLong(),
+            )
+        check(encodedManifest.recordCount == expectedRecordCount)
         val sealedManifest = files.sealManifest(
             token = request.compactionToken,
             bytes = encodedManifest.bytes,

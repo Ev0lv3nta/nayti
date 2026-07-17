@@ -3,6 +3,7 @@ package app.nayti.indexer
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import app.nayti.search.engine.VectorSegmentV1Reader
 import app.nayti.storage.CatalogAssetEntity
 import app.nayti.storage.CatalogAvailability
 import app.nayti.storage.CatalogStorage
@@ -362,6 +363,83 @@ class VectorPublicationStoreInstrumentedTest {
         assertEquals(1, storage.vectorIndexDao.manifestSegments(manifest.revision).size)
     }
 
+    @Test
+    fun imageToImageSearchUsesCurrentEligibleVectorsAndReleasesLease() = runBlocking {
+        val sourceAsset = insertAsset(1)
+        store().publish(
+            request(2_001, sourceAsset, stageRunningWork(sourceAsset, "visual-source")).withVector(100),
+        )
+        now += 100
+        val similarAsset = insertAsset(2)
+        store().publish(
+            request(2_002, similarAsset, stageRunningWork(similarAsset, "visual-similar")).withVector(100),
+        )
+        now += 100
+        val differentAsset = insertAsset(3)
+        store().publish(
+            request(2_003, differentAsset, stageRunningWork(differentAsset, "visual-different")).withVector(-100),
+        )
+        val search =
+            VisualSimilaritySearch(
+                vectors = storage.vectorIndexDao,
+                vectorRoot = root,
+                clock = { now },
+                leaseTokens = { "visual-query-test" },
+            )
+
+        val initial = search.searchSimilar(sourceAsset)
+
+        assertEquals(VisualSimilaritySearchStatus.READY, initial.status)
+        assertEquals(listOf(similarAsset, differentAsset), initial.hits.map { it.assetId })
+        assertTrue(initial.hits.first().rawScore > initial.hits.last().rawScore)
+        assertNull(storage.vectorIndexDao.queryLease("visual-query-test"))
+
+        val changed = checkNotNull(storage.catalogDao.asset(similarAsset))
+        assertEquals(1, storage.catalogDao.updateAsset(changed.copy(sourceFingerprint = "changed-source")))
+        val afterSourceChange = search.searchSimilar(sourceAsset)
+        assertEquals(listOf(differentAsset), afterSourceChange.hits.map { it.assetId })
+
+        storage.catalogDao.recordAccessObservation("Full", AccessRevision + 1, now + 1)
+        val afterAccessChange = search.searchSimilar(sourceAsset)
+        assertEquals(VisualSimilaritySearchStatus.SOURCE_NOT_INDEXED, afterAccessChange.status)
+        assertTrue(afterAccessChange.hits.isEmpty())
+        assertNull(storage.vectorIndexDao.queryLease("visual-query-test"))
+    }
+
+    @Test
+    fun visualCompactionKeepsNewestRecordWhenOneAssetWasReindexed() = runBlocking {
+        val assetId = insertAsset(1)
+        repeat(8) { index ->
+            now += 100
+            val iteration = 3_100 + index
+            store().publish(
+                request(iteration, assetId, stageRunningWork(assetId, "reindex-$index"))
+                    .withVector(index + 1),
+            )
+        }
+
+        assertEquals(
+            1,
+            VectorIndexCompactor(root, storage.vectorIndexDao, nowMillis = { now })
+                .compactAvailable(1, IndexChannel.VISUAL),
+        )
+
+        val active = checkNotNull(storage.vectorIndexDao.activeSnapshotId()).let { id ->
+            checkNotNull(storage.vectorIndexDao.snapshot(id))
+        }
+        val manifest = checkNotNull(active.visualManifestRevision).let { revision ->
+            checkNotNull(storage.vectorIndexDao.manifest(revision))
+        }
+        assertEquals(1L, manifest.recordCount)
+        val artifact = storage.vectorIndexDao.manifestSegments(manifest.revision).single().let { entry ->
+            checkNotNull(storage.vectorIndexDao.segment(entry.segmentSha256))
+        }
+        assertEquals(1, artifact.compactionLevel)
+        val decoded = VectorSegmentV1Reader.decode(root.resolve(artifact.relativePath).readBytes())
+        assertEquals(assetId, decoded.records.single().assetId)
+        assertTrue(decoded.records.single().vector.all { value -> value == 8.toByte() })
+    }
+
     private fun store(observer: (VectorPublicationBoundary) -> Unit = {}) =
         VectorPublicationStore(root, storage.vectorIndexDao, { now }, observer)
 
@@ -407,6 +485,11 @@ class VectorPublicationStoreInstrumentedTest {
             pHashPublicationEpoch = iteration.toLong(),
             catalogWatermark = iteration.toLong(),
             segmentId = UUID.nameUUIDFromBytes("segment-$iteration".encodeToByteArray()),
+        )
+
+    private fun VectorPublicationRequest.withVector(value: Int): VectorPublicationRequest =
+        copy(
+            records = records.map { record -> record.copy(vector = ByteArray(Dimension) { value.toByte() }) },
         )
 
     private suspend fun insertAsset(mediaStoreId: Long): Long =
@@ -505,7 +588,7 @@ class VectorPublicationStoreInstrumentedTest {
         const val GenerationId = "visual-generation-1"
         const val SecondGenerationId = "visual-generation-2"
         const val Dimension = 8
-        const val ComponentHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        const val ComponentHash = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
         const val EmbeddingHash = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
         const val SecondEmbeddingHash = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
         const val PackManifestHash = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"

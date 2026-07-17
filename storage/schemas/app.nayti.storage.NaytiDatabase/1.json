@@ -1,0 +1,367 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "2a8a5ee3f139ccf788c3fb391ba7b921",
+    "entities": [
+      {
+        "tableName": "catalog_asset",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`assetId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `volumeName` TEXT NOT NULL, `mediaStoreId` INTEGER NOT NULL, `mimeType` TEXT NOT NULL, `sizeBytes` INTEGER NOT NULL, `width` INTEGER NOT NULL, `height` INTEGER NOT NULL, `orientationDegrees` INTEGER NOT NULL, `generationAdded` INTEGER NOT NULL, `generationModified` INTEGER NOT NULL, `dateTakenMillis` INTEGER, `dateModifiedSeconds` INTEGER, `displayName` TEXT, `bucketId` INTEGER, `bucketDisplayName` TEXT, `relativePath` TEXT, `sourceFingerprint` TEXT NOT NULL, `availability` TEXT NOT NULL, `lastSeenInventoryRunId` INTEGER NOT NULL, `missingFullObservationCount` INTEGER NOT NULL, `quarantineStartedAtMillis` INTEGER, `sourceObservedAtMillis` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "assetId",
+            "columnName": "assetId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "volumeName",
+            "columnName": "volumeName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mediaStoreId",
+            "columnName": "mediaStoreId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mimeType",
+            "columnName": "mimeType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sizeBytes",
+            "columnName": "sizeBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "width",
+            "columnName": "width",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "height",
+            "columnName": "height",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "orientationDegrees",
+            "columnName": "orientationDegrees",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generationAdded",
+            "columnName": "generationAdded",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generationModified",
+            "columnName": "generationModified",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dateTakenMillis",
+            "columnName": "dateTakenMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "dateModifiedSeconds",
+            "columnName": "dateModifiedSeconds",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "displayName",
+            "columnName": "displayName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "bucketId",
+            "columnName": "bucketId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "bucketDisplayName",
+            "columnName": "bucketDisplayName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "relativePath",
+            "columnName": "relativePath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceFingerprint",
+            "columnName": "sourceFingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "availability",
+            "columnName": "availability",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSeenInventoryRunId",
+            "columnName": "lastSeenInventoryRunId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "missingFullObservationCount",
+            "columnName": "missingFullObservationCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quarantineStartedAtMillis",
+            "columnName": "quarantineStartedAtMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sourceObservedAtMillis",
+            "columnName": "sourceObservedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "assetId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_catalog_asset_volumeName_mediaStoreId",
+            "unique": true,
+            "columnNames": [
+              "volumeName",
+              "mediaStoreId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_catalog_asset_volumeName_mediaStoreId` ON `${TABLE_NAME}` (`volumeName`, `mediaStoreId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "catalog_volume",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`volumeName` TEXT NOT NULL, `mediaStoreVersion` TEXT NOT NULL, `generationWatermark` INTEGER NOT NULL, `isMounted` INTEGER NOT NULL, `dirty` INTEGER NOT NULL, `lastSuccessfulInventoryRunId` INTEGER, `lastFullInventoryAtMillis` INTEGER, PRIMARY KEY(`volumeName`))",
+        "fields": [
+          {
+            "fieldPath": "volumeName",
+            "columnName": "volumeName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mediaStoreVersion",
+            "columnName": "mediaStoreVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "generationWatermark",
+            "columnName": "generationWatermark",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isMounted",
+            "columnName": "isMounted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dirty",
+            "columnName": "dirty",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSuccessfulInventoryRunId",
+            "columnName": "lastSuccessfulInventoryRunId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastFullInventoryAtMillis",
+            "columnName": "lastFullInventoryAtMillis",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "volumeName"
+          ]
+        }
+      },
+      {
+        "tableName": "catalog_inventory_run",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`runId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `token` TEXT NOT NULL, `accessScope` TEXT NOT NULL, `accessRevision` INTEGER NOT NULL, `mode` TEXT NOT NULL, `startedAtMillis` INTEGER NOT NULL, `finishedAtMillis` INTEGER, `status` TEXT NOT NULL, `observedAssetCount` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "runId",
+            "columnName": "runId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "token",
+            "columnName": "token",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accessScope",
+            "columnName": "accessScope",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accessRevision",
+            "columnName": "accessRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "mode",
+            "columnName": "mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startedAtMillis",
+            "columnName": "startedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "finishedAtMillis",
+            "columnName": "finishedAtMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "observedAssetCount",
+            "columnName": "observedAssetCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "runId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_catalog_inventory_run_token",
+            "unique": true,
+            "columnNames": [
+              "token"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_catalog_inventory_run_token` ON `${TABLE_NAME}` (`token`)"
+          }
+        ]
+      },
+      {
+        "tableName": "catalog_access_observation",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`singletonId` INTEGER NOT NULL, `accessScope` TEXT NOT NULL, `processAccessRevision` INTEGER NOT NULL, `observationSequence` INTEGER NOT NULL, `observedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`singletonId`))",
+        "fields": [
+          {
+            "fieldPath": "singletonId",
+            "columnName": "singletonId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accessScope",
+            "columnName": "accessScope",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "processAccessRevision",
+            "columnName": "processAccessRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "observationSequence",
+            "columnName": "observationSequence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "observedAtMillis",
+            "columnName": "observedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "singletonId"
+          ]
+        }
+      },
+      {
+        "tableName": "catalog_watermark",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`singletonId` INTEGER NOT NULL, `catalogRevision` INTEGER NOT NULL, `lastSuccessfulInventoryRunId` INTEGER, `updatedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`singletonId`))",
+        "fields": [
+          {
+            "fieldPath": "singletonId",
+            "columnName": "singletonId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "catalogRevision",
+            "columnName": "catalogRevision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSuccessfulInventoryRunId",
+            "columnName": "lastSuccessfulInventoryRunId",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "updatedAtMillis",
+            "columnName": "updatedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "singletonId"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '2a8a5ee3f139ccf788c3fb391ba7b921')"
+    ]
+  }
+}

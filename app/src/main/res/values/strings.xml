@@ -1,0 +1,39 @@
+<resources>
+    <string name="app_name">Nayti</string>
+    <string name="nav_search">Поиск</string>
+    <string name="nav_readiness">Готовность</string>
+    <string name="nav_data">Данные</string>
+    <string name="local_only">Только на устройстве</string>
+    <string name="search_eyebrow">Локальный поиск</string>
+    <string name="search_title">Найди то, что помнишь</string>
+    <string name="search_subtitle">Текст на фото, смысл документа или визуальная сцена — без облака.</string>
+    <string name="search_hint">Например, «чек из кофейни»</string>
+    <string name="search_preparing">Поиск станет доступен после подключения медиатеки.</string>
+    <string name="library_not_connected">Медиатека пока не подключена</string>
+    <string name="library_not_connected_details">Nayti попросит доступ только к фотографиям и покажет, что уже готово к поиску.</string>
+    <string name="examples_title">Что можно будет искать</string>
+    <string name="example_receipt">Квитанция за июнь</string>
+    <string name="example_seaside">Закат у моря</string>
+    <string name="example_contract">Договор с Ивановым</string>
+    <string name="readiness_eyebrow">Индекс</string>
+    <string name="readiness_title">Готовность поиска</string>
+    <string name="readiness_subtitle">Здесь видно, сколько фотографий уже доступно каждому поисковому каналу.</string>
+    <string name="searchable_photos">Доступно для поиска</string>
+    <plurals name="of_discovered">
+        <item quantity="one">из %1$d обнаруженной</item>
+        <item quantity="few">из %1$d обнаруженных</item>
+        <item quantity="many">из %1$d обнаруженных</item>
+        <item quantity="other">из %1$d обнаруженной</item>
+    </plurals>
+    <string name="first_step_title">Первый шаг</string>
+    <string name="first_step_details">Подключите всю медиатеку или выбранные фотографии. Оригиналы останутся под управлением Android.</string>
+    <string name="connect_library">Подключить медиатеку</string>
+    <string name="catalog_stage_note">Доступ к MediaStore появится на следующем этапе реализации.</string>
+    <string name="data_eyebrow">Контроль</string>
+    <string name="data_title">Данные и модели</string>
+    <string name="data_subtitle">Управление локальным индексом, model pack и диагностикой без скрытой синхронизации.</string>
+    <string name="privacy_title">Приватность</string>
+    <string name="privacy_details">У приложения нет разрешения INTERNET. Фотографии, OCR-текст и запросы остаются на устройстве.</string>
+    <string name="model_pack_title">Model pack</string>
+    <string name="model_pack_missing">Не установлен. Подписанный offline pack будет импортироваться отдельно от APK.</string>
+</resources>

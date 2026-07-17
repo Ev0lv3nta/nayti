@@ -79,5 +79,28 @@ object StorageMigrations {
             }
         }
 
-    val All: Array<Migration> = arrayOf(From1To2, From2To3)
+    val From3To4: Migration =
+        object : Migration(3, 4) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `perceptual_hash_result` (" +
+                        "`assetId` INTEGER NOT NULL, `sourceFingerprint` TEXT NOT NULL, " +
+                        "`accessRevision` INTEGER NOT NULL, `pipelineVersion` TEXT NOT NULL, " +
+                        "`componentHash` TEXT NOT NULL, `hashBits` INTEGER NOT NULL, " +
+                        "`publicationEpoch` INTEGER NOT NULL, `createdAtMillis` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`assetId`, `publicationEpoch`))",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_perceptual_hash_result_assetId_sourceFingerprint` " +
+                        "ON `perceptual_hash_result` (`assetId`, `sourceFingerprint`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS " +
+                        "`index_perceptual_hash_result_pipelineVersion_componentHash_publicationEpoch` " +
+                        "ON `perceptual_hash_result` (`pipelineVersion`, `componentHash`, `publicationEpoch`)",
+                )
+            }
+        }
+
+    val All: Array<Migration> = arrayOf(From1To2, From2To3, From3To4)
 }

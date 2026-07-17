@@ -40,6 +40,7 @@ import kotlinx.coroutines.Dispatchers
         QuerySnapshotLeaseEntity::class,
         VectorPublicationEntity::class,
         ArtifactDeleteIntentEntity::class,
+        PerceptualHashEntity::class,
     ],
     version = StorageContract.CurrentSchemaVersion,
     exportSchema = true,
@@ -51,6 +52,7 @@ abstract class NaytiDatabase : RoomDatabase() {
     abstract fun ocrDao(): OcrDao
     abstract fun ocrSemanticDao(): OcrSemanticDao
     abstract fun vectorIndexDao(): VectorIndexDao
+    abstract fun perceptualHashDao(): PerceptualHashDao
 
     companion object {
         fun open(context: Context): NaytiDatabase =
@@ -76,6 +78,7 @@ class CatalogStorage private constructor(
     val ocrDao: OcrDao = database.ocrDao()
     val ocrSemanticDao: OcrSemanticDao = database.ocrSemanticDao()
     val vectorIndexDao: VectorIndexDao = database.vectorIndexDao()
+    val perceptualHashDao: PerceptualHashDao = database.perceptualHashDao()
 
     override fun close() {
         database.close()

@@ -1,6 +1,7 @@
 package app.nayti.indexer
 
 import app.nayti.platform.media.BoundedMediaDecoder
+import app.nayti.search.engine.similarity.PerceptualHashV1
 import app.nayti.storage.CatalogStorage
 import app.nayti.storage.IndexChannel
 import app.nayti.storage.IndexChannelCoverage
@@ -246,14 +247,20 @@ class OcrIndexingRuntime(
                     channels =
                         listOf(
                             IndexChannelContract(
-                                channel = IndexChannel.OCR,
+                                channel = IndexChannel.PHASH,
                                 priority = 0,
+                                pipelineVersion = PerceptualHashV1.PipelineVersion,
+                                componentHash = PerceptualHashV1.ComponentHash,
+                            ),
+                            IndexChannelContract(
+                                channel = IndexChannel.OCR,
+                                priority = 1,
                                 pipelineVersion = PipelineVersion,
                                 componentHash = pack.manifestSha256,
                             ),
                             IndexChannelContract(
                                 channel = IndexChannel.OCR_SEMANTIC,
-                                priority = 1,
+                                priority = 2,
                                 pipelineVersion = OcrSemanticChannelExecutor.PipelineVersion,
                                 componentHash = pack.manifestSha256,
                             ),
@@ -268,7 +275,29 @@ class OcrIndexingRuntime(
         var saturated = false
         if (
             canContinue(budget, initiator, activeConstraint) &&
-            hasOutstanding(pack, IndexChannel.OCR, PipelineVersion)
+            hasOutstanding(
+                IndexChannel.PHASH,
+                PerceptualHashV1.PipelineVersion,
+                PerceptualHashV1.ComponentHash,
+            )
+        ) {
+            val phase =
+                runPhase(
+                    operation = operation,
+                    hostType = hostType,
+                    itemLimit = itemLimit,
+                    channel = IndexChannel.PHASH,
+                    executor = PerceptualHashChannelExecutor(storage.perceptualHashDao, decoder),
+                    budget = budget,
+                    initiator = initiator,
+                    activeConstraint = activeConstraint,
+                )
+            report = report.merge(phase)
+            saturated = saturated || phase.claimed == itemLimit
+        }
+        if (
+            canContinue(budget, initiator, activeConstraint) &&
+            hasOutstanding(IndexChannel.OCR, PipelineVersion, pack.manifestSha256)
         ) {
             OcrExecutionSession.open(
                 packId = pack.packId,
@@ -294,7 +323,11 @@ class OcrIndexingRuntime(
         }
         if (
             canContinue(budget, initiator, activeConstraint) &&
-            hasOutstanding(pack, IndexChannel.OCR_SEMANTIC, OcrSemanticChannelExecutor.PipelineVersion)
+            hasOutstanding(
+                IndexChannel.OCR_SEMANTIC,
+                OcrSemanticChannelExecutor.PipelineVersion,
+                pack.manifestSha256,
+            )
         ) {
             OcrSemanticExecutionSession.open(
                 packId = pack.packId,
@@ -360,14 +393,18 @@ class OcrIndexingRuntime(
         )
     }
 
-    private suspend fun hasOutstanding(pack: ModelPackEntity, channel: String, pipelineVersion: String): Boolean {
+    private suspend fun hasOutstanding(
+        channel: String,
+        pipelineVersion: String,
+        componentHash: String,
+    ): Boolean {
         val access = storage.catalogDao.accessObservation() ?: return false
         if (access.accessScope == "None") return false
         return storage.indexStateDao.channelCoverage(
             channel = channel,
             accessRevision = access.processAccessRevision,
             pipelineVersion = pipelineVersion,
-            componentHash = pack.manifestSha256,
+            componentHash = componentHash,
         ).outstandingAssetCount > 0
     }
 
@@ -514,7 +551,7 @@ class OcrIndexingRuntime(
         )
 
     private fun operationId(pack: ModelPackEntity, catalogRevision: Long): String =
-        "search-${pack.manifestSha256.take(16)}-catalog-$catalogRevision"
+        "search-v2-${pack.manifestSha256.take(16)}-catalog-$catalogRevision"
 
     private data class WindowResult(
         val operation: IndexOperationEntity,

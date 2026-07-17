@@ -9,6 +9,7 @@ android {
 
     defaultConfig {
         minSdk = 30
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         ndk.abiFilters.addAll(listOf("arm64-v8a", "x86_64"))
         externalNativeBuild {
             cmake.cppFlags += listOf("-std=c++20", "-Wall", "-Wextra", "-Werror")
@@ -32,6 +33,8 @@ android {
 
 dependencies {
     implementation(libs.kotlinx.coroutines.core)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
     testImplementation(libs.junit4)
     testImplementation(libs.kotlinx.coroutines.test)
 }

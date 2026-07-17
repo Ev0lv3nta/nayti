@@ -10,6 +10,10 @@ set_target_properties(nayti_runtime_core PROPERTIES POSITION_INDEPENDENT_CODE ON
 if(ANDROID)
     add_library(nayti_runtime SHARED native_bridge.cpp)
     target_link_libraries(nayti_runtime PRIVATE nayti_runtime_core)
+    target_link_options(nayti_runtime PRIVATE
+        "-Wl,-z,max-page-size=16384"
+        "-Wl,-z,common-page-size=16384"
+    )
     target_compile_features(nayti_runtime PRIVATE cxx_std_20)
     target_compile_options(nayti_runtime PRIVATE -Wall -Wextra -Werror)
 else()

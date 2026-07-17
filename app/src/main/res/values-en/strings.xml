@@ -6,10 +6,22 @@
     <string name="local_only">On-device only</string>
     <string name="search_eyebrow">Local search</string>
     <string name="search_title">Find what you remember</string>
-    <string name="search_subtitle">Text in a photo, document meaning, or a visual scene — without the cloud.</string>
+    <string name="search_subtitle">Text in photos, identifiers, names, and documents — locally, without the cloud.</string>
     <string name="search_hint">For example, “coffee shop receipt”</string>
-    <string name="search_catalog_ready">The catalog is connected; text and semantic search arrive after indexing.</string>
+    <string name="search_catalog_ready">The catalog is connected. Search covers only photos already processed.</string>
     <string name="search_waiting_access">Connect your library on the Readiness tab first.</string>
+    <string name="search_waiting_model_pack">Import a signed model pack on the Data tab.</string>
+    <string name="search_action">Search</string>
+    <string name="search_failed">Search stopped: %1$s</string>
+    <plurals name="search_result_count">
+        <item quantity="one">%1$d result found</item>
+        <item quantity="other">%1$d results found</item>
+    </plurals>
+    <string name="evidence_identifier">Exact identifier</string>
+    <string name="evidence_phrase">Exact phrase</string>
+    <string name="evidence_person">Person name match</string>
+    <string name="evidence_text">Text match</string>
+    <string name="evidence_fuzzy">Similar spelling</string>
     <string name="library_not_connected">Your library is not connected yet</string>
     <string name="library_not_connected_details">Nayti will request access to photos only and show what is already searchable.</string>
     <string name="library_connected">Library connected</string>
@@ -17,13 +29,13 @@
         <item quantity="one">%1$d photo is currently available</item>
         <item quantity="other">%1$d photos are currently available</item>
     </plurals>
-    <string name="examples_title">What you will be able to find</string>
-    <string name="example_receipt">June receipt</string>
-    <string name="example_seaside">Sunset by the sea</string>
-    <string name="example_contract">Contract with Ivanov</string>
     <string name="readiness_eyebrow">Index</string>
     <string name="readiness_title">Search readiness</string>
     <string name="readiness_subtitle">See how many photos are ready in each search channel.</string>
+    <string name="ocr_readiness_title">Text in photos</string>
+    <string name="ocr_readiness_counts">Ready %1$d of %2$d · errors %3$d</string>
+    <string name="ocr_run_slice">Process the next 8 photos</string>
+    <string name="ocr_index_failed">Indexing stopped safely: %1$s</string>
     <string name="connect_library">Connect library</string>
     <string name="access_none_title">Photo access is required</string>
     <string name="access_none_details">Android opens the system picker first. You can share the full library or selected photos only.</string>
@@ -43,14 +55,13 @@
     <string name="catalog_unnamed_photo">Photo %1$d</string>
     <string name="catalog_item_details">%1$d × %2$d · %3$s</string>
     <string name="viewer_back">Back</string>
-    <string name="viewer_eyebrow">Source check</string>
-    <string name="viewer_subtitle">This diagnostic view verifies reading through the current ContentResolver grant.</string>
+    <string name="viewer_eyebrow">Photo</string>
+    <string name="viewer_subtitle">Recognized text regions are highlighted when OCR is already available.</string>
     <string name="viewer_access_changed">Access changed</string>
     <string name="viewer_access_changed_details">The stale card was hidden immediately. Return to the library after reconciliation finishes.</string>
-    <string name="viewer_read_verified">Source read safely</string>
-    <string name="viewer_probe_details">Source %1$d × %2$d, probe %3$d × %4$d</string>
+    <string name="viewer_ocr_details">Source %1$d × %2$d · recognized regions: %3$d</string>
     <string name="viewer_read_failed">Read stopped: %1$s</string>
-    <string name="viewer_privacy_note">The probe is size-bounded, never stored in the catalog, and released immediately after verification.</string>
+    <string name="viewer_privacy_note">The image opens locally at a bounded size and is released when this screen closes.</string>
     <string name="data_eyebrow">Control</string>
     <string name="data_title">Data and models</string>
     <string name="data_subtitle">Manage the local index, model pack, and diagnostics without hidden sync.</string>
@@ -60,4 +71,10 @@
     <string name="catalog_data_details">Observed records: %1$d. Quarantined by current access: %2$d.</string>
     <string name="model_pack_title">Model pack</string>
     <string name="model_pack_missing">Not installed. A signed offline pack will be imported separately from the APK.</string>
+    <string name="model_pack_loading">Checking the local model registry…</string>
+    <string name="model_pack_installing">Checking the signature, files, and seven neural graphs. Keep the app open.</string>
+    <string name="model_pack_ready">Version %1$s · %2$d MB · verified locally</string>
+    <string name="model_pack_failed">Import was safely rejected: %1$s</string>
+    <string name="model_pack_import">Import pack</string>
+    <string name="model_pack_replace">Import another version</string>
 </resources>

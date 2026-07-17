@@ -15,6 +15,24 @@ import kotlinx.coroutines.Dispatchers
         CatalogAccessObservationEntity::class,
         CatalogWatermarkEntity::class,
         ModelPackEntity::class,
+        IndexOperationEntity::class,
+        IndexOperationChannelEntity::class,
+        IndexOperationAssetEntity::class,
+        IndexExecutionWindowEntity::class,
+        IndexChannelWorkEntity::class,
+        IndexChannelPublicationEntity::class,
+        IndexPublicationClockEntity::class,
+        IndexErrorLedgerEntity::class,
+        VectorGenerationEntity::class,
+        VectorSegmentArtifactEntity::class,
+        VectorSegmentRecordEntity::class,
+        VectorManifestEntity::class,
+        VectorManifestSegmentEntity::class,
+        ActivationSnapshotEntity::class,
+        ActiveSnapshotPointerEntity::class,
+        QuerySnapshotLeaseEntity::class,
+        VectorPublicationEntity::class,
+        ArtifactDeleteIntentEntity::class,
     ],
     version = StorageContract.InitialSchemaVersion,
     exportSchema = true,
@@ -22,6 +40,8 @@ import kotlinx.coroutines.Dispatchers
 abstract class NaytiDatabase : RoomDatabase() {
     abstract fun catalogDao(): CatalogDao
     abstract fun modelPackDao(): ModelPackDao
+    abstract fun indexStateDao(): IndexStateDao
+    abstract fun vectorIndexDao(): VectorIndexDao
 
     companion object {
         fun open(context: Context): NaytiDatabase =
@@ -42,6 +62,8 @@ class CatalogStorage private constructor(
 ) : AutoCloseable {
     val catalogDao: CatalogDao = database.catalogDao()
     val modelPackDao: ModelPackDao = database.modelPackDao()
+    val indexStateDao: IndexStateDao = database.indexStateDao()
+    val vectorIndexDao: VectorIndexDao = database.vectorIndexDao()
 
     override fun close() {
         database.close()

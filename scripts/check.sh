@@ -11,6 +11,7 @@ cd "$repo_dir"
   :app:assembleDebug \
   :benchmark:assemble \
   :ml-runtime:assembleDebugAndroidTest \
+  :storage:assembleDebugAndroidTest \
   --no-daemon \
   --max-workers="${NAYTI_GRADLE_WORKERS:-2}"
 

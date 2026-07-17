@@ -5,7 +5,9 @@ import app.nayti.indexer.CatalogRuntime
 import app.nayti.indexer.ModelPackInstallCoordinator
 import app.nayti.indexer.ModelPackRuntime
 import app.nayti.indexer.InstalledOcrPackResolver
+import app.nayti.indexer.IndexResourceGovernor
 import app.nayti.indexer.OcrIndexingRuntime
+import app.nayti.indexing.AndroidIndexResourceGovernor
 import app.nayti.ml.runtime.pack.AlphaModelPackTrust
 import app.nayti.ml.runtime.pack.AndroidModelPackPolicy
 import app.nayti.ml.runtime.pack.AndroidModelPackStorageBudget
@@ -69,9 +71,16 @@ object CatalogRuntimeModule {
 
     @Provides
     @Singleton
+    fun provideIndexResourceGovernor(
+        @ApplicationContext context: Context,
+    ): IndexResourceGovernor = AndroidIndexResourceGovernor(context)
+
+    @Provides
+    @Singleton
     fun provideOcrIndexingRuntime(
         @ApplicationContext context: Context,
         storage: CatalogStorage,
+        resourceGovernor: IndexResourceGovernor,
     ): OcrIndexingRuntime {
         val root = context.noBackupFilesDir.toPath().resolve(StorageContract.ModelPackDirectory)
         val mediaStore = AndroidMediaStoreGateway(context)
@@ -80,6 +89,7 @@ object CatalogRuntimeModule {
             packResolver = InstalledOcrPackResolver(storage.modelPackDao, root),
             decoder = BoundedMediaDecoder(context.contentResolver, mediaStore),
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+            resourceGovernor = resourceGovernor,
         )
     }
 }

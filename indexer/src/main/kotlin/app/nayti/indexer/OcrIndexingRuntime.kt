@@ -50,6 +50,8 @@ class OcrIndexingRuntime(
     private val scope: CoroutineScope,
     private val clock: IndexExecutionClock =
         IndexExecutionClock { System.nanoTime() / 1_000_000L },
+    private val resourceGovernor: IndexResourceGovernor =
+        IndexResourceGovernor { IndexResourceDecision(canContinue = true) },
 ) {
     private val running = AtomicBoolean(false)
     private val continueExecution = AtomicBoolean(false)
@@ -75,6 +77,7 @@ class OcrIndexingRuntime(
                 maximumWindows = 1,
                 itemLimit = SliceItemLimit,
                 maximumDurationMillis = ExecutionWindowMillis,
+                initiator = IndexExecutionInitiator.Manual,
             )
         }
     }
@@ -87,6 +90,7 @@ class OcrIndexingRuntime(
             maximumWindows = MaximumForegroundWindows,
             itemLimit = ForegroundWindowItemLimit,
             maximumDurationMillis = ForegroundExecutionBudgetMillis,
+            initiator = IndexExecutionInitiator.Manual,
         )
     }
 
@@ -122,6 +126,7 @@ class OcrIndexingRuntime(
         maximumWindows: Int,
         itemLimit: Int,
         maximumDurationMillis: Long,
+        initiator: IndexExecutionInitiator,
     ): Boolean {
         require(maximumWindows > 0)
         require(itemLimit in 1..256)
@@ -129,6 +134,7 @@ class OcrIndexingRuntime(
         currentPack.set(pack)
         continueExecution.set(true)
         val budget = IndexExecutionBudget(clock, maximumDurationMillis)
+        val activeConstraint = AtomicReference<String?>(null)
         mutableState.value = mutableState.value.copy(
             status = OcrIndexingStatus.Running,
             errorCode = null,
@@ -137,8 +143,11 @@ class OcrIndexingRuntime(
         var operationId: String? = null
         try {
             var windows = 0
-            while (windows < maximumWindows && continueExecution.get() && budget.hasTimeRemaining()) {
-                val result = executeWindow(pack, hostType, itemLimit, budget)
+            while (
+                windows < maximumWindows &&
+                    canContinue(budget, initiator, activeConstraint)
+            ) {
+                val result = executeWindow(pack, hostType, itemLimit, budget, initiator, activeConstraint)
                 windows += 1
                 operationId = result.operation.operationId
                 currentOperationId.set(operationId)
@@ -146,11 +155,21 @@ class OcrIndexingRuntime(
                 if (result.report.claimed == 0 || result.report.claimed < itemLimit) break
             }
             val coverage = coverage(pack)
-            if (continueExecution.get() && coverage != null && coverage.outstandingAssetCount > 0) {
-                transitionCurrent(IndexOperationState.WAITING_SYSTEM, autoResume = true)
+            val constraintCode = activeConstraint.get()
+            if (coverage != null && coverage.outstandingAssetCount > 0) {
+                if (constraintCode == null) {
+                    if (continueExecution.get()) {
+                        transitionCurrent(IndexOperationState.WAITING_SYSTEM, autoResume = true)
+                    }
+                } else {
+                    transitionCurrent(IndexOperationState.PAUSED_CONSTRAINT, autoResume = true)
+                }
             }
             running.set(false)
             publishCoverage(pack, lastSlicePublished = 0, operationId = operationId, hostType = null)
+            if (constraintCode != null) {
+                mutableState.value = mutableState.value.copy(errorCode = constraintCode)
+            }
             return true
         } catch (failure: CancellationException) {
             throw failure
@@ -183,6 +202,8 @@ class OcrIndexingRuntime(
         hostType: String,
         itemLimit: Int,
         budget: IndexExecutionBudget,
+        initiator: IndexExecutionInitiator,
+        activeConstraint: AtomicReference<String?>,
     ): WindowResult =
         OcrExecutionSession.open(
             packId = pack.packId,
@@ -229,11 +250,24 @@ class OcrIndexingRuntime(
                     windowId = window.windowId,
                     itemLimit = itemLimit,
                     control = IndexExecutionControl {
-                        continueExecution.get() && budget.hasTimeRemaining()
+                        canContinue(budget, initiator, activeConstraint)
                     },
                 )
             WindowResult(operation, report)
         }
+
+    private fun canContinue(
+        budget: IndexExecutionBudget,
+        initiator: IndexExecutionInitiator,
+        activeConstraint: AtomicReference<String?>,
+    ): Boolean {
+        if (!continueExecution.get() || !budget.hasTimeRemaining()) return false
+        val decision = resourceGovernor.evaluate(initiator)
+        if (!decision.canContinue) {
+            activeConstraint.compareAndSet(null, decision.constraintCode ?: "RESOURCE_CONSTRAINT")
+        }
+        return decision.canContinue
+    }
 
     private fun requestStop() {
         continueExecution.set(false)

@@ -27,6 +27,8 @@ import kotlinx.coroutines.Dispatchers
         OcrRegionEntity::class,
         OcrLexicalFtsEntity::class,
         OcrTrigramFtsEntity::class,
+        OcrSemanticChunkEntity::class,
+        OcrSemanticChunkLineEntity::class,
         VectorGenerationEntity::class,
         VectorSegmentArtifactEntity::class,
         VectorSegmentRecordEntity::class,
@@ -38,7 +40,7 @@ import kotlinx.coroutines.Dispatchers
         VectorPublicationEntity::class,
         ArtifactDeleteIntentEntity::class,
     ],
-    version = StorageContract.InitialSchemaVersion,
+    version = StorageContract.CurrentSchemaVersion,
     exportSchema = true,
 )
 abstract class NaytiDatabase : RoomDatabase() {
@@ -55,6 +57,7 @@ abstract class NaytiDatabase : RoomDatabase() {
                 NaytiDatabase::class.java,
                 StorageContract.DatabaseFileName,
             ).setDriver(BundledSQLiteDriver())
+                .addMigrations(*StorageMigrations.All)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
                 .setMultipleConnectionPool(maxNumOfReaders = 4, maxNumOfWriters = 1)
                 .setQueryCoroutineContext(Dispatchers.IO)

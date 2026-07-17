@@ -24,6 +24,7 @@ data class PublishedVectorRecord(
     val chunkOrdinal: Int,
     val sourceFingerprint: String,
     val vector: ByteArray,
+    val semanticChunkId: String? = null,
 )
 
 data class VectorPublicationRequest(
@@ -182,6 +183,7 @@ class VectorPublicationStore(
                 assetId = record.assetId,
                 sourceFingerprint = record.sourceFingerprint,
                 chunkOrdinal = record.chunkOrdinal,
+                semanticChunkId = record.semanticChunkId,
             )
         }
         val manifest = VectorManifestEntity(

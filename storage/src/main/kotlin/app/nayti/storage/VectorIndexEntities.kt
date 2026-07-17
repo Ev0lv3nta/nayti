@@ -53,6 +53,7 @@ data class VectorSegmentArtifactEntity(
     indices = [
         Index(value = ["segmentSha256", "recordId"], unique = true),
         Index(value = ["assetId"]),
+        Index(value = ["semanticChunkId"]),
     ],
 )
 data class VectorSegmentRecordEntity(
@@ -62,6 +63,7 @@ data class VectorSegmentRecordEntity(
     val assetId: Long,
     val sourceFingerprint: String,
     val chunkOrdinal: Int,
+    val semanticChunkId: String? = null,
 )
 
 @Entity(

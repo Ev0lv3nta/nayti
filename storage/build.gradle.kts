@@ -34,6 +34,7 @@ dependencies {
 
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.room3.testing)
     testImplementation(libs.junit4)
     testImplementation(libs.kotlinx.coroutines.test)
 }

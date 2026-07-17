@@ -68,6 +68,50 @@ class LoadSegmentAlignmentsTest(unittest.TestCase):
             self.assertEqual(len(failures), 1)
             self.assertIn("expected every segment >= 0x4000", failures[0])
 
+    def test_aar_check_reads_jni_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            aar = Path(directory) / "test.aar"
+            with zipfile.ZipFile(aar, "w") as archive:
+                archive.writestr(
+                    "jni/arm64-v8a/libexample.so",
+                    elf64_with_alignments(0x4000),
+                )
+            self.assertEqual(
+                MODULE.verify_archive(
+                    aar,
+                    "arm64-v8a",
+                    0x4000,
+                    native_root="jni",
+                ),
+                [],
+            )
+
+    def test_zip_alignment_accepts_stored_page_aligned_library(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            apk = Path(directory) / "aligned.apk"
+            name = "lib/arm64-v8a/libexample.so"
+            base_offset = 30 + len(name.encode("utf-8"))
+            padding = (-base_offset) % 0x4000
+            self.assertGreaterEqual(padding, 4)
+            entry = zipfile.ZipInfo(name)
+            entry.compress_type = zipfile.ZIP_STORED
+            entry.extra = struct.pack("<HH", 0xFFFF, padding - 4) + bytes(padding - 4)
+            with zipfile.ZipFile(apk, "w") as archive:
+                archive.writestr(entry, elf64_with_alignments(0x4000))
+            self.assertEqual(MODULE.verify_zip_alignment(apk, "arm64-v8a", 0x4000), [])
+
+    def test_zip_alignment_rejects_compressed_library(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            apk = Path(directory) / "compressed.apk"
+            with zipfile.ZipFile(apk, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr(
+                    "lib/arm64-v8a/libexample.so",
+                    elf64_with_alignments(0x4000),
+                )
+            failures = MODULE.verify_zip_alignment(apk, "arm64-v8a", 0x4000)
+            self.assertEqual(1, len(failures))
+            self.assertIn("compressed", failures[0])
+
 
 if __name__ == "__main__":
     unittest.main()

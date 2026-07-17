@@ -354,6 +354,8 @@ interface VectorIndexDao {
             work.any { item ->
                 item.state != IndexWorkState.RUNNING ||
                     item.channel != publication.channel ||
+                    item.pipelineVersion != generation.pipelineVersion ||
+                    item.componentHash != generation.componentHash ||
                     (item.leaseExpiresAtMillis ?: 0) <= nowMillis
             }
         ) {
@@ -399,6 +401,8 @@ interface VectorIndexDao {
         check(work.isNotEmpty() && work.all { item ->
             item.state == IndexWorkState.STAGED &&
                 item.channel == publication.channel &&
+                item.pipelineVersion == generation.pipelineVersion &&
+                item.componentHash == generation.componentHash &&
                 item.stagedArtifactPath == segment.relativePath &&
                 item.stagedArtifactLength == segment.byteLength &&
                 item.stagedArtifactSha256 == segment.sha256

@@ -5,6 +5,9 @@ import app.nayti.ml.runtime.ocr.OrtOcrInferenceEngine
 import app.nayti.ml.runtime.semantic.User2Contract
 import app.nayti.ml.runtime.semantic.User2EmbeddingSpaceIdentity
 import app.nayti.ml.runtime.semantic.User2OrtRuntime
+import app.nayti.ml.runtime.visual.Siglip2Contract
+import app.nayti.ml.runtime.visual.Siglip2EmbeddingSpaceIdentity
+import app.nayti.ml.runtime.visual.Siglip2ImageOrtRuntime
 import app.nayti.platform.media.BoundedMediaDecoder
 import app.nayti.storage.IndexChannel
 import app.nayti.storage.IndexStateDao
@@ -13,6 +16,7 @@ import app.nayti.storage.ModelPackEntity
 import app.nayti.storage.ModelPackStatus
 import app.nayti.storage.OcrDao
 import app.nayti.storage.OcrSemanticDao
+import app.nayti.storage.PerceptualHashDao
 import app.nayti.storage.VectorGenerationEntity
 import app.nayti.storage.VectorGenerationState
 import app.nayti.storage.VectorIndexDao
@@ -225,6 +229,94 @@ class OcrSemanticExecutionSession private constructor(
                                 ),
                             ),
                         generationId = generation.generationId,
+                        clock = clock,
+                    ),
+                runtime = runtime,
+            )
+        }
+    }
+}
+
+/** Owns the SigLIP2 image session and one compatible visual generation for a bounded window. */
+class VisualExecutionSession private constructor(
+    val pack: InstalledOcrPack,
+    val generation: VectorGenerationEntity,
+    val executor: VisualChannelExecutor,
+    private val runtime: Siglip2ImageOrtRuntime,
+) : AutoCloseable {
+    override fun close() = runtime.close()
+
+    companion object {
+        suspend fun open(
+            packId: String,
+            packVersion: String,
+            resolver: InstalledOcrPackResolver,
+            indexState: IndexStateDao,
+            semantic: OcrSemanticDao,
+            hashes: PerceptualHashDao,
+            vectors: VectorIndexDao,
+            decoder: BoundedMediaDecoder,
+            vectorRoot: File,
+            clock: OcrExecutorClock = OcrExecutorClock(System::currentTimeMillis),
+        ): VisualExecutionSession {
+            val pack = resolver.resolve(packId, packVersion)
+            val embeddingSpaceHash =
+                withContext(Dispatchers.IO) {
+                    Siglip2EmbeddingSpaceIdentity.calculate(pack.payloadDirectory.parent)
+                }
+            val generationId =
+                "visual-${pack.componentHash.take(12)}-${embeddingSpaceHash.take(32)}"
+            val existing = vectors.generation(generationId)
+            val generation =
+                existing
+                    ?: VectorGenerationEntity(
+                        generationId = generationId,
+                        channel = IndexChannel.VISUAL,
+                        packId = pack.registryEntry.packId,
+                        packVersion = pack.registryEntry.packVersion,
+                        pipelineVersion = Siglip2Contract.PipelineVersion,
+                        componentHash = pack.componentHash,
+                        embeddingSpaceHash = embeddingSpaceHash,
+                        dimension = Siglip2Contract.EmbeddingDimension,
+                        state = VectorGenerationState.BUILDING,
+                        createdAtMillis = clock.nowMillis(),
+                        sealedAtMillis = null,
+                    ).also { vectors.createGeneration(it) }
+            check(
+                generation.channel == IndexChannel.VISUAL &&
+                    generation.packId == pack.registryEntry.packId &&
+                    generation.packVersion == pack.registryEntry.packVersion &&
+                    generation.pipelineVersion == Siglip2Contract.PipelineVersion &&
+                    generation.componentHash == pack.componentHash &&
+                    generation.embeddingSpaceHash == embeddingSpaceHash &&
+                    generation.dimension == Siglip2Contract.EmbeddingDimension &&
+                    generation.state == VectorGenerationState.BUILDING
+            ) { "Installed SigLIP2 generation does not match its execution contract" }
+
+            val runtime =
+                withContext(Dispatchers.Default) {
+                    Siglip2ImageOrtRuntime.open(pack.payloadDirectory)
+                }
+            return VisualExecutionSession(
+                pack = pack,
+                generation = generation,
+                executor =
+                    VisualChannelExecutor(
+                        indexState = indexState,
+                        semantic = semantic,
+                        hashes = hashes,
+                        decoder = decoder,
+                        embedding = Siglip2VisualEmbeddingEngine(runtime),
+                        publisher =
+                            VectorStoreVisualPublisher(
+                                VectorPublicationStore(
+                                    rootDirectory = vectorRoot,
+                                    dao = vectors,
+                                    nowMillis = clock::nowMillis,
+                                ),
+                            ),
+                        generationId = generation.generationId,
+                        componentHash = pack.componentHash,
                         clock = clock,
                     ),
                 runtime = runtime,

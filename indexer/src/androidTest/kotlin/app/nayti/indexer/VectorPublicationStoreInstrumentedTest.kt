@@ -316,6 +316,28 @@ class VectorPublicationStoreInstrumentedTest {
     }
 
     @Test
+    fun incompatibleWorkContractIsRejectedBeforeDatabaseStaging() = runBlocking {
+        val assetId = insertAsset(1_000)
+        val lease = stageRunningWork(assetId, "wrong-contract")
+        val work = checkNotNull(storage.indexStateDao.work(assetId, IndexChannel.VISUAL))
+        storage.indexStateDao.replaceWork(work.copy(componentHash = SecondEmbeddingHash))
+
+        val failure = runCatching { store().publish(request(1_000, assetId, lease)) }.exceptionOrNull()
+
+        assertTrue(failure is VectorPublicationLeaseRejectedException)
+        assertNull(storage.vectorIndexDao.publication("publication-1000"))
+        assertNull(storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(IndexWorkState.RUNNING, storage.indexStateDao.work(assetId, IndexChannel.VISUAL)?.state)
+        val recovery =
+            IndexStartupRecovery(root, storage.indexStateDao, storage.vectorIndexDao).recover(
+                nowMillis = now,
+                orphanGraceMillis = 0,
+                deepVerifySegments = true,
+            )
+        assertEquals(1, recovery.vector.deletedOrphans)
+    }
+
+    @Test
     fun newEmbeddingGenerationStartsFreshManifestFromActiveSnapshot() = runBlocking {
         val firstAsset = insertAsset(1)
         val first = store().publish(request(1_001, firstAsset, stageRunningWork(firstAsset, "first-generation")))

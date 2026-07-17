@@ -259,9 +259,7 @@ class OcrPublicationInstrumentedTest {
                 ),
                 createdAtMillis = 22,
             )
-        assertThrows(IllegalStateException::class.java) {
-            runBlocking { semantic.publishChunkSet(stale) }
-        }
+        assertNull(semantic.publishChunkSet(stale))
 
         reopenDatabase()
         assertEquals(materialization.chunkSet, semantic.chunkSet(materialization.chunkSet.chunkSetId))

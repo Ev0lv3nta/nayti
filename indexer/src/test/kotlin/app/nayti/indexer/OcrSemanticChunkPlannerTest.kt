@@ -100,6 +100,25 @@ class OcrSemanticChunkPlannerTest {
         }
     }
 
+    @Test
+    fun tokenizerCallsGrowLogarithmicallyAtMaximumDocumentSize() {
+        var calls = 0
+        val measured =
+            OcrSemanticChunkPlanner(
+                SemanticTokenCounter { text ->
+                    calls += 1
+                    whitespaceTokens(text).coerceAtMost(126)
+                },
+            )
+        val lines =
+            (0 until 80).map { ordinal ->
+                line(ordinal, (0 until 96).joinToString(" ") { index -> "term${ordinal}_$index" })
+            }
+
+        assertEquals(OcrSemanticChunkPlanner.MaximumChunks, measured.plan(lines).size)
+        assertTrue("tokenizer calls=$calls", calls < 1_000)
+    }
+
     private fun line(
         ordinal: Int,
         text: String,

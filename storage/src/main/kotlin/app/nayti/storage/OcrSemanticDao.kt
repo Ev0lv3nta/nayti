@@ -36,7 +36,7 @@ interface OcrSemanticDao {
     suspend fun chunkLines(chunkId: String): List<OcrSemanticChunkLineEntity>
 
     @Transaction
-    suspend fun publishChunkSet(materialization: OcrSemanticChunkMaterialization): OcrSemanticChunkSetEntity {
+    suspend fun publishChunkSet(materialization: OcrSemanticChunkMaterialization): OcrSemanticChunkSetEntity? {
         val expected =
             OcrSemanticChunkCodec.materialize(
                 OcrSemanticChunkSetDraft(
@@ -61,13 +61,19 @@ interface OcrSemanticDao {
             )
         require(materialization == expected)
 
-        val document = checkNotNull(ocrDocument(materialization.chunkSet.assetId))
-        check(document.sourceFingerprint == materialization.chunkSet.sourceFingerprint)
-        check(document.publicationToken == materialization.chunkSet.ocrPublicationToken)
+        val document = ocrDocument(materialization.chunkSet.assetId) ?: return null
+        if (
+            document.sourceFingerprint != materialization.chunkSet.sourceFingerprint ||
+            document.publicationToken != materialization.chunkSet.ocrPublicationToken
+        ) {
+            return null
+        }
         val regionOrdinals = ocrRegions(document.assetId).mapTo(mutableSetOf(), OcrRegionEntity::ordinal)
-        check(materialization.lines.all { line ->
+        if (!materialization.lines.all { line ->
             line.assetId == document.assetId && line.lineOrdinal in regionOrdinals
-        })
+        }) {
+            return null
+        }
 
         insertChunkSetIfAbsent(materialization.chunkSet)
         check(chunkSet(materialization.chunkSet.chunkSetId) == materialization.chunkSet)

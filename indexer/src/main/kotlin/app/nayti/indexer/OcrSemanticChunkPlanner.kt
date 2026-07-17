@@ -49,20 +49,17 @@ class OcrSemanticChunkPlanner(
         require(words.size <= MaximumWords) { "OCR document exceeds the semantic word limit" }
         if (words.isEmpty()) return emptyList()
 
-        val usableWords = words.filter { word -> checkedTokenCount(word.text) <= MaximumContentTokens }
-        if (usableWords.isEmpty()) return emptyList()
-
         val chunks = mutableListOf<OcrSemanticChunkDraft>()
         val headerLineOrdinals = lines.take(HeaderLineLimit).mapTo(mutableSetOf(), SemanticOcrLine::ordinal)
-        val headerWords = usableWords.takeWhile { word -> word.lineOrdinal in headerLineOrdinals }
-        largestWindow(headerWords, start = 0)?.let { window ->
+        val headerWords = words.takeWhile { word -> word.lineOrdinal in headerLineOrdinals }
+        firstWindow(headerWords)?.let { window ->
             createDraft(OcrSemanticChunkKind.HEADER, window.words, window.tokenCount, chunks.size)
                 ?.let(chunks::add)
         }
 
         var start = 0
-        while (start < usableWords.size && chunks.size < MaximumChunks) {
-            val window = largestWindow(usableWords, start) ?: run {
+        while (start < words.size && chunks.size < MaximumChunks) {
+            val window = largestWindow(words, start) ?: run {
                 start += 1
                 continue
             }
@@ -73,33 +70,57 @@ class OcrSemanticChunkPlanner(
             }
 
             chunks += draft
-            if (window.endExclusive == usableWords.size) break
-            start = overlapStart(usableWords, start, window.endExclusive)
+            if (window.endExclusive == words.size) break
+            start = overlapStart(words, start, window.endExclusive)
                 .takeIf { it > start }
                 ?: window.endExclusive
         }
         return chunks
     }
 
+    private fun firstWindow(words: List<Word>): Window? {
+        var start = 0
+        while (start < words.size) {
+            largestWindow(words, start)?.let { return it }
+            start += 1
+        }
+        return null
+    }
+
     private fun largestWindow(words: List<Word>, start: Int): Window? {
         if (start >= words.size) return null
-        var endExclusive = start + 1
-        var best: Window? = null
-        while (endExclusive <= words.size) {
-            val candidate = words.subList(start, endExclusive)
-            val tokenCount = checkedTokenCount(render(candidate))
-            if (tokenCount > MaximumContentTokens) break
-            best = Window(candidate.toList(), endExclusive, tokenCount)
-            endExclusive += 1
+        var low = start + 1
+        var high = words.size
+        var bestEnd = -1
+        var bestCount = -1
+        while (low <= high) {
+            val middle = low + (high - low) / 2
+            val tokenCount = checkedTokenCount(render(words.subList(start, middle)))
+            if (tokenCount <= MaximumContentTokens) {
+                bestEnd = middle
+                bestCount = tokenCount
+                low = middle + 1
+            } else {
+                high = middle - 1
+            }
         }
-        return best
+        if (bestEnd < 0) return null
+        return Window(words.subList(start, bestEnd).toList(), bestEnd, bestCount)
     }
 
     private fun overlapStart(words: List<Word>, start: Int, endExclusive: Int): Int {
+        var low = start + 1
+        var high = endExclusive - 1
         var selected = endExclusive
-        for (candidateStart in endExclusive - 1 downTo start + 1) {
-            val tokenCount = checkedTokenCount(render(words.subList(candidateStart, endExclusive)))
-            if (tokenCount <= OverlapTokens) selected = candidateStart else break
+        while (low <= high) {
+            val middle = low + (high - low) / 2
+            val tokenCount = checkedTokenCount(render(words.subList(middle, endExclusive)))
+            if (tokenCount <= OverlapTokens) {
+                selected = middle
+                high = middle - 1
+            } else {
+                low = middle + 1
+            }
         }
         return selected
     }

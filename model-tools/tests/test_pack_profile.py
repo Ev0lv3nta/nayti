@@ -59,6 +59,20 @@ class PackProfileTest(unittest.TestCase):
         with self.assertRaises(PackFormatError):
             load_profile(self._write_profile(missing_artifact))
 
+    def test_repository_alpha_profile_is_well_formed(self) -> None:
+        profile = load_profile(
+            Path(__file__).parents[1] / "manifests" / "pack-profile.alpha1.json",
+        )
+
+        self.assertEqual("nayti-offline-search", profile.raw["packId"])
+        self.assertEqual("0.1.0-alpha.1", profile.raw["packVersion"])
+        self.assertEqual(7, len(profile.raw["components"]))
+        self.assertEqual(39, len(profile.files))
+        self.assertEqual(
+            "models/siglip2_image.ort",
+            profile.raw["components"][0]["artifactPath"],
+        )
+
     def _profile(self) -> dict:
         return {
             "schemaVersion": 1,

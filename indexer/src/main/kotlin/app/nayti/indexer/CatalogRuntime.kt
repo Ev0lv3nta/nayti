@@ -6,6 +6,7 @@ import app.nayti.platform.media.AccessRevisionGate
 import app.nayti.platform.media.AndroidMediaPermissionReader
 import app.nayti.platform.media.AndroidMediaStoreGateway
 import app.nayti.platform.media.BoundedMediaDecoder
+import app.nayti.platform.media.DecodedMediaImage
 import app.nayti.platform.media.MediaAccessScope
 import app.nayti.platform.media.MediaDecodeProbe
 import app.nayti.platform.media.MediaKey
@@ -75,6 +76,7 @@ class CatalogRuntime private constructor(
     private val decoder: BoundedMediaDecoder,
     private val applicationScope: CoroutineScope,
     private val observerFactory: (() -> Unit) -> MediaStoreChangeObserver,
+    private val closeStorageOnClose: Boolean,
 ) : AutoCloseable {
     private val reconcileSignal = Channel<Unit>(Channel.CONFLATED)
     private val fullInventoryPending = AtomicBoolean(true)
@@ -164,11 +166,27 @@ class CatalogRuntime private constructor(
             result
         }
 
+    suspend fun decode(assetId: Long, accessPin: AccessRevision): DecodedMediaImage =
+        withContext(Dispatchers.IO) {
+            check(accessGate.isCurrent(accessPin)) { "Access revision is stale" }
+            val asset = checkNotNull(storage.catalogDao.asset(assetId))
+            check(asset.availability == CatalogAvailability.AVAILABLE) {
+                "Asset is not currently available"
+            }
+            val decoded = decoder.decode(MediaKey(asset.volumeName, asset.mediaStoreId))
+            val after = accessGate.refresh()
+            if (after != accessPin) {
+                decoded.close()
+                error("Access changed while decoding")
+            }
+            decoded
+        }
+
     override fun close() {
         changeObserver?.close()
         reconcileSignal.close()
         applicationScope.cancel()
-        storage.close()
+        if (closeStorageOnClose) storage.close()
     }
 
     private suspend fun reconcileNow(forceFull: Boolean) {
@@ -250,12 +268,21 @@ class CatalogRuntime private constructor(
         )
 
     companion object {
-        fun create(context: Context): CatalogRuntime {
+        fun create(context: Context): CatalogRuntime =
+            create(context, CatalogStorage.open(context), closeStorageOnClose = true)
+
+        fun create(context: Context, storage: CatalogStorage): CatalogRuntime =
+            create(context, storage, closeStorageOnClose = false)
+
+        private fun create(
+            context: Context,
+            storage: CatalogStorage,
+            closeStorageOnClose: Boolean,
+        ): CatalogRuntime {
             val applicationContext = context.applicationContext
             val permissionReader = AndroidMediaPermissionReader(applicationContext)
             val accessGate = AccessRevisionGate(permissionReader.read(), permissionReader)
             val mediaStore = AndroidMediaStoreGateway(applicationContext)
-            val storage = CatalogStorage.open(applicationContext)
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             return CatalogRuntime(
                 storage = storage,
@@ -266,6 +293,7 @@ class CatalogRuntime private constructor(
                 observerFactory = { onDirty ->
                     MediaStoreChangeObserver(applicationContext, onDirty)
                 },
+                closeStorageOnClose = closeStorageOnClose,
             )
         }
 

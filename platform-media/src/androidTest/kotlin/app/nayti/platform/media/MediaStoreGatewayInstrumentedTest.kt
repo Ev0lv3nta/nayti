@@ -15,6 +15,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -76,6 +77,32 @@ class MediaStoreGatewayInstrumentedTest {
             assertTrue(probe.decodedWidth <= 64)
             assertTrue(probe.decodedHeight <= 64)
             assertTrue(probe.allocationBytes in 1..(64 * 64 * 4))
+
+            val decoded = BoundedMediaDecoder(resolver, gateway).decode(observation.key, maxEdge = 64)
+            assertEquals(probe.sourceWidth, decoded.sourceWidth)
+            assertEquals(probe.decodedWidth, decoded.decodedWidth)
+            assertFalse(decoded.bitmap.isRecycled)
+            decoded.close()
+            decoded.close()
+            assertThrows(IllegalStateException::class.java) { decoded.bitmap }
+        }
+    }
+
+    @Test
+    fun corruptMediaIsSeparatedFromAccessLoss() {
+        val uri = insertBytes("not an image".encodeToByteArray())
+        val id = uri.lastPathSegment?.toLong() ?: error("MediaStore URI has no ID")
+        val key = MediaKey(MediaStore.VOLUME_EXTERNAL_PRIMARY, id)
+        val decoder = BoundedMediaDecoder(resolver, AndroidMediaStoreGateway(context))
+
+        assertThrows(MediaDecodeContentException::class.java) {
+            decoder.decode(key, maxEdge = 64)
+        }
+
+        resolver.delete(uri, null, null)
+        createdUris.remove(uri)
+        assertThrows(MediaDecodeAccessException::class.java) {
+            decoder.decode(key, maxEdge = 64)
         }
     }
 
@@ -99,6 +126,27 @@ class MediaStoreGatewayInstrumentedTest {
             }
         } finally {
             bitmap.recycle()
+        }
+        values.clear()
+        values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+        assertEquals(1, resolver.update(uri, values, null, null))
+        return uri
+    }
+
+    private fun insertBytes(bytes: ByteArray): android.net.Uri {
+        val values =
+            ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, "nayti-test-${UUID.randomUUID()}.jpg")
+                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/NaytiTests")
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+        val collection =
+            MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        val uri = checkNotNull(resolver.insert(collection, values))
+        createdUris += uri
+        resolver.openOutputStream(uri, "w").use { output ->
+            checkNotNull(output).write(bytes)
         }
         values.clear()
         values.put(MediaStore.MediaColumns.IS_PENDING, 0)

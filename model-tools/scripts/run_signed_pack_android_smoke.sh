@@ -8,18 +8,18 @@ set -euo pipefail
 readonly repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly adb="$ANDROID_SDK_ROOT/platform-tools/adb"
 readonly aar="${NAYTI_ORT_AAR:-$NAYTI_MODEL_LAB/runtime-build/android-arm64/Release/java/build/android/outputs/aar/onnxruntime-release.aar}"
-readonly pack="${NAYTI_MODEL_PACK:-$NAYTI_MODEL_LAB/model-packs/nayti-offline-search-0.1.0-alpha.1.naytipack}"
+readonly pack="${NAYTI_MODEL_PACK:-$NAYTI_MODEL_LAB/model-packs/nayti-offline-search-0.1.0-alpha.2.naytipack}"
 readonly package_name="app.nayti.model.runtime.proof"
 readonly runner="$package_name/androidx.test.runner.AndroidJUnitRunner"
 readonly test_class="$package_name.SignedModelPackInstrumentedTest"
-readonly expected_pack_sha256="654b87d6dedb210177464a2220655852ce2d17c22d7625b6c4fd9b5ac39e889e"
+readonly expected_pack_sha256="2c90206b2c1ac09233a2b4f3c882dbe4e721bd52ddc3bde46cc6631d51a42167"
 
 if [[ ! -x "$adb" || ! -f "$aar" || ! -f "$pack" ]]; then
   echo "missing adb, reduced AAR, or signed model pack" >&2
   exit 1
 fi
 if [[ "$(shasum -a 256 "$pack" | awk '{ print $1 }')" != "$expected_pack_sha256" ]]; then
-  echo "signed model pack identity does not match alpha.1" >&2
+  echo "signed model pack identity does not match alpha.2" >&2
   exit 1
 fi
 
@@ -53,7 +53,7 @@ export GRADLE_USER_HOME="${GRADLE_USER_HOME:-$repo_root/../.gradle-home}"
 readonly apk="$repo_root/model-runtime-proof/build/outputs/apk/debug/model-runtime-proof-debug.apk"
 python3 "$repo_root/scripts/verify_native_page_size.py" "$apk" --abi arm64-v8a --check-zip-alignment
 
-readonly private_pack="files/nayti-offline-search-0.1.0-alpha.1.naytipack"
+readonly private_pack="files/nayti-offline-search-0.1.0-alpha.2.naytipack"
 readonly log_dir="$NAYTI_MODEL_LAB/runtime-build/signed-pack-smoke"
 readonly run_id="$(date -u +%Y%m%dT%H%M%SZ)"
 readonly run_log="$log_dir/api-${api_level}-page-${page_size}-${run_id}.log"

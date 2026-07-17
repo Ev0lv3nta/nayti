@@ -70,7 +70,7 @@ def main() -> None:
     assemble.add_argument(
         "--profile",
         type=Path,
-        default=Path(__file__).parents[2] / "manifests" / "pack-profile.alpha1.json",
+        default=Path(__file__).parents[2] / "manifests" / "pack-profile.alpha2.json",
     )
     assemble.add_argument("--private-key", type=Path)
     assemble.add_argument("--public-key", type=Path)

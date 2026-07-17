@@ -58,6 +58,6 @@ Pinned validation build создаётся командой `model-tools/scripts
 
 `pack-keygen` создаёт отдельную workspace-local пару Ed25519 для alpha model pack; private key никогда не попадает в Git и не связан с APK signing. `pack-assemble` строит deterministic uncompressed container из reviewable profile, подписывает canonical manifest и затем заново проверяет подпись, exact lengths и SHA-256 всего payload. `pack-inspect` выполняет ту же потоковую проверку без извлечения файлов. Формат и threat model зафиксированы в `docs/adr/0001-model-pack-container.md`.
 
-Reviewable `pack-profile.alpha1.json` перечисляет семь ORT graphs, machine-readable contracts, exact KAT, preprocessing, operator allowlist, provenance, CycloneDX SBOM, notices и Apache-2.0 text. Generated pack и private key остаются в `model-lab`; в Git находятся только профиль, публичные сведения о происхождении и тесты формата.
+Reviewable `pack-profile.alpha2.json` перечисляет семь ORT graphs, machine-readable contracts, отдельный canonical CTC decoder, exact KAT, preprocessing, operator allowlist, provenance, CycloneDX SBOM, notices и Apache-2.0 text. Предыдущий `alpha1` profile остаётся неизменным для воспроизводимости уже собранного артефакта. Generated pack и private key остаются в `model-lab`; в Git находятся только профили, публичные сведения о происхождении и тесты формата.
 
 Непинованные revisions, глобальный Hugging Face cache и пользовательские фотографии в этом toolchain запрещены.

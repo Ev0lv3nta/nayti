@@ -27,6 +27,10 @@ Manifest содержит exact path, role, length и SHA-256 каждого pay
 
 Android импортирует контейнер только в app-private staging. До публикации проверяются canonical manifest, доверенный key ID, подпись, compatibility policy, declared length/SHA-256 каждого файла и exact EOF. Затем production ORT runtime открывает все семь графов и выполняет signed known-answer suite; после callback payload повторно хешируется, чтобы валидатор не мог незаметно изменить candidate. Только после этого staging атомарно переименовывается в immutable directory и регистрируется со статусом `INSTALLED_CANDIDATE`. Установка сама по себе не меняет active pack.
 
+Known-answer gate является production-кодом `ml-runtime`, а Android proof вызывает тот же класс. Он последовательно открывает все семь deploy-графов с production ORT options, проверяет exact inputs/outputs, shapes, dtypes, file identities и signed allclose/cosine tolerances; одновременно в памяти находятся только одна session и fixtures одного графа. Отдельная упрощённая проверка только для тестов запрещена.
+
+После process restart runtime не принимает произвольный filesystem path. Он разрешает точные `packId` и `packVersion` через Room registry, проверяет canonical private-directory layout и SHA-256 manifest, а native sessions открывает только из найденного `payload`. OCR sessions принадлежат одному bounded execution window и закрываются вместе с ним. Использование candidate как явно указанной цели shadow-индексации не делает его query-active: это происходит только через отдельный `ActivationSnapshot` после coverage gates.
+
 ## Последствия
 
 - импорт выполняется одним bounded stream без временной распаковки архива целиком;

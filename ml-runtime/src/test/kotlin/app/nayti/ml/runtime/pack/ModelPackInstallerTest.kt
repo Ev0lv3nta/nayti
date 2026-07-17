@@ -30,7 +30,7 @@ class ModelPackInstallerTest {
 
         assertEquals(first, second)
         assertEquals("nayti-offline-search", first.packId)
-        assertEquals("0.1.0-alpha.1", first.packVersion)
+        assertEquals("0.1.0-alpha.2", first.packVersion)
         assertEquals(fixture.payloadBytes, first.payloadBytes)
         assertTrue(Files.isRegularFile(first.directory.resolve("manifest.json")))
         fixture.payloads.forEach { (path, bytes) ->
@@ -119,9 +119,9 @@ class ModelPackInstallerTest {
 
         val installed = installer.install(FileModelPackSource(java.nio.file.Path.of(rawPath)))
 
-        assertEquals("654b87d6dedb210177464a2220655852ce2d17c22d7625b6c4fd9b5ac39e889e", sha256(java.nio.file.Path.of(rawPath)))
-        assertEquals("63006241caadcce395dce51bb8df4857805c998353b95941830b71d6c82c5b86", installed.manifestSha256)
-        assertEquals(1_013_962_735L, installed.payloadBytes)
+        assertEquals("2c90206b2c1ac09233a2b4f3c882dbe4e721bd52ddc3bde46cc6631d51a42167", sha256(java.nio.file.Path.of(rawPath)))
+        assertEquals("1f87cfe37659bee690441e464ae66415c1623e8ae751320a9483adc6aff79d83", installed.manifestSha256)
+        assertEquals(1_013_966_012L, installed.payloadBytes)
         assertTrue(Files.isRegularFile(installed.directory.resolve("payload/models/siglip2_image.ort")))
     }
 
@@ -190,6 +190,7 @@ class ModelPackInstallerTest {
                 "models/user2_encoder.ort" to "user".toByteArray(),
                 "models/user2_tokenizer.ort" to "utok".toByteArray(),
                 "operators/required-operators.config" to "ops".toByteArray(),
+                "preprocessing/eslav-recognizer-decoder.json" to "decoder".toByteArray(),
                 "tests/manifest.json" to "kat".toByteArray(),
             )
         val manifest = manifest(keyId, payloads)
@@ -217,7 +218,7 @@ class ModelPackInstallerTest {
         obj(
             "schemaVersion" to integer(1),
             "packId" to string("nayti-offline-search"),
-            "packVersion" to string("0.1.0-alpha.1"),
+            "packVersion" to string("0.1.0-alpha.2"),
             "keyId" to string(keyId),
             "compatibility" to
                 obj(
@@ -245,7 +246,11 @@ class ModelPackInstallerTest {
                     component("user2-encoder", "models/user2_encoder.ort"),
                     component("user2-tokenizer", "models/user2_tokenizer.ort"),
                     component("ppocrv6-detector", "models/ppocrv6_detector.ort"),
-                    component("eslav-recognizer", "models/eslav_recognizer.ort"),
+                    component(
+                        "eslav-recognizer",
+                        "models/eslav_recognizer.ort",
+                        "preprocessing/eslav-recognizer-decoder.json",
+                    ),
                 ),
             "files" to
                 JsonValue.ArrayValue(
@@ -256,6 +261,7 @@ class ModelPackInstallerTest {
                                 string(
                                     when (path) {
                                         "operators/required-operators.config" -> "runtime-config"
+                                        "preprocessing/eslav-recognizer-decoder.json" -> "decoder"
                                         "tests/manifest.json" -> "test-manifest"
                                         else -> "model"
                                     },
@@ -268,11 +274,14 @@ class ModelPackInstallerTest {
             "provenance" to obj("containsUserData" to JsonValue.BooleanValue(false)),
         )
 
-    private fun component(id: String, path: String) =
+    private fun component(id: String, path: String, decoderPath: String? = null) =
         obj(
-            "componentId" to string(id),
-            "artifactPath" to string(path),
-            "license" to string("Apache-2.0"),
+            *buildList {
+                add("componentId" to string(id))
+                add("artifactPath" to string(path))
+                add("license" to string("Apache-2.0"))
+                decoderPath?.let { add("decoderPath" to string(it)) }
+            }.toTypedArray(),
         )
 
     private fun sign(keyPair: KeyPair, manifest: ByteArray): ByteArray {

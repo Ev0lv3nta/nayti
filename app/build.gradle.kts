@@ -79,8 +79,10 @@ hilt {
 
 dependencies {
     implementation(project(":indexer"))
+    implementation(project(":ml-runtime"))
     implementation(project(":platform-media"))
     implementation(project(":search-engine"))
+    implementation(project(":storage"))
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.ktx)

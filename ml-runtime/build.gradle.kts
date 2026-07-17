@@ -2,6 +2,11 @@ plugins {
     alias(libs.plugins.android.library)
 }
 
+val reducedOrtAar = providers.environmentVariable("NAYTI_ORT_AAR").orNull
+reducedOrtAar?.let { path ->
+    require(file(path).isFile) { "NAYTI_ORT_AAR does not point to a file: $path" }
+}
+
 android {
     namespace = "app.nayti.ml.runtime"
     compileSdk { version = release(37) }
@@ -34,6 +39,10 @@ android {
 dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.tink)
+    compileOnly(libs.onnxruntime.android)
+    if (reducedOrtAar != null) {
+        implementation(files(reducedOrtAar))
+    }
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
     testImplementation(libs.junit4)

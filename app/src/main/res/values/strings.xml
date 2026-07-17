@@ -6,10 +6,24 @@
     <string name="local_only">Только на устройстве</string>
     <string name="search_eyebrow">Локальный поиск</string>
     <string name="search_title">Найди то, что помнишь</string>
-    <string name="search_subtitle">Текст на фото, смысл документа или визуальная сцена — без облака.</string>
+    <string name="search_subtitle">Текст на фото, номера, имена и документы — локально, без облака.</string>
     <string name="search_hint">Например, «чек из кофейни»</string>
-    <string name="search_catalog_ready">Каталог подключён; текстовый и смысловой поиск появятся после индексации.</string>
+    <string name="search_catalog_ready">Каталог подключён. Поиск видит только уже обработанные фотографии.</string>
     <string name="search_waiting_access">Сначала подключите медиатеку на вкладке «Готовность».</string>
+    <string name="search_waiting_model_pack">Импортируйте подписанный model pack на вкладке «Данные».</string>
+    <string name="search_action">Найти</string>
+    <string name="search_failed">Поиск остановлен: %1$s</string>
+    <plurals name="search_result_count">
+        <item quantity="one">Найден %1$d результат</item>
+        <item quantity="few">Найдено %1$d результата</item>
+        <item quantity="many">Найдено %1$d результатов</item>
+        <item quantity="other">Найдено %1$d результата</item>
+    </plurals>
+    <string name="evidence_identifier">Точное совпадение номера</string>
+    <string name="evidence_phrase">Точная фраза</string>
+    <string name="evidence_person">Совпадение имени</string>
+    <string name="evidence_text">Совпадение текста</string>
+    <string name="evidence_fuzzy">Похожее написание</string>
     <string name="library_not_connected">Медиатека пока не подключена</string>
     <string name="library_not_connected_details">Nayti попросит доступ только к фотографиям и покажет, что уже готово к поиску.</string>
     <string name="library_connected">Медиатека подключена</string>
@@ -19,13 +33,13 @@
         <item quantity="many">Сейчас доступно %1$d фотографий</item>
         <item quantity="other">Сейчас доступно %1$d фотографии</item>
     </plurals>
-    <string name="examples_title">Что можно будет искать</string>
-    <string name="example_receipt">Квитанция за июнь</string>
-    <string name="example_seaside">Закат у моря</string>
-    <string name="example_contract">Договор с Ивановым</string>
     <string name="readiness_eyebrow">Индекс</string>
     <string name="readiness_title">Готовность поиска</string>
     <string name="readiness_subtitle">Здесь видно, сколько фотографий уже доступно каждому поисковому каналу.</string>
+    <string name="ocr_readiness_title">Текст на фотографиях</string>
+    <string name="ocr_readiness_counts">Готово %1$d из %2$d · ошибок %3$d</string>
+    <string name="ocr_run_slice">Обработать следующие 8 фото</string>
+    <string name="ocr_index_failed">Индексация остановлена безопасно: %1$s</string>
     <string name="connect_library">Подключить медиатеку</string>
     <string name="access_none_title">Нужен доступ к фотографиям</string>
     <string name="access_none_details">Сначала Android покажет системный выбор. Можно открыть всю медиатеку или только выбранные фотографии.</string>
@@ -45,14 +59,13 @@
     <string name="catalog_unnamed_photo">Фотография %1$d</string>
     <string name="catalog_item_details">%1$d × %2$d · %3$s</string>
     <string name="viewer_back">Назад</string>
-    <string name="viewer_eyebrow">Проверка источника</string>
-    <string name="viewer_subtitle">Диагностический просмотр подтверждает чтение через текущий ContentResolver grant.</string>
+    <string name="viewer_eyebrow">Фотография</string>
+    <string name="viewer_subtitle">Если текст уже распознан, его области подсвечены поверх изображения.</string>
     <string name="viewer_access_changed">Доступ изменился</string>
     <string name="viewer_access_changed_details">Старая карточка немедленно скрыта. Вернитесь в медиатеку после завершения сверки.</string>
-    <string name="viewer_read_verified">Источник прочитан безопасно</string>
-    <string name="viewer_probe_details">Оригинал %1$d × %2$d, проба %3$d × %4$d</string>
+    <string name="viewer_ocr_details">Оригинал %1$d × %2$d · распознано областей: %3$d</string>
     <string name="viewer_read_failed">Чтение остановлено: %1$s</string>
-    <string name="viewer_privacy_note">Проба ограничена по размеру, не сохраняется в каталоге и освобождается сразу после проверки.</string>
+    <string name="viewer_privacy_note">Изображение открывается локально в ограниченном размере и освобождается после закрытия экрана.</string>
     <string name="data_eyebrow">Контроль</string>
     <string name="data_title">Данные и модели</string>
     <string name="data_subtitle">Управление локальным индексом, model pack и диагностикой без скрытой синхронизации.</string>
@@ -62,4 +75,10 @@
     <string name="catalog_data_details">Наблюдается записей: %1$d. В карантине текущего доступа: %2$d.</string>
     <string name="model_pack_title">Model pack</string>
     <string name="model_pack_missing">Не установлен. Подписанный offline pack будет импортироваться отдельно от APK.</string>
+    <string name="model_pack_loading">Проверяем локальный реестр моделей…</string>
+    <string name="model_pack_installing">Проверяем подпись, файлы и семь нейросетевых графов. Не закрывайте приложение.</string>
+    <string name="model_pack_ready">Версия %1$s · %2$d МБ · проверен локально</string>
+    <string name="model_pack_failed">Импорт безопасно отклонён: %1$s</string>
+    <string name="model_pack_import">Импортировать pack</string>
+    <string name="model_pack_replace">Импортировать другую версию</string>
 </resources>

@@ -36,7 +36,7 @@ def verify_ocr(
     detector_config = yaml.safe_load((detector_root / "inference.yml").read_text(encoding="utf-8"))
     recognizer_config = yaml.safe_load((recognizer_root / "inference.yml").read_text(encoding="utf-8"))
     detector_contract = _detector_contract(detector_config)
-    recognizer_contract = _recognizer_contract(recognizer_config)
+    recognizer_contract, recognizer_decoder = _recognizer_contract(recognizer_config)
 
     detector_graph = detector_root / "inference.onnx"
     recognizer_graph = recognizer_root / "inference.onnx"
@@ -93,6 +93,25 @@ def verify_ocr(
     _preflight(lab_root)
 
     components = {component.component_id: component for component in manifest.components}
+    output_directory = lab_root / "exports" / "ocr"
+    output_directory.mkdir(parents=True, exist_ok=True)
+    decoder_path = output_directory / "ocr_decoder.json"
+    decoder_payload = {
+        "schemaVersion": 1,
+        "blankIndex": 0,
+        "removeConsecutiveDuplicates": True,
+        "decoderSha256": recognizer_contract["ctc"]["decoderSha256"],
+        "tokens": recognizer_decoder,
+    }
+    decoder_path.write_bytes(
+        json.dumps(
+            decoder_payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        + b"\n",
+    )
     report = {
         "schemaVersion": 1,
         "detector": {
@@ -111,6 +130,7 @@ def verify_ocr(
             "graph": _graph_artifact(recognizer_graph),
             "graphValidation": recognizer_validation,
             "contract": recognizer_contract,
+            "decoder": _graph_artifact(decoder_path),
             "knownAnswerSha256": recognizer_known_answer.hexdigest(),
             "outputShapes": recognizer_shapes,
             "maximumProbabilitySumError": maximum_probability_sum_error,
@@ -119,8 +139,6 @@ def verify_ocr(
         "elapsedSeconds": round(time.monotonic() - started, 3),
         "processRssBytesAfterVerification": psutil.Process().memory_info().rss,
     }
-    output_directory = lab_root / "exports" / "ocr"
-    output_directory.mkdir(parents=True, exist_ok=True)
     report_path = output_directory / "ocr_contract.report.json"
     report_path.write_text(
         json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
@@ -169,7 +187,7 @@ def _detector_contract(config: object) -> dict[str, object]:
     }
 
 
-def _recognizer_contract(config: object) -> dict[str, object]:
+def _recognizer_contract(config: object) -> tuple[dict[str, object], list[str]]:
     if not isinstance(config, dict) or config.get("Global") != {"model_name": "eslav_PP-OCRv5_mobile_rec"}:
         raise RuntimeError("unexpected recognizer identity")
     preprocess = config.get("PreProcess", {}).get("transform_ops")
@@ -191,7 +209,7 @@ def _recognizer_contract(config: object) -> dict[str, object]:
     decoder_sha256 = hashlib.sha256(
         json.dumps(decoder, ensure_ascii=False, separators=(",", ":")).encode("utf-8"),
     ).hexdigest()
-    return {
+    contract = {
         "input": "BGR uint8 text crop",
         "resize": {"height": 48, "width": 320, "preserveAspectRatio": True, "rightPad": 0.0},
         "normalize": {"scale": 1.0 / 255.0, "subtract": 0.5, "divide": 0.5},
@@ -204,6 +222,7 @@ def _recognizer_contract(config: object) -> dict[str, object]:
             "decoderSha256": decoder_sha256,
         },
     }
+    return contract, decoder
 
 
 def _check_onnx(

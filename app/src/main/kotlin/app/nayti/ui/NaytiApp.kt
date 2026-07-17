@@ -5,20 +5,20 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,7 +29,6 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -56,6 +55,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -78,10 +81,16 @@ import app.nayti.indexer.CatalogItem
 import app.nayti.indexer.CatalogRuntimeState
 import app.nayti.indexer.CatalogRuntimeStatus
 import app.nayti.indexer.CatalogSummary
+import app.nayti.indexer.LexicalEvidence
+import app.nayti.indexer.ModelPackRuntimeState
+import app.nayti.indexer.ModelPackRuntimeStatus
+import app.nayti.indexer.OcrIndexingState
+import app.nayti.indexer.OcrIndexingStatus
 import app.nayti.platform.media.AccessRevision
 import app.nayti.platform.media.MediaAccessScope
 import app.nayti.platform.media.MediaPermissionEvaluator
 import app.nayti.platform.media.MediaPermissionSnapshot
+import app.nayti.storage.OcrRegionEntity
 import app.nayti.ui.theme.NaytiTheme
 
 private enum class RootDestination(
@@ -99,13 +108,23 @@ private const val ViewerRoute = "viewer/{assetId}"
 @Composable
 fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
     val catalog by viewModel.catalog.collectAsStateWithLifecycle()
+    val modelPack by viewModel.modelPack.collectAsStateWithLifecycle()
+    val indexing by viewModel.indexing.collectAsStateWithLifecycle()
+    val search by viewModel.search.collectAsStateWithLifecycle()
     val viewerProbe by viewModel.viewerProbe.collectAsStateWithLifecycle()
     val permissionLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
             viewModel.onPermissionResult()
         }
+    val modelPackLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) viewModel.importModelPack(uri)
+        }
     NaytiAppContent(
         catalog = catalog,
+        modelPack = modelPack,
+        indexing = indexing,
+        search = search,
         viewerProbe = viewerProbe,
         onRequestAccess = {
             permissionLauncher.launch(
@@ -113,6 +132,9 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
             )
         },
         onRefresh = { viewModel.refresh(forceFull = true) },
+        onImportModelPack = { modelPackLauncher.launch(arrayOf("application/octet-stream")) },
+        onSearch = viewModel::search,
+        onRunOcrSlice = viewModel::runOcrSlice,
         onProbe = viewModel::probe,
         onClearProbe = viewModel::clearProbe,
     )
@@ -121,9 +143,15 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
 @Composable
 private fun NaytiAppContent(
     catalog: CatalogRuntimeState,
+    modelPack: ModelPackRuntimeState,
+    indexing: OcrIndexingState,
+    search: SearchUiState,
     viewerProbe: ViewerProbeState,
     onRequestAccess: () -> Unit,
     onRefresh: () -> Unit,
+    onImportModelPack: () -> Unit,
+    onSearch: (String) -> Unit,
+    onRunOcrSlice: () -> Unit,
     onProbe: (Long) -> Unit,
     onClearProbe: () -> Unit,
 ) {
@@ -165,22 +193,38 @@ private fun NaytiAppContent(
             startDestination = RootDestination.Search.route,
             modifier = Modifier.padding(innerPadding),
         ) {
-            composable(RootDestination.Search.route) { SearchScreen(catalog) }
+            composable(RootDestination.Search.route) {
+                SearchScreen(
+                    catalog = catalog,
+                    modelPack = modelPack,
+                    search = search,
+                    onSearch = onSearch,
+                    onOpenAsset = { assetId -> navController.navigate("viewer/$assetId") },
+                )
+            }
             composable(RootDestination.Readiness.route) {
                 ReadinessScreen(
                     catalog = catalog,
+                    modelPack = modelPack,
+                    indexing = indexing,
                     onRequestAccess = onRequestAccess,
                     onRefresh = onRefresh,
+                    onRunOcrSlice = onRunOcrSlice,
                     onOpenItem = { item -> navController.navigate("viewer/${item.assetId}") },
                 )
             }
-            composable(RootDestination.Data.route) { DataScreen(catalog) }
+            composable(RootDestination.Data.route) {
+                DataScreen(catalog, modelPack, onImportModelPack)
+            }
             composable(
                 route = ViewerRoute,
                 arguments = listOf(navArgument("assetId") { type = NavType.LongType }),
             ) { entry ->
                 val assetId = checkNotNull(entry.arguments?.getLong("assetId"))
                 val item = catalog.recentItems.firstOrNull { it.assetId == assetId }
+                    ?: (search as? SearchUiState.Ready)?.results
+                        ?.firstOrNull { result -> result.asset.assetId == assetId }
+                        ?.toCatalogItem()
                 ViewerScreen(
                     item = item,
                     accessRevision = catalog.access.value,
@@ -219,9 +263,17 @@ private fun ScreenHeader(eyebrow: String, title: String, subtitle: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SearchScreen(catalog: CatalogRuntimeState) {
+private fun SearchScreen(
+    catalog: CatalogRuntimeState,
+    modelPack: ModelPackRuntimeState,
+    search: SearchUiState,
+    onSearch: (String) -> Unit,
+    onOpenAsset: (Long) -> Unit,
+) {
     var query by rememberSaveable { mutableStateOf("") }
-    val examples = listOf(R.string.example_receipt, R.string.example_seaside, R.string.example_contract)
+    val canSearch =
+        catalog.access.permission.scope != MediaAccessScope.None &&
+            modelPack.status == ModelPackRuntimeStatus.Ready
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -241,7 +293,7 @@ private fun SearchScreen(catalog: CatalogRuntimeState) {
                 value = query,
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = false,
+                enabled = canSearch,
                 leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
                 placeholder = { Text(stringResource(R.string.search_hint)) },
                 supportingText = {
@@ -249,6 +301,8 @@ private fun SearchScreen(catalog: CatalogRuntimeState) {
                         stringResource(
                             if (catalog.access.permission.scope == MediaAccessScope.None) {
                                 R.string.search_waiting_access
+                            } else if (modelPack.status != ModelPackRuntimeStatus.Ready) {
+                                R.string.search_waiting_model_pack
                             } else {
                                 R.string.search_catalog_ready
                             },
@@ -259,22 +313,95 @@ private fun SearchScreen(catalog: CatalogRuntimeState) {
                 singleLine = true,
             )
         }
-        item { LibraryStatusCard(catalog) }
         item {
-            Text(
-                text = stringResource(R.string.examples_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(10.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(examples) { example ->
-                    AssistChip(onClick = {}, enabled = false, label = { Text(stringResource(example)) })
+            Button(
+                onClick = { onSearch(query) },
+                enabled = canSearch && query.isNotBlank() && search !is SearchUiState.Searching,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (search is SearchUiState.Searching) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Text(stringResource(R.string.search_action))
+                }
+            }
+        }
+        item { LibraryStatusCard(catalog) }
+        when (search) {
+            SearchUiState.Idle,
+            SearchUiState.Searching,
+            -> Unit
+            is SearchUiState.Failed -> item {
+                Text(
+                    text = stringResource(R.string.search_failed, search.code),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            is SearchUiState.Ready -> {
+                item {
+                    Text(
+                        text = pluralStringResource(
+                            R.plurals.search_result_count,
+                            search.results.size,
+                            search.results.size,
+                        ),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                items(search.results, key = { result -> result.asset.assetId }) { result ->
+                    SearchResultCard(result, onClick = { onOpenAsset(result.asset.assetId) })
                 }
             }
         }
     }
 }
+
+@Composable
+private fun SearchResultCard(result: SearchResultItem, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = result.asset.displayName ?: stringResource(
+                    R.string.catalog_unnamed_photo,
+                    result.asset.assetId,
+                ),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = result.hit.displaySnippet,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = evidenceLabel(result.hit.evidence),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun evidenceLabel(evidence: LexicalEvidence): String =
+    stringResource(
+        when (evidence) {
+            LexicalEvidence.EXACT_IDENTIFIER -> R.string.evidence_identifier
+            LexicalEvidence.QUOTED_PHRASE -> R.string.evidence_phrase
+            LexicalEvidence.PERSON_NAME -> R.string.evidence_person
+            LexicalEvidence.LITERAL_TEXT -> R.string.evidence_text
+            LexicalEvidence.FUZZY_TEXT -> R.string.evidence_fuzzy
+        },
+    )
 
 @Composable
 private fun AppIdentity() {
@@ -363,8 +490,11 @@ private fun LibraryStatusCard(catalog: CatalogRuntimeState) {
 @Composable
 private fun ReadinessScreen(
     catalog: CatalogRuntimeState,
+    modelPack: ModelPackRuntimeState,
+    indexing: OcrIndexingState,
     onRequestAccess: () -> Unit,
     onRefresh: () -> Unit,
+    onRunOcrSlice: () -> Unit,
     onOpenItem: (CatalogItem) -> Unit,
 ) {
     LazyColumn(
@@ -380,6 +510,14 @@ private fun ReadinessScreen(
             )
         }
         item { AccessCard(catalog, onRequestAccess, onRefresh) }
+        item {
+            OcrReadinessCard(
+                catalog = catalog,
+                modelPack = modelPack,
+                indexing = indexing,
+                onRunOcrSlice = onRunOcrSlice,
+            )
+        }
         item {
             MetricCard(
                 title = stringResource(R.string.catalog_available),
@@ -417,6 +555,55 @@ private fun ReadinessScreen(
         } else {
             items(catalog.recentItems, key = CatalogItem::assetId) { item ->
                 CatalogItemCard(item, onClick = { onOpenItem(item) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun OcrReadinessCard(
+    catalog: CatalogRuntimeState,
+    modelPack: ModelPackRuntimeState,
+    indexing: OcrIndexingState,
+    onRunOcrSlice: () -> Unit,
+) {
+    val canRun =
+        catalog.summary.available > 0 &&
+            modelPack.status == ModelPackRuntimeStatus.Ready &&
+            indexing.outstanding > 0 &&
+            indexing.status != OcrIndexingStatus.Running
+    Card(shape = RoundedCornerShape(24.dp)) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.ocr_readiness_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = stringResource(
+                            R.string.ocr_readiness_counts,
+                            indexing.committed,
+                            indexing.accessible,
+                            indexing.permanentGaps,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (indexing.status == OcrIndexingStatus.Running) {
+                    CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
+                }
+            }
+            Button(onClick = onRunOcrSlice, enabled = canRun) {
+                Text(stringResource(R.string.ocr_run_slice))
+            }
+            indexing.errorCode?.let { code ->
+                Text(
+                    text = stringResource(R.string.ocr_index_failed, code),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.labelMedium,
+                )
             }
         }
     }
@@ -583,32 +770,24 @@ private fun ViewerScreen(
                             ViewerProbeState.Idle,
                             ViewerProbeState.Loading,
                             -> CircularProgressIndicator()
-                            is ViewerProbeState.Ready ->
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    Icon(
-                                        Icons.Outlined.CheckCircle,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(48.dp),
-                                        tint = MaterialTheme.colorScheme.primary,
-                                    )
-                                    Text(
-                                        text = stringResource(R.string.viewer_read_verified),
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                    Text(
-                                        text = stringResource(
-                                            R.string.viewer_probe_details,
-                                            probeState.probe.sourceWidth,
-                                            probeState.probe.sourceHeight,
-                                            probeState.probe.decodedWidth,
-                                            probeState.probe.decodedHeight,
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                            is ViewerProbeState.Ready -> {
+                                DisposableEffect(probeState.image) {
+                                    onDispose(probeState.image::close)
                                 }
+                                Image(
+                                    bitmap = probeState.image.bitmap.asImageBitmap(),
+                                    contentDescription = null,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Fit,
+                                )
+                                OcrRegionOverlay(
+                                    imageWidth = probeState.image.decodedWidth,
+                                    imageHeight = probeState.image.decodedHeight,
+                                    regions = probeState.regions,
+                                    matchedOrdinals = probeState.matchedRegionOrdinals,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
                             is ViewerProbeState.Failed ->
                                 Text(
                                     text = stringResource(R.string.viewer_read_failed, probeState.code),
@@ -621,10 +800,68 @@ private fun ViewerScreen(
             }
             item {
                 Text(
-                    text = stringResource(R.string.viewer_privacy_note),
+                    text =
+                        if (probeState is ViewerProbeState.Ready) {
+                            stringResource(
+                                R.string.viewer_ocr_details,
+                                probeState.image.sourceWidth,
+                                probeState.image.sourceHeight,
+                                probeState.regions.size,
+                            )
+                        } else {
+                            stringResource(R.string.viewer_privacy_note)
+                        },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun OcrRegionOverlay(
+    imageWidth: Int,
+    imageHeight: Int,
+    regions: List<OcrRegionEntity>,
+    matchedOrdinals: Set<Int>,
+    modifier: Modifier = Modifier,
+) {
+    val regularColor = MaterialTheme.colorScheme.tertiary
+    val matchedColor = MaterialTheme.colorScheme.primary
+    Canvas(modifier) {
+        val imageAspect = imageWidth.toFloat() / imageHeight
+        val canvasAspect = size.width / size.height
+        val renderedWidth: Float
+        val renderedHeight: Float
+        val offsetX: Float
+        val offsetY: Float
+        if (canvasAspect > imageAspect) {
+            renderedHeight = size.height
+            renderedWidth = renderedHeight * imageAspect
+            offsetX = (size.width - renderedWidth) / 2f
+            offsetY = 0f
+        } else {
+            renderedWidth = size.width
+            renderedHeight = renderedWidth / imageAspect
+            offsetX = 0f
+            offsetY = (size.height - renderedHeight) / 2f
+        }
+        regions.forEach { region ->
+            fun x(value: Int) = offsetX + value / 1_000_000f * renderedWidth
+            fun y(value: Int) = offsetY + value / 1_000_000f * renderedHeight
+            val path =
+                Path().apply {
+                    moveTo(x(region.x0Micros), y(region.y0Micros))
+                    lineTo(x(region.x1Micros), y(region.y1Micros))
+                    lineTo(x(region.x2Micros), y(region.y2Micros))
+                    lineTo(x(region.x3Micros), y(region.y3Micros))
+                    close()
+                }
+            drawPath(
+                path = path,
+                color = if (region.ordinal in matchedOrdinals) matchedColor else regularColor,
+                style = Stroke(width = if (region.ordinal in matchedOrdinals) 5f else 2.5f),
+            )
         }
     }
 }
@@ -648,7 +885,11 @@ private fun MetricCard(title: String, value: String, supporting: String, icon: I
 }
 
 @Composable
-private fun DataScreen(catalog: CatalogRuntimeState) {
+private fun DataScreen(
+    catalog: CatalogRuntimeState,
+    modelPack: ModelPackRuntimeState,
+    onImportModelPack: () -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
@@ -680,14 +921,70 @@ private fun DataScreen(catalog: CatalogRuntimeState) {
             )
         }
         item {
-            SettingsCard(
-                icon = Icons.Outlined.Build,
-                title = stringResource(R.string.model_pack_title),
-                body = stringResource(R.string.model_pack_missing),
-            )
+            Card(shape = RoundedCornerShape(24.dp)) {
+                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Outlined.Build, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Text(
+                            stringResource(R.string.model_pack_title),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    HorizontalDivider()
+                    Text(
+                        text = modelPackDescription(modelPack),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Button(
+                        onClick = onImportModelPack,
+                        enabled = modelPack.status != ModelPackRuntimeStatus.Installing,
+                    ) {
+                        Text(
+                            stringResource(
+                                if (modelPack.installed == null) {
+                                    R.string.model_pack_import
+                                } else {
+                                    R.string.model_pack_replace
+                                },
+                            ),
+                        )
+                    }
+                }
+            }
         }
     }
 }
+
+@Composable
+private fun modelPackDescription(state: ModelPackRuntimeState): String =
+    when (state.status) {
+        ModelPackRuntimeStatus.Loading -> stringResource(R.string.model_pack_loading)
+        ModelPackRuntimeStatus.Missing -> stringResource(R.string.model_pack_missing)
+        ModelPackRuntimeStatus.Installing -> stringResource(R.string.model_pack_installing)
+        ModelPackRuntimeStatus.Ready ->
+            stringResource(
+                R.string.model_pack_ready,
+                state.installed?.packVersion.orEmpty(),
+                (state.installed?.payloadBytes ?: 0) / (1024 * 1024),
+            )
+        ModelPackRuntimeStatus.Failed -> stringResource(R.string.model_pack_failed, state.errorCode.orEmpty())
+    }
+
+private fun SearchResultItem.toCatalogItem(): CatalogItem =
+    CatalogItem(
+        assetId = asset.assetId,
+        key = app.nayti.platform.media.MediaKey(asset.volumeName, asset.mediaStoreId),
+        displayName = asset.displayName,
+        bucketDisplayName = asset.bucketDisplayName,
+        mimeType = asset.mimeType,
+        width = asset.width,
+        height = asset.height,
+        dateTakenMillis = asset.dateTakenMillis,
+    )
 
 @Composable
 private fun SettingsCard(icon: ImageVector, title: String, body: String) {
@@ -723,9 +1020,29 @@ private fun NaytiPreview() {
                     recentItems = emptyList(),
                     lastErrorCode = null,
                 ),
+            modelPack =
+                ModelPackRuntimeState(
+                    status = ModelPackRuntimeStatus.Missing,
+                    installed = null,
+                    errorCode = null,
+                ),
+            indexing =
+                OcrIndexingState(
+                    status = OcrIndexingStatus.Idle,
+                    accessible = 0,
+                    committed = 0,
+                    permanentGaps = 0,
+                    outstanding = 0,
+                    lastSlicePublished = 0,
+                    errorCode = null,
+                ),
+            search = SearchUiState.Idle,
             viewerProbe = ViewerProbeState.Idle,
             onRequestAccess = {},
             onRefresh = {},
+            onImportModelPack = {},
+            onSearch = {},
+            onRunOcrSlice = {},
             onProbe = {},
             onClearProbe = {},
         )

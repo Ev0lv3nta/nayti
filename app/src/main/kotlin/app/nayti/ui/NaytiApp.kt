@@ -83,17 +83,18 @@ import app.nayti.indexer.CatalogItem
 import app.nayti.indexer.CatalogRuntimeState
 import app.nayti.indexer.CatalogRuntimeStatus
 import app.nayti.indexer.CatalogSummary
-import app.nayti.indexer.LexicalEvidence
 import app.nayti.indexer.ModelPackRuntimeState
 import app.nayti.indexer.ModelPackRuntimeStatus
 import app.nayti.indexer.OcrIndexingState
 import app.nayti.indexer.OcrIndexingStatus
+import app.nayti.indexer.OcrSemanticSearchStatus
 import app.nayti.platform.media.AccessRevision
 import app.nayti.platform.media.MediaAccessScope
 import app.nayti.platform.media.MediaPermissionEvaluator
 import app.nayti.platform.media.MediaPermissionSnapshot
 import app.nayti.storage.OcrRegionEntity
 import app.nayti.storage.IndexOperationState
+import app.nayti.search.engine.fusion.TextFusionReason
 import app.nayti.ui.theme.NaytiTheme
 
 private enum class RootDestination(
@@ -370,6 +371,18 @@ private fun SearchScreen(
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
+                if (
+                    search.semanticStatus == OcrSemanticSearchStatus.NO_ACTIVE_SNAPSHOT ||
+                    search.semanticStatus == OcrSemanticSearchStatus.NO_SEMANTIC_MANIFEST
+                ) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.search_lexical_only),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 items(search.results, key = { result -> result.asset.assetId }) { result ->
                     SearchResultCard(result, onClick = { onOpenAsset(result.asset.assetId) })
                 }
@@ -413,14 +426,15 @@ private fun SearchResultCard(result: SearchResultItem, onClick: () -> Unit) {
 }
 
 @Composable
-private fun evidenceLabel(evidence: LexicalEvidence): String =
+private fun evidenceLabel(evidence: TextFusionReason): String =
     stringResource(
         when (evidence) {
-            LexicalEvidence.EXACT_IDENTIFIER -> R.string.evidence_identifier
-            LexicalEvidence.QUOTED_PHRASE -> R.string.evidence_phrase
-            LexicalEvidence.PERSON_NAME -> R.string.evidence_person
-            LexicalEvidence.LITERAL_TEXT -> R.string.evidence_text
-            LexicalEvidence.FUZZY_TEXT -> R.string.evidence_fuzzy
+            TextFusionReason.EXACT_IDENTIFIER -> R.string.evidence_identifier
+            TextFusionReason.QUOTED_PHRASE -> R.string.evidence_phrase
+            TextFusionReason.PERSON_NAME -> R.string.evidence_person
+            TextFusionReason.LITERAL_TEXT -> R.string.evidence_text
+            TextFusionReason.FUZZY_TEXT -> R.string.evidence_fuzzy
+            TextFusionReason.SEMANTIC_TEXT -> R.string.evidence_semantic
         },
     )
 

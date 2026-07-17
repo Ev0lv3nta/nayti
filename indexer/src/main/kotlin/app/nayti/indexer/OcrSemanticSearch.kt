@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 enum class OcrSemanticSearchStatus {
+    NOT_REQUESTED,
     READY,
     NO_ACTIVE_SNAPSHOT,
     NO_SEMANTIC_MANIFEST,
@@ -42,6 +43,9 @@ data class OcrSemanticSearchResult(
     val status: OcrSemanticSearchStatus,
     val snapshotId: String?,
     val manifestRevision: String?,
+    val lexicalPublicationEpoch: Long?,
+    val accessRevision: Long?,
+    val componentHash: String?,
     val hits: List<OcrSemanticHit>,
 )
 
@@ -118,6 +122,9 @@ class OcrSemanticSearch(
                 status = OcrSemanticSearchStatus.NO_ACTIVE_SNAPSHOT,
                 snapshotId = null,
                 manifestRevision = null,
+                lexicalPublicationEpoch = null,
+                accessRevision = null,
+                componentHash = null,
                 hits = emptyList(),
             )
         return try {
@@ -141,6 +148,9 @@ class OcrSemanticSearch(
                 status = OcrSemanticSearchStatus.NO_SEMANTIC_MANIFEST,
                 snapshotId = snapshot.snapshotId,
                 manifestRevision = null,
+                lexicalPublicationEpoch = snapshot.lexicalPublicationEpoch,
+                accessRevision = lease.accessRevision,
+                componentHash = snapshot.packManifestSha256,
                 hits = emptyList(),
             )
         val manifest = checkNotNull(vectors.manifest(manifestRevision))
@@ -221,7 +231,14 @@ class OcrSemanticSearch(
 
         val orderedCandidates = candidates.toList().sortedWith(CandidateOrder)
         if (orderedCandidates.isEmpty()) {
-            return ready(snapshot.snapshotId, manifestRevision, emptyList())
+            return ready(
+                snapshot.snapshotId,
+                manifestRevision,
+                snapshot.lexicalPublicationEpoch,
+                lease.accessRevision,
+                snapshot.packManifestSha256,
+                emptyList(),
+            )
         }
         val evidence =
             vectors.currentSemanticEvidence(
@@ -248,7 +265,14 @@ class OcrSemanticSearch(
             currentAccess.accessScope == "None" ||
             currentAccess.processAccessRevision != lease.accessRevision
         ) {
-            return ready(snapshot.snapshotId, manifestRevision, emptyList())
+            return ready(
+                snapshot.snapshotId,
+                manifestRevision,
+                snapshot.lexicalPublicationEpoch,
+                lease.accessRevision,
+                snapshot.packManifestSha256,
+                emptyList(),
+            )
         }
         val hits = selected.mapIndexed { index, selectedHit ->
             val row = selectedHit.evidence
@@ -269,7 +293,14 @@ class OcrSemanticSearch(
                 publicationEpoch = row.publicationEpoch,
             )
         }
-        return ready(snapshot.snapshotId, manifestRevision, hits)
+        return ready(
+            snapshot.snapshotId,
+            manifestRevision,
+            snapshot.lexicalPublicationEpoch,
+            lease.accessRevision,
+            snapshot.packManifestSha256,
+            hits,
+        )
     }
 
     private fun PriorityQueue<NativeCandidate>.retain(candidate: NativeCandidate) {
@@ -297,8 +328,19 @@ class OcrSemanticSearch(
     private fun ready(
         snapshotId: String,
         manifestRevision: String,
+        lexicalPublicationEpoch: Long,
+        accessRevision: Long,
+        componentHash: String,
         hits: List<OcrSemanticHit>,
-    ) = OcrSemanticSearchResult(OcrSemanticSearchStatus.READY, snapshotId, manifestRevision, hits)
+    ) = OcrSemanticSearchResult(
+        status = OcrSemanticSearchStatus.READY,
+        snapshotId = snapshotId,
+        manifestRevision = manifestRevision,
+        lexicalPublicationEpoch = lexicalPublicationEpoch,
+        accessRevision = accessRevision,
+        componentHash = componentHash,
+        hits = hits,
+    )
 
     private fun String.hexToBytes(): ByteArray {
         check(Sha256.matches(this))

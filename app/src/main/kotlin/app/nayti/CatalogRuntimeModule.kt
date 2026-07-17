@@ -7,6 +7,9 @@ import app.nayti.indexer.ModelPackRuntime
 import app.nayti.indexer.InstalledOcrPackResolver
 import app.nayti.indexer.IndexResourceGovernor
 import app.nayti.indexer.OcrIndexingRuntime
+import app.nayti.indexer.InstalledUser2QuerySessionFactory
+import app.nayti.indexer.OcrHybridSearch
+import app.nayti.indexer.OcrSemanticSearch
 import app.nayti.indexing.AndroidIndexResourceGovernor
 import app.nayti.ml.runtime.pack.AlphaModelPackTrust
 import app.nayti.ml.runtime.pack.AndroidModelPackPolicy
@@ -91,6 +94,28 @@ object CatalogRuntimeModule {
             vectorRoot = context.noBackupFilesDir.resolve(StorageContract.VectorIndexDirectory),
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
             resourceGovernor = resourceGovernor,
+        )
+    }
+
+    @Provides
+    @Singleton
+    fun provideOcrHybridSearch(
+        @ApplicationContext context: Context,
+        storage: CatalogStorage,
+    ): OcrHybridSearch {
+        val modelRoot = context.noBackupFilesDir.toPath().resolve(StorageContract.ModelPackDirectory)
+        val resolver = InstalledOcrPackResolver(storage.modelPackDao, modelRoot)
+        val semantic =
+            OcrSemanticSearch(
+                vectors = storage.vectorIndexDao,
+                semantic = storage.ocrSemanticDao,
+                vectorRoot = context.noBackupFilesDir.resolve(StorageContract.VectorIndexDirectory),
+                sessions = InstalledUser2QuerySessionFactory(resolver),
+            )
+        return OcrHybridSearch(
+            ocr = storage.ocrDao,
+            vectors = storage.vectorIndexDao,
+            semantic = semantic,
         )
     }
 }

@@ -17,6 +17,7 @@ import app.nayti.storage.OcrRegionDraft
 import app.nayti.storage.StorageContract
 import app.nayti.storage.VectorGenerationEntity
 import app.nayti.storage.VectorGenerationState
+import app.nayti.search.engine.fusion.TextFusionReason
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -100,6 +101,16 @@ class OcrSemanticChannelExecutorInstrumentedTest {
         assertEquals(AssetId, searchResult.hits.single().assetId)
         assertTrue(searchResult.hits.single().matchedLineOrdinals.isNotEmpty())
         assertNull(storage.vectorIndexDao.queryLease("semantic-query-test"))
+        val hybrid = OcrHybridSearch(storage.ocrDao, storage.vectorIndexDao, search)
+        val hybridResult =
+            hybrid.search(
+                query = "financial growth",
+                pipelineVersion = OcrPipelineVersion,
+                fallbackComponentHash = ComponentHash,
+            )
+        assertEquals(OcrSemanticSearchStatus.READY, hybridResult.semanticStatus)
+        assertEquals(TextFusionReason.SEMANTIC_TEXT, hybridResult.hits.single().evidence)
+        assertEquals(AssetId, hybridResult.hits.single().assetId)
 
         storage.catalogDao.recordAccessObservation("Full", AccessRevision + 1, now + 1)
         assertTrue(
@@ -336,10 +347,7 @@ class OcrSemanticChannelExecutorInstrumentedTest {
         override val embeddingSpaceHash: String = contract.embeddingSpaceHash
         override val dimension: Int = contract.dimension
 
-        override fun encodeQuery(text: String): ByteArray {
-            check(text == "European revenue")
-            return ByteArray(dimension) { 1 }
-        }
+        override fun encodeQuery(text: String): ByteArray = ByteArray(dimension) { 1 }
 
         override fun close() = Unit
     }

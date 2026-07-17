@@ -117,12 +117,19 @@ class IndexExecutionCoordinator(
         windowId: String,
         itemLimit: Int = DefaultWindowItemLimit,
         control: IndexExecutionControl = ContinueExecution,
+        channelsToRun: Set<String>? = null,
     ): IndexExecutionReport {
         require(itemLimit in 1..MaximumWindowItemLimit)
         val window = checkNotNull(indexState.executionWindow(windowId))
         check(window.state == IndexExecutionWindowState.RUNNING)
-        val channels = indexState.operationChannels(window.operationId)
-        check(channels.isNotEmpty())
+        val operationChannels = indexState.operationChannels(window.operationId)
+        check(operationChannels.isNotEmpty())
+        val selectedChannels = channelsToRun ?: operationChannels.mapTo(mutableSetOf(), IndexOperationChannelEntity::channel)
+        require(selectedChannels.isNotEmpty() && selectedChannels.all { it in IndexChannel.all })
+        val channels = operationChannels.filter { target -> target.channel in selectedChannels }
+        require(channels.mapTo(mutableSetOf(), IndexOperationChannelEntity::channel) == selectedChannels) {
+            "Execution channels are not part of the operation"
+        }
         val missing = channels.map(IndexOperationChannelEntity::channel).filterNot(executors::containsKey)
         check(missing.isEmpty()) { "No executor for channels: ${missing.joinToString()}" }
 
@@ -316,7 +323,6 @@ class IndexExecutionCoordinator(
         })
         require(request.channels.map(IndexChannelContract::channel).toSet().size == request.channels.size)
         require(request.channels.map(IndexChannelContract::priority).toSet().size == request.channels.size)
-        require(executors.keys.containsAll(request.channels.map(IndexChannelContract::channel)))
     }
 
     private fun retryAt(attempt: Int, nowMillis: Long): Long {

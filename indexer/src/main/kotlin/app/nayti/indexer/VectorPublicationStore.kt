@@ -51,6 +51,8 @@ enum class VectorPublicationBoundary {
     AFTER_DB_COMMIT,
 }
 
+class VectorPublicationLeaseRejectedException : Exception("Vector publication lease is no longer current")
+
 class VectorPublicationStore(
     rootDirectory: File,
     private val dao: VectorIndexDao,
@@ -108,7 +110,7 @@ class VectorPublicationStore(
             createdAtMillis = stagedAt,
             updatedAtMillis = stagedAt,
         )
-        dao.stageVectorPublication(
+        val staged = dao.stageVectorPublication(
             publication = publication,
             leaseTokens = request.leaseTokens,
             artifactPath = segmentRelativePath,
@@ -116,14 +118,18 @@ class VectorPublicationStore(
             artifactSha256 = encodedSegment.sha256,
             nowMillis = stagedAt,
         )
+        if (staged != request.leaseTokens.size) throw VectorPublicationLeaseRejectedException()
         boundaryObserver(VectorPublicationBoundary.AFTER_DB_STAGE)
 
         val parentSnapshotId = dao.activeSnapshotId()
         val parentSnapshot = parentSnapshotId?.let { checkNotNull(dao.snapshot(it)) }
-        val parentManifestRevision = when (generation.channel) {
+        val candidateParentManifestRevision = when (generation.channel) {
             IndexChannel.VISUAL -> parentSnapshot?.visualManifestRevision
             IndexChannel.OCR_SEMANTIC -> parentSnapshot?.semanticManifestRevision
             else -> error("Unsupported vector channel ${generation.channel}")
+        }
+        val parentManifestRevision = candidateParentManifestRevision?.let { revision ->
+            revision.takeIf { checkNotNull(dao.manifest(revision)).generationId == generation.generationId }
         }
         val previousEntries = parentManifestRevision?.let { revision ->
             val parentManifest = checkNotNull(dao.manifest(revision))

@@ -245,6 +245,29 @@ class OcrPublicationInstrumentedTest {
 
         assertEquals(materialization.chunkSet, semantic.publishChunkSet(materialization))
         assertEquals(materialization.chunkSet, semantic.publishChunkSet(materialization))
+        val retried =
+            OcrSemanticChunkCodec.materialize(
+                OcrSemanticChunkSetDraft(
+                    assetId = assetId,
+                    sourceFingerprint = SourceFingerprint,
+                    ocrPublicationToken = publicationToken,
+                    chunkingVersion = "ocr-semantic-chunks-v1",
+                    chunks =
+                        listOf(
+                            OcrSemanticChunkPayload(
+                                ordinal = 0,
+                                kind = "HEADER",
+                                displayText = "Quarterly product report\nRevenue increased",
+                                contentTokenCount = 5,
+                                lineOrdinals = listOf(0, 1),
+                                meanConfidenceMicros = 950_000,
+                                reliableAlphabeticWordCount = 5,
+                            ),
+                        ),
+                ),
+                createdAtMillis = 99,
+            )
+        assertEquals(materialization.chunkSet, semantic.publishChunkSet(retried))
         assertEquals(materialization.chunks.single(), semantic.chunk(materialization.chunks.single().chunkId))
         assertEquals(materialization.lines, semantic.chunkLines(materialization.chunks.single().chunkId))
 

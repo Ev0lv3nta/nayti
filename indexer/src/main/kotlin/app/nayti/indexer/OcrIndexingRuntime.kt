@@ -7,6 +7,7 @@ import app.nayti.storage.IndexChannelCoverage
 import app.nayti.storage.IndexOperationEntity
 import app.nayti.storage.IndexOperationState
 import app.nayti.storage.ModelPackEntity
+import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
@@ -49,6 +50,7 @@ class OcrIndexingRuntime(
     private val storage: CatalogStorage,
     private val packResolver: InstalledOcrPackResolver,
     private val decoder: BoundedMediaDecoder,
+    private val vectorRoot: File,
     private val scope: CoroutineScope,
     private val clock: IndexExecutionClock =
         IndexExecutionClock { System.nanoTime() / 1_000_000L },
@@ -165,8 +167,8 @@ class OcrIndexingRuntime(
                 windows += 1
                 operationId = result.operation.operationId
                 currentOperationId.set(operationId)
-                publishCoverage(pack, result.report.published, operationId, hostType)
-                if (result.report.claimed == 0 || result.report.claimed < itemLimit) break
+                publishCoverage(pack, result.semanticPublished, operationId, hostType)
+                if (!result.saturated) break
             }
             val coverage = coverage(pack)
             val constraintCode = activeConstraint.get()
@@ -225,23 +227,17 @@ class OcrIndexingRuntime(
         budget: IndexExecutionBudget,
         initiator: IndexExecutionInitiator,
         activeConstraint: AtomicReference<String?>,
-    ): WindowResult =
-        OcrExecutionSession.open(
-            packId = pack.packId,
-            packVersion = pack.packVersion,
-            resolver = packResolver,
-            ocr = storage.ocrDao,
-            decoder = decoder,
-        ).use { session ->
-            val coordinator =
-                IndexExecutionCoordinator(
-                    indexState = storage.indexStateDao,
-                    catalog = storage.catalogDao,
-                    executors = mapOf(IndexChannel.OCR to session.executor),
-                )
-            coordinator.recoverExpiredExecution()
-            val catalogRevision = storage.catalogDao.watermark()?.catalogRevision ?: 0
-            val request =
+    ): WindowResult {
+        val catalogRevision = storage.catalogDao.watermark()?.catalogRevision ?: 0
+        val planner =
+            IndexExecutionCoordinator(
+                indexState = storage.indexStateDao,
+                catalog = storage.catalogDao,
+                executors = emptyMap(),
+            )
+        planner.recoverExpiredExecution()
+        val operation =
+            planner.planOperation(
                 IndexOperationRequest(
                     operationId = operationId(pack, catalogRevision),
                     profileId = ProfileId,
@@ -253,29 +249,132 @@ class OcrIndexingRuntime(
                                 channel = IndexChannel.OCR,
                                 priority = 0,
                                 pipelineVersion = PipelineVersion,
-                                componentHash = session.pack.componentHash,
+                                componentHash = pack.manifestSha256,
+                            ),
+                            IndexChannelContract(
+                                channel = IndexChannel.OCR_SEMANTIC,
+                                priority = 1,
+                                pipelineVersion = OcrSemanticChannelExecutor.PipelineVersion,
+                                componentHash = pack.manifestSha256,
                             ),
                         ),
                     autoResume = true,
-                )
-            val operation = coordinator.planOperation(request)
-            currentOperationId.set(operation.operationId)
-            val window =
-                coordinator.startExecutionWindow(
-                    operationId = operation.operationId,
-                    hostType = hostType,
-                    durationMillis = ExecutionWindowMillis,
-                )
-            val report =
-                coordinator.runWindow(
-                    windowId = window.windowId,
-                    itemLimit = itemLimit,
-                    control = IndexExecutionControl {
-                        canContinue(budget, initiator, activeConstraint)
-                    },
-                )
-            WindowResult(operation, report)
+                ),
+            )
+        currentOperationId.set(operation.operationId)
+
+        var report = EmptyReport
+        var semanticPublished = 0
+        var saturated = false
+        if (
+            canContinue(budget, initiator, activeConstraint) &&
+            hasOutstanding(pack, IndexChannel.OCR, PipelineVersion)
+        ) {
+            OcrExecutionSession.open(
+                packId = pack.packId,
+                packVersion = pack.packVersion,
+                resolver = packResolver,
+                ocr = storage.ocrDao,
+                decoder = decoder,
+            ).use { session ->
+                val phase =
+                    runPhase(
+                        operation = operation,
+                        hostType = hostType,
+                        itemLimit = itemLimit,
+                        channel = IndexChannel.OCR,
+                        executor = session.executor,
+                        budget = budget,
+                        initiator = initiator,
+                        activeConstraint = activeConstraint,
+                    )
+                report = report.merge(phase)
+                saturated = saturated || phase.claimed == itemLimit
+            }
         }
+        if (
+            canContinue(budget, initiator, activeConstraint) &&
+            hasOutstanding(pack, IndexChannel.OCR_SEMANTIC, OcrSemanticChannelExecutor.PipelineVersion)
+        ) {
+            OcrSemanticExecutionSession.open(
+                packId = pack.packId,
+                packVersion = pack.packVersion,
+                resolver = packResolver,
+                indexState = storage.indexStateDao,
+                semantic = storage.ocrSemanticDao,
+                vectors = storage.vectorIndexDao,
+                vectorRoot = vectorRoot,
+            ).use { session ->
+                val phase =
+                    runPhase(
+                        operation = operation,
+                        hostType = hostType,
+                        itemLimit = itemLimit,
+                        channel = IndexChannel.OCR_SEMANTIC,
+                        executor = session.executor,
+                        budget = budget,
+                        initiator = initiator,
+                        activeConstraint = activeConstraint,
+                    )
+                report = report.merge(phase)
+                semanticPublished = phase.published
+                saturated = saturated || phase.claimed == itemLimit
+            }
+        }
+        return WindowResult(operation, report, semanticPublished, saturated)
+    }
+
+    private suspend fun runPhase(
+        operation: IndexOperationEntity,
+        hostType: String,
+        itemLimit: Int,
+        channel: String,
+        executor: IndexChannelExecutor,
+        budget: IndexExecutionBudget,
+        initiator: IndexExecutionInitiator,
+        activeConstraint: AtomicReference<String?>,
+    ): IndexExecutionReport {
+        val coordinator =
+            IndexExecutionCoordinator(
+                indexState = storage.indexStateDao,
+                catalog = storage.catalogDao,
+                executors = mapOf(channel to executor),
+            )
+        val window =
+            coordinator.startExecutionWindow(
+                operationId = operation.operationId,
+                hostType = hostType,
+                durationMillis = ExecutionWindowMillis,
+            )
+        return coordinator.runWindow(
+            windowId = window.windowId,
+            itemLimit = itemLimit,
+            control = IndexExecutionControl {
+                canContinue(budget, initiator, activeConstraint)
+            },
+            channelsToRun = setOf(channel),
+        )
+    }
+
+    private suspend fun hasOutstanding(pack: ModelPackEntity, channel: String, pipelineVersion: String): Boolean {
+        val access = storage.catalogDao.accessObservation() ?: return false
+        if (access.accessScope == "None") return false
+        return storage.indexStateDao.channelCoverage(
+            channel = channel,
+            accessRevision = access.processAccessRevision,
+            pipelineVersion = pipelineVersion,
+            componentHash = pack.manifestSha256,
+        ).outstandingAssetCount > 0
+    }
+
+    private fun IndexExecutionReport.merge(other: IndexExecutionReport): IndexExecutionReport =
+        IndexExecutionReport(
+            claimed = Math.addExact(claimed, other.claimed),
+            published = Math.addExact(published, other.published),
+            retryableFailures = Math.addExact(retryableFailures, other.retryableFailures),
+            permanentFailures = Math.addExact(permanentFailures, other.permanentFailures),
+            leaseRejections = Math.addExact(leaseRejections, other.leaseRejections),
+        )
 
     private fun canContinue(
         budget: IndexExecutionBudget,
@@ -377,9 +476,9 @@ class OcrIndexingRuntime(
         val access = storage.catalogDao.accessObservation() ?: return null
         if (access.accessScope == "None") return null
         return storage.indexStateDao.channelCoverage(
-            channel = IndexChannel.OCR,
+            channel = IndexChannel.OCR_SEMANTIC,
             accessRevision = access.processAccessRevision,
-            pipelineVersion = PipelineVersion,
+            pipelineVersion = OcrSemanticChannelExecutor.PipelineVersion,
             componentHash = pack.manifestSha256,
         )
     }
@@ -411,11 +510,13 @@ class OcrIndexingRuntime(
         )
 
     private fun operationId(pack: ModelPackEntity, catalogRevision: Long): String =
-        "ocr-${pack.manifestSha256.take(16)}-catalog-$catalogRevision"
+        "search-${pack.manifestSha256.take(16)}-catalog-$catalogRevision"
 
     private data class WindowResult(
         val operation: IndexOperationEntity,
         val report: IndexExecutionReport,
+        val semanticPublished: Int,
+        val saturated: Boolean,
     )
 
     companion object {
@@ -426,6 +527,7 @@ class OcrIndexingRuntime(
         private const val ForegroundExecutionBudgetMillis = 5L * 60 * 60 * 1_000
         private const val ProfileId = "balanced-v1"
         private const val ExecutionWindowMillis = 10L * 60 * 1_000
+        private val EmptyReport = IndexExecutionReport(0, 0, 0, 0, 0)
         private val TerminalStates =
             setOf(
                 IndexOperationState.COMPLETED,

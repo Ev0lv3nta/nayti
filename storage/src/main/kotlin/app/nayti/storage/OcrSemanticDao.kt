@@ -14,6 +14,12 @@ interface OcrSemanticDao {
     @Query("SELECT * FROM ocr_region WHERE assetId = :assetId ORDER BY ordinal")
     suspend fun ocrRegions(assetId: Long): List<OcrRegionEntity>
 
+    @Query("SELECT COALESCE(MAX(publicationEpoch), 0) FROM ocr_document")
+    suspend fun maximumOcrPublicationEpoch(): Long
+
+    @Query("SELECT COALESCE((SELECT catalogRevision FROM catalog_watermark WHERE singletonId = 1), 0)")
+    suspend fun catalogRevision(): Long
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertChunkSetIfAbsent(chunkSet: OcrSemanticChunkSetEntity): Long
 
@@ -76,14 +82,24 @@ interface OcrSemanticDao {
         }
 
         insertChunkSetIfAbsent(materialization.chunkSet)
-        check(chunkSet(materialization.chunkSet.chunkSetId) == materialization.chunkSet)
+        val storedSet = checkNotNull(chunkSet(materialization.chunkSet.chunkSetId))
+        check(
+            storedSet.copy(createdAtMillis = materialization.chunkSet.createdAtMillis) ==
+                materialization.chunkSet,
+        )
         if (materialization.chunks.isNotEmpty()) insertChunksIfAbsent(materialization.chunks)
-        check(chunks(materialization.chunkSet.chunkSetId) == materialization.chunks)
+        val storedChunks = chunks(materialization.chunkSet.chunkSetId)
+        check(storedChunks.size == materialization.chunks.size)
+        check(
+            storedChunks.mapIndexed { index, chunk ->
+                chunk.copy(createdAtMillis = materialization.chunks[index].createdAtMillis)
+            } == materialization.chunks,
+        )
         if (materialization.lines.isNotEmpty()) insertChunkLinesIfAbsent(materialization.lines)
         materialization.chunks.forEach { chunk ->
             val expectedLines = materialization.lines.filter { it.chunkId == chunk.chunkId }.sortedBy { it.position }
             check(chunkLines(chunk.chunkId) == expectedLines)
         }
-        return materialization.chunkSet
+        return storedSet
     }
 }

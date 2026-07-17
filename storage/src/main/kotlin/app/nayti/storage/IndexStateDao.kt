@@ -102,7 +102,7 @@ interface IndexStateDao {
             "AND (work.channel != 'OCR_SEMANTIC' OR EXISTS (" +
             "SELECT 1 FROM index_channel_work AS dependency " +
             "WHERE dependency.assetId = work.assetId AND dependency.channel = 'OCR' " +
-            "AND dependency.state = 'DONE' " +
+            "AND dependency.state IN ('DONE', 'PERMANENT_ERROR') " +
             "AND dependency.sourceFingerprint = work.sourceFingerprint" +
             ")) " +
             "ORDER BY work.assetId LIMIT :limit",

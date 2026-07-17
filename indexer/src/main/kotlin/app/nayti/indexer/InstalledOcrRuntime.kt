@@ -2,11 +2,21 @@ package app.nayti.indexer
 
 import app.nayti.ml.runtime.ocr.OcrOrtRuntime
 import app.nayti.ml.runtime.ocr.OrtOcrInferenceEngine
+import app.nayti.ml.runtime.semantic.User2Contract
+import app.nayti.ml.runtime.semantic.User2EmbeddingSpaceIdentity
+import app.nayti.ml.runtime.semantic.User2OrtRuntime
 import app.nayti.platform.media.BoundedMediaDecoder
+import app.nayti.storage.IndexChannel
+import app.nayti.storage.IndexStateDao
 import app.nayti.storage.ModelPackDao
 import app.nayti.storage.ModelPackEntity
 import app.nayti.storage.ModelPackStatus
 import app.nayti.storage.OcrDao
+import app.nayti.storage.OcrSemanticDao
+import app.nayti.storage.VectorGenerationEntity
+import app.nayti.storage.VectorGenerationState
+import app.nayti.storage.VectorIndexDao
+import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
@@ -135,6 +145,89 @@ class OcrExecutionSession private constructor(
                 pack = pack,
                 executor = OcrChannelExecutor(ocr, decoder, engine, clock = clock),
                 engine = engine,
+            )
+        }
+    }
+}
+
+/** Owns USER2 sessions and one compatible semantic vector generation for a bounded window. */
+class OcrSemanticExecutionSession private constructor(
+    val pack: InstalledOcrPack,
+    val generation: VectorGenerationEntity,
+    val executor: OcrSemanticChannelExecutor,
+    private val runtime: User2OrtRuntime,
+) : AutoCloseable {
+    override fun close() = runtime.close()
+
+    companion object {
+        suspend fun open(
+            packId: String,
+            packVersion: String,
+            resolver: InstalledOcrPackResolver,
+            indexState: IndexStateDao,
+            semantic: OcrSemanticDao,
+            vectors: VectorIndexDao,
+            vectorRoot: File,
+            clock: OcrExecutorClock = OcrExecutorClock(System::currentTimeMillis),
+        ): OcrSemanticExecutionSession {
+            val pack = resolver.resolve(packId, packVersion)
+            val embeddingSpaceHash =
+                withContext(Dispatchers.IO) {
+                    User2EmbeddingSpaceIdentity.calculate(pack.payloadDirectory.parent)
+                }
+            val generationId =
+                "semantic-${pack.componentHash.take(12)}-${embeddingSpaceHash.take(32)}"
+            val existing = vectors.generation(generationId)
+            val generation =
+                existing
+                    ?: VectorGenerationEntity(
+                        generationId = generationId,
+                        channel = IndexChannel.OCR_SEMANTIC,
+                        packId = pack.registryEntry.packId,
+                        packVersion = pack.registryEntry.packVersion,
+                        pipelineVersion = OcrSemanticChannelExecutor.PipelineVersion,
+                        componentHash = pack.componentHash,
+                        embeddingSpaceHash = embeddingSpaceHash,
+                        dimension = User2Contract.EmbeddingDimension,
+                        state = VectorGenerationState.BUILDING,
+                        createdAtMillis = clock.nowMillis(),
+                        sealedAtMillis = null,
+                    ).also { vectors.createGeneration(it) }
+            check(
+                generation.channel == IndexChannel.OCR_SEMANTIC &&
+                    generation.packId == pack.registryEntry.packId &&
+                    generation.packVersion == pack.registryEntry.packVersion &&
+                    generation.pipelineVersion == OcrSemanticChannelExecutor.PipelineVersion &&
+                    generation.componentHash == pack.componentHash &&
+                    generation.embeddingSpaceHash == embeddingSpaceHash &&
+                    generation.dimension == User2Contract.EmbeddingDimension &&
+                    generation.state == VectorGenerationState.BUILDING
+            ) { "Installed USER2 generation does not match its execution contract" }
+
+            val runtime =
+                withContext(Dispatchers.Default) {
+                    User2OrtRuntime.open(pack.payloadDirectory)
+                }
+            return OcrSemanticExecutionSession(
+                pack = pack,
+                generation = generation,
+                executor =
+                    OcrSemanticChannelExecutor(
+                        indexState = indexState,
+                        semantic = semantic,
+                        embedding = User2SemanticEmbeddingEngine(runtime),
+                        publisher =
+                            VectorStoreSemanticPublisher(
+                                VectorPublicationStore(
+                                    rootDirectory = vectorRoot,
+                                    dao = vectors,
+                                    nowMillis = clock::nowMillis,
+                                ),
+                            ),
+                        generationId = generation.generationId,
+                        clock = clock,
+                    ),
+                runtime = runtime,
             )
         }
     }

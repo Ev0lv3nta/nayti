@@ -47,6 +47,9 @@ interface VectorIndexDao {
     @Query("SELECT * FROM index_channel_work WHERE publicationToken = :publicationToken ORDER BY assetId")
     suspend fun publicationWork(publicationToken: String): List<IndexChannelWorkEntity>
 
+    @Query("SELECT * FROM index_channel_work WHERE leaseToken = :leaseToken")
+    suspend fun workByLease(leaseToken: String): IndexChannelWorkEntity?
+
     @Query("SELECT * FROM catalog_asset WHERE assetId = :assetId")
     suspend fun catalogAsset(assetId: Long): CatalogAssetEntity?
 
@@ -245,6 +248,16 @@ interface VectorIndexDao {
         require(sha256(artifactSha256))
         val generation = checkNotNull(generation(publication.generationId))
         check(generation.state == VectorGenerationState.BUILDING && generation.channel == publication.channel)
+        val work = leaseTokens.map { leaseToken -> workByLease(leaseToken) ?: return 0 }
+        if (
+            work.any { item ->
+                item.state != IndexWorkState.RUNNING ||
+                    item.channel != publication.channel ||
+                    (item.leaseExpiresAtMillis ?: 0) <= nowMillis
+            }
+        ) {
+            return 0
+        }
         insertPublicationRow(publication)
         leaseTokens.forEach { leaseToken ->
             check(

@@ -16,6 +16,8 @@ object User2Contract {
     const val QueryPrefix = "search_query: "
     const val SpecialTokenCount = 2
     const val MaximumContentTokens = 96
+    const val OrtVersion = "1.27.0"
+    const val VectorEncodingVersion = "l2-symmetric-qint8-v1"
     internal const val TextInputName = "text"
     internal const val InputIdsName = "input_ids"
     internal const val AttentionMaskName = "attention_mask"
@@ -144,9 +146,9 @@ class User2OrtRuntime private constructor(
             val tokenizerPath = payload.requiredRegularFile("models/user2_tokenizer.ort")
             val encoderPath = payload.requiredRegularFile("models/user2_encoder.ort")
             val environment = OrtEnvironment.getEnvironment()
-            if (environment.version != RequiredOrtVersion) {
+            if (environment.version != User2Contract.OrtVersion) {
                 throw SemanticRuntimeException(
-                    "Expected ONNX Runtime $RequiredOrtVersion, found ${environment.version}",
+                    "Expected ONNX Runtime ${User2Contract.OrtVersion}, found ${environment.version}",
                 )
             }
             environment.setTelemetry(false)
@@ -179,8 +181,6 @@ class User2OrtRuntime private constructor(
         }
 
         private fun normalize(text: String): String = Normalizer.normalize(text, Normalizer.Form.NFC)
-
-        private const val RequiredOrtVersion = "1.27.0"
     }
 }
 

@@ -88,6 +88,7 @@ object CatalogRuntimeModule {
             storage = storage,
             packResolver = InstalledOcrPackResolver(storage.modelPackDao, root),
             decoder = BoundedMediaDecoder(context.contentResolver, mediaStore),
+            vectorRoot = context.noBackupFilesDir.resolve(StorageContract.VectorIndexDirectory),
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
             resourceGovernor = resourceGovernor,
         )

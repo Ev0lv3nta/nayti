@@ -126,3 +126,11 @@ data class OcrLexicalCandidate(
     val assetId: Long,
     val score: Double,
 )
+
+data class OcrCandidateSnapshot(
+    val maximumPublicationEpoch: Long,
+    val lexicalCandidates: List<OcrLexicalCandidate>,
+    val trigramCandidates: List<OcrLexicalCandidate>,
+    val documents: List<OcrDocumentEntity>,
+    val regions: List<OcrRegionEntity>,
+)

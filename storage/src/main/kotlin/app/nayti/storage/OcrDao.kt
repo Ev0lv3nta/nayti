@@ -143,6 +143,37 @@ interface OcrDao {
         limit: Int,
     ): List<OcrLexicalCandidate>
 
+    @Query(
+        "SELECT ocr_document.* FROM ocr_document " +
+            "INNER JOIN catalog_asset ON catalog_asset.assetId = ocr_document.assetId " +
+            "INNER JOIN index_channel_work ON index_channel_work.assetId = ocr_document.assetId " +
+            "AND index_channel_work.channel = 'OCR' " +
+            "INNER JOIN catalog_access_observation ON catalog_access_observation.singletonId = 1 " +
+            "WHERE ocr_document.assetId IN (:assetIds) " +
+            "AND catalog_asset.availability = 'AVAILABLE' " +
+            "AND catalog_asset.sourceFingerprint = ocr_document.sourceFingerprint " +
+            "AND index_channel_work.state = 'DONE' " +
+            "AND index_channel_work.sourceFingerprint = ocr_document.sourceFingerprint " +
+            "AND index_channel_work.accessRevision = ocr_document.accessRevision " +
+            "AND index_channel_work.pipelineVersion = :pipelineVersion " +
+            "AND index_channel_work.componentHash = :componentHash " +
+            "AND ocr_document.pipelineVersion = :pipelineVersion " +
+            "AND ocr_document.componentHash = :componentHash " +
+            "AND ocr_document.accessRevision = catalog_access_observation.processAccessRevision " +
+            "AND catalog_access_observation.accessScope != 'None' " +
+            "AND ocr_document.publicationEpoch <= :maximumPublicationEpoch " +
+            "ORDER BY ocr_document.assetId",
+    )
+    suspend fun eligibleDocuments(
+        assetIds: List<Long>,
+        pipelineVersion: String,
+        componentHash: String,
+        maximumPublicationEpoch: Long,
+    ): List<OcrDocumentEntity>
+
+    @Query("SELECT * FROM ocr_region WHERE assetId IN (:assetIds) ORDER BY assetId, ordinal")
+    suspend fun regionsForAssets(assetIds: List<Long>): List<OcrRegionEntity>
+
     @Transaction
     suspend fun commitOcrPublication(
         leaseToken: String,
@@ -251,6 +282,45 @@ interface OcrDao {
     ): List<OcrLexicalCandidate> {
         validateSearch(matchQuery, pipelineVersion, componentHash, maximumPublicationEpoch, limit)
         return trigramCandidatesRow(matchQuery, pipelineVersion, componentHash, maximumPublicationEpoch, limit)
+    }
+
+    @Transaction
+    suspend fun candidateSnapshot(
+        lexicalMatchQuery: String?,
+        trigramMatchQuery: String?,
+        pipelineVersion: String,
+        componentHash: String,
+        limit: Int,
+    ): OcrCandidateSnapshot {
+        require(lexicalMatchQuery != null || trigramMatchQuery != null)
+        lexicalMatchQuery?.let { query ->
+            validateSearch(query, pipelineVersion, componentHash, 0, limit)
+        }
+        trigramMatchQuery?.let { query ->
+            validateSearch(query, pipelineVersion, componentHash, 0, limit)
+        }
+        val epoch = publicationClock()?.lastEpoch ?: 0
+        val lexical =
+            lexicalMatchQuery?.let { query ->
+                lexicalCandidatesRow(query, pipelineVersion, componentHash, epoch, limit)
+            }.orEmpty()
+        val trigram =
+            trigramMatchQuery?.let { query ->
+                trigramCandidatesRow(query, pipelineVersion, componentHash, epoch, limit)
+            }.orEmpty()
+        val assetIds = (lexical.map(OcrLexicalCandidate::assetId) + trigram.map(OcrLexicalCandidate::assetId)).distinct()
+        if (assetIds.isEmpty()) return OcrCandidateSnapshot(epoch, lexical, trigram, emptyList(), emptyList())
+        val documents = eligibleDocuments(assetIds, pipelineVersion, componentHash, epoch)
+        val eligibleIds = documents.map(OcrDocumentEntity::assetId)
+        val filteredLexical = lexical.filter { candidate -> candidate.assetId in eligibleIds }
+        val filteredTrigram = trigram.filter { candidate -> candidate.assetId in eligibleIds }
+        return OcrCandidateSnapshot(
+            maximumPublicationEpoch = epoch,
+            lexicalCandidates = filteredLexical,
+            trigramCandidates = filteredTrigram,
+            documents = documents,
+            regions = regionsForAssets(eligibleIds),
+        )
     }
 
     private fun validateSearch(

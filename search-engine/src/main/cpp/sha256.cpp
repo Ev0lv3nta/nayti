@@ -5,6 +5,7 @@
 #include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 namespace nayti::search {
 namespace {
@@ -89,21 +90,23 @@ void compress(const std::byte *block, std::array<std::uint32_t, 8> *state) {
 } // namespace
 
 std::array<std::byte, 32> sha256(std::span<const std::byte> bytes) {
+  if (bytes.size() > std::numeric_limits<std::uint64_t>::max() / 8U) {
+    return {};
+  }
   std::array<std::uint32_t, 8> state = {
       0x6a09e667U, 0xbb67ae85U, 0x3c6ef372U, 0xa54ff53aU,
       0x510e527fU, 0x9b05688cU, 0x1f83d9abU, 0x5be0cd19U,
   };
 
   std::size_t offset = 0;
-  while (offset + 64 <= bytes.size()) {
+  while (bytes.size() - offset >= 64) {
     compress(bytes.data() + offset, &state);
     offset += 64;
   }
 
   std::array<std::byte, 128> tail{};
   const std::size_t remaining = bytes.size() - offset;
-  std::copy_n(bytes.begin() + static_cast<std::ptrdiff_t>(offset), remaining,
-              tail.begin());
+  std::copy_n(bytes.data() + offset, remaining, tail.data());
   tail[remaining] = std::byte{0x80};
   const std::size_t padded_length = remaining < 56 ? 64 : 128;
   const auto bit_length = static_cast<std::uint64_t>(bytes.size()) * 8U;

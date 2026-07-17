@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "2a8a5ee3f139ccf788c3fb391ba7b921",
+    "identityHash": "3c600e67aae3c248ff64760fb3d1e588",
     "entities": [
       {
         "tableName": "catalog_asset",
@@ -357,11 +357,101 @@
             "singletonId"
           ]
         }
+      },
+      {
+        "tableName": "model_pack",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`packId` TEXT NOT NULL, `packVersion` TEXT NOT NULL, `keyId` TEXT NOT NULL, `manifestSha256` TEXT NOT NULL, `relativeDirectory` TEXT NOT NULL, `payloadBytes` INTEGER NOT NULL, `installedAtMillis` INTEGER NOT NULL, `status` TEXT NOT NULL, PRIMARY KEY(`packId`, `packVersion`))",
+        "fields": [
+          {
+            "fieldPath": "packId",
+            "columnName": "packId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packVersion",
+            "columnName": "packVersion",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "keyId",
+            "columnName": "keyId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "manifestSha256",
+            "columnName": "manifestSha256",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "relativeDirectory",
+            "columnName": "relativeDirectory",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadBytes",
+            "columnName": "payloadBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "installedAtMillis",
+            "columnName": "installedAtMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "packId",
+            "packVersion"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_model_pack_manifestSha256",
+            "unique": true,
+            "columnNames": [
+              "manifestSha256"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_model_pack_manifestSha256` ON `${TABLE_NAME}` (`manifestSha256`)"
+          },
+          {
+            "name": "index_model_pack_relativeDirectory",
+            "unique": true,
+            "columnNames": [
+              "relativeDirectory"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_model_pack_relativeDirectory` ON `${TABLE_NAME}` (`relativeDirectory`)"
+          },
+          {
+            "name": "index_model_pack_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_model_pack_status` ON `${TABLE_NAME}` (`status`)"
+          }
+        ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '2a8a5ee3f139ccf788c3fb391ba7b921')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3c600e67aae3c248ff64760fb3d1e588')"
     ]
   }
 }

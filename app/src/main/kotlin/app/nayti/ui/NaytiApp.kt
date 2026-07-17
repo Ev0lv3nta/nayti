@@ -1,7 +1,11 @@
 package app.nayti.ui
 
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,7 +33,9 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -40,29 +46,42 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import app.nayti.R
-import app.nayti.indexer.IndexReadiness
+import app.nayti.indexer.CatalogItem
+import app.nayti.indexer.CatalogRuntimeState
+import app.nayti.indexer.CatalogRuntimeStatus
+import app.nayti.indexer.CatalogSummary
+import app.nayti.platform.media.AccessRevision
+import app.nayti.platform.media.MediaAccessScope
+import app.nayti.platform.media.MediaPermissionEvaluator
+import app.nayti.platform.media.MediaPermissionSnapshot
 import app.nayti.ui.theme.NaytiTheme
 
 private enum class RootDestination(
@@ -75,39 +94,68 @@ private enum class RootDestination(
     Data("data", R.string.nav_data, Icons.Outlined.Settings),
 }
 
+private const val ViewerRoute = "viewer/{assetId}"
+
 @Composable
-fun NaytiApp() {
+fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
+    val catalog by viewModel.catalog.collectAsStateWithLifecycle()
+    val viewerProbe by viewModel.viewerProbe.collectAsStateWithLifecycle()
+    val permissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            viewModel.onPermissionResult()
+        }
+    NaytiAppContent(
+        catalog = catalog,
+        viewerProbe = viewerProbe,
+        onRequestAccess = {
+            permissionLauncher.launch(
+                MediaPermissionEvaluator.requestPermissions(Build.VERSION.SDK_INT),
+            )
+        },
+        onRefresh = { viewModel.refresh(forceFull = true) },
+        onProbe = viewModel::probe,
+        onClearProbe = viewModel::clearProbe,
+    )
+}
+
+@Composable
+private fun NaytiAppContent(
+    catalog: CatalogRuntimeState,
+    viewerProbe: ViewerProbeState,
+    onRequestAccess: () -> Unit,
+    onRefresh: () -> Unit,
+    onProbe: (Long) -> Unit,
+    onClearProbe: () -> Unit,
+) {
     val navController = rememberNavController()
     val currentEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentEntry?.destination?.route
+    val showBottomBar = RootDestination.entries.any { it.route == currentRoute }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                RootDestination.entries.forEach { destination ->
-                    NavigationBarItem(
-                        selected = currentRoute == destination.route,
-                        onClick = {
-                            navController.navigate(destination.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+            if (showBottomBar) {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                    RootDestination.entries.forEach { destination ->
+                        NavigationBarItem(
+                            selected = currentRoute == destination.route,
+                            onClick = {
+                                navController.navigate(destination.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = destination.icon,
-                                contentDescription = null,
-                            )
-                        },
-                        label = { Text(stringResource(destination.title)) },
-                        colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                        ),
-                    )
+                            },
+                            icon = { Icon(destination.icon, contentDescription = null) },
+                            label = { Text(stringResource(destination.title)) },
+                            colors = NavigationBarItemDefaults.colors(
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            ),
+                        )
+                    }
                 }
             }
         },
@@ -117,21 +165,37 @@ fun NaytiApp() {
             startDestination = RootDestination.Search.route,
             modifier = Modifier.padding(innerPadding),
         ) {
-            composable(RootDestination.Search.route) { SearchScreen() }
+            composable(RootDestination.Search.route) { SearchScreen(catalog) }
             composable(RootDestination.Readiness.route) {
-                ReadinessScreen(IndexReadiness.Empty)
+                ReadinessScreen(
+                    catalog = catalog,
+                    onRequestAccess = onRequestAccess,
+                    onRefresh = onRefresh,
+                    onOpenItem = { item -> navController.navigate("viewer/${item.assetId}") },
+                )
             }
-            composable(RootDestination.Data.route) { DataScreen() }
+            composable(RootDestination.Data.route) { DataScreen(catalog) }
+            composable(
+                route = ViewerRoute,
+                arguments = listOf(navArgument("assetId") { type = NavType.LongType }),
+            ) { entry ->
+                val assetId = checkNotNull(entry.arguments?.getLong("assetId"))
+                val item = catalog.recentItems.firstOrNull { it.assetId == assetId }
+                ViewerScreen(
+                    item = item,
+                    accessRevision = catalog.access.value,
+                    probeState = viewerProbe,
+                    onBack = navController::popBackStack,
+                    onProbe = { onProbe(assetId) },
+                    onClearProbe = onClearProbe,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun ScreenHeader(
-    eyebrow: String,
-    title: String,
-    subtitle: String,
-) {
+private fun ScreenHeader(eyebrow: String, title: String, subtitle: String) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = eyebrow.uppercase(),
@@ -144,7 +208,6 @@ private fun ScreenHeader(
             text = title,
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground,
         )
         Text(
             text = subtitle,
@@ -156,54 +219,16 @@ private fun ScreenHeader(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SearchScreen() {
+private fun SearchScreen(catalog: CatalogRuntimeState) {
     var query by rememberSaveable { mutableStateOf("") }
-    val examples = listOf(
-        R.string.example_receipt,
-        R.string.example_seaside,
-        R.string.example_contract,
-    )
+    val examples = listOf(R.string.example_receipt, R.string.example_seaside, R.string.example_contract)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp),
     ) {
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                )
-                Surface(
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    shape = RoundedCornerShape(100),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Lock,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Text(
-                            text = stringResource(R.string.local_only),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                }
-            }
-        }
-
+        item { AppIdentity() }
         item {
             ScreenHeader(
                 eyebrow = stringResource(R.string.search_eyebrow),
@@ -211,66 +236,30 @@ private fun SearchScreen() {
                 subtitle = stringResource(R.string.search_subtitle),
             )
         }
-
         item {
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = false,
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Search,
-                        contentDescription = null,
+                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                placeholder = { Text(stringResource(R.string.search_hint)) },
+                supportingText = {
+                    Text(
+                        stringResource(
+                            if (catalog.access.permission.scope == MediaAccessScope.None) {
+                                R.string.search_waiting_access
+                            } else {
+                                R.string.search_catalog_ready
+                            },
+                        ),
                     )
                 },
-                placeholder = { Text(stringResource(R.string.search_hint)) },
-                supportingText = { Text(stringResource(R.string.search_preparing)) },
                 shape = RoundedCornerShape(20.dp),
                 singleLine = true,
             )
         }
-
-        item {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                ),
-                shape = RoundedCornerShape(24.dp),
-            ) {
-                Row(
-                    modifier = Modifier.padding(20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .background(MaterialTheme.colorScheme.surface, CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.List,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = stringResource(R.string.library_not_connected),
-                            fontWeight = FontWeight.SemiBold,
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            text = stringResource(R.string.library_not_connected_details),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-            }
-        }
-
+        item { LibraryStatusCard(catalog) }
         item {
             Text(
                 text = stringResource(R.string.examples_title),
@@ -280,11 +269,7 @@ private fun SearchScreen() {
             Spacer(Modifier.height(10.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(examples) { example ->
-                    AssistChip(
-                        onClick = {},
-                        enabled = false,
-                        label = { Text(stringResource(example)) },
-                    )
+                    AssistChip(onClick = {}, enabled = false, label = { Text(stringResource(example)) })
                 }
             }
         }
@@ -292,11 +277,100 @@ private fun SearchScreen() {
 }
 
 @Composable
-private fun ReadinessScreen(readiness: IndexReadiness) {
+private fun AppIdentity() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.app_name),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(100)) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Outlined.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
+                Text(
+                    text = stringResource(R.string.local_only),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LibraryStatusCard(catalog: CatalogRuntimeState) {
+    val connected = catalog.access.permission.scope != MediaAccessScope.None
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        shape = RoundedCornerShape(24.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier.size(48.dp).background(MaterialTheme.colorScheme.surface, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (catalog.status == CatalogRuntimeStatus.Reconciling) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 3.dp)
+                } else {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.List,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text =
+                        if (connected) {
+                            stringResource(R.string.library_connected)
+                        } else {
+                            stringResource(R.string.library_not_connected)
+                        },
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text =
+                        if (connected) {
+                            pluralStringResource(
+                                R.plurals.catalog_available_photos,
+                                catalog.summary.available.toInt(),
+                                catalog.summary.available,
+                            )
+                        } else {
+                            stringResource(R.string.library_not_connected_details)
+                        },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadinessScreen(
+    catalog: CatalogRuntimeState,
+    onRequestAccess: () -> Unit,
+    onRefresh: () -> Unit,
+    onOpenItem: (CatalogItem) -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(22.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item {
             ScreenHeader(
@@ -305,86 +379,249 @@ private fun ReadinessScreen(readiness: IndexReadiness) {
                 subtitle = stringResource(R.string.readiness_subtitle),
             )
         }
+        item { AccessCard(catalog, onRequestAccess, onRefresh) }
         item {
             MetricCard(
-                title = stringResource(R.string.searchable_photos),
-                value = readiness.searchable.toString(),
-                supporting = pluralStringResource(
-                    R.plurals.of_discovered,
-                    readiness.discovered,
-                    readiness.discovered,
-                ),
-                icon = Icons.AutoMirrored.Outlined.List,
+                title = stringResource(R.string.catalog_available),
+                value = catalog.summary.available.toString(),
+                supporting = stringResource(R.string.catalog_available_details),
+                icon = Icons.Outlined.CheckCircle,
             )
         }
+        if (catalog.summary.outOfScope + catalog.summary.offline + catalog.summary.missing > 0) {
+            item {
+                MetricCard(
+                    title = stringResource(R.string.catalog_not_visible),
+                    value =
+                        (catalog.summary.outOfScope + catalog.summary.offline + catalog.summary.missing)
+                            .toString(),
+                    supporting = stringResource(R.string.catalog_not_visible_details),
+                    icon = Icons.Outlined.Lock,
+                )
+            }
+        }
         item {
-            Card(shape = RoundedCornerShape(24.dp)) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.first_step_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = stringResource(R.string.first_step_details),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Button(onClick = {}, enabled = false) {
-                        Text(stringResource(R.string.connect_library))
-                    }
-                    Text(
-                        text = stringResource(R.string.catalog_stage_note),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+            Text(
+                text = stringResource(R.string.catalog_recent_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        if (catalog.recentItems.isEmpty()) {
+            item {
+                Text(
+                    text = stringResource(R.string.catalog_empty),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            items(catalog.recentItems, key = CatalogItem::assetId) { item ->
+                CatalogItemCard(item, onClick = { onOpenItem(item) })
             }
         }
     }
 }
 
 @Composable
-private fun MetricCard(
-    title: String,
-    value: String,
-    supporting: String,
-    icon: ImageVector,
+private fun AccessCard(
+    catalog: CatalogRuntimeState,
+    onRequestAccess: () -> Unit,
+    onRefresh: () -> Unit,
 ) {
+    Card(shape = RoundedCornerShape(24.dp)) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = accessTitle(catalog.access.permission.scope),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                if (catalog.status == CatalogRuntimeStatus.Reconciling) {
+                    CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 3.dp)
+                }
+            }
+            Text(
+                text = accessDescription(catalog.access.permission.scope),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (catalog.access.permission.scope == MediaAccessScope.None) {
+                    Button(onClick = onRequestAccess) {
+                        Text(stringResource(R.string.connect_library))
+                    }
+                } else {
+                    FilledTonalButton(onClick = onRefresh) {
+                        Text(stringResource(R.string.refresh_catalog))
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                        TextButton(onClick = onRequestAccess) {
+                            Text(stringResource(R.string.change_selection))
+                        }
+                    }
+                }
+            }
+            catalog.lastErrorCode?.let {
+                Text(
+                    text = stringResource(R.string.catalog_retryable_error, it),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun accessTitle(scope: MediaAccessScope): String =
+    when (scope) {
+        MediaAccessScope.None -> stringResource(R.string.access_none_title)
+        MediaAccessScope.Selected -> stringResource(R.string.access_selected_title)
+        MediaAccessScope.Full -> stringResource(R.string.access_full_title)
+    }
+
+@Composable
+private fun accessDescription(scope: MediaAccessScope): String =
+    when (scope) {
+        MediaAccessScope.None -> stringResource(R.string.access_none_details)
+        MediaAccessScope.Selected -> stringResource(R.string.access_selected_details)
+        MediaAccessScope.Full -> stringResource(R.string.access_full_details)
+    }
+
+@Composable
+private fun CatalogItemCard(item: CatalogItem, onClick: () -> Unit) {
     Card(
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(32.dp),
-            )
+            Box(
+                modifier = Modifier.size(44.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.AutoMirrored.Outlined.List, contentDescription = null)
+            }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = title,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = item.displayName ?: stringResource(R.string.catalog_unnamed_photo, item.assetId),
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = value,
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
+                    text = stringResource(
+                        R.string.catalog_item_details,
+                        item.width,
+                        item.height,
+                        item.bucketDisplayName.orEmpty(),
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ViewerScreen(
+    item: CatalogItem?,
+    accessRevision: Long,
+    probeState: ViewerProbeState,
+    onBack: () -> Unit,
+    onProbe: () -> Unit,
+    onClearProbe: () -> Unit,
+) {
+    LaunchedEffect(item?.assetId, accessRevision) {
+        if (item != null) onProbe()
+    }
+    DisposableEffect(Unit) { onDispose(onClearProbe) }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        item { TextButton(onClick = onBack) { Text(stringResource(R.string.viewer_back)) } }
+        if (item == null) {
+            item {
+                ScreenHeader(
+                    eyebrow = stringResource(R.string.viewer_eyebrow),
+                    title = stringResource(R.string.viewer_access_changed),
+                    subtitle = stringResource(R.string.viewer_access_changed_details),
+                )
+            }
+        } else {
+            item {
+                ScreenHeader(
+                    eyebrow = stringResource(R.string.viewer_eyebrow),
+                    title = item.displayName ?: stringResource(R.string.catalog_unnamed_photo, item.assetId),
+                    subtitle = stringResource(R.string.viewer_subtitle),
+                )
+            }
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    shape = RoundedCornerShape(28.dp),
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(260.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        when (probeState) {
+                            ViewerProbeState.Idle,
+                            ViewerProbeState.Loading,
+                            -> CircularProgressIndicator()
+                            is ViewerProbeState.Ready ->
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.CheckCircle,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(48.dp),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.viewer_read_verified),
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                    Text(
+                                        text = stringResource(
+                                            R.string.viewer_probe_details,
+                                            probeState.probe.sourceWidth,
+                                            probeState.probe.sourceHeight,
+                                            probeState.probe.decodedWidth,
+                                            probeState.probe.decodedHeight,
+                                        ),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            is ViewerProbeState.Failed ->
+                                Text(
+                                    text = stringResource(R.string.viewer_read_failed, probeState.code),
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(24.dp),
+                                )
+                        }
+                    }
+                }
+            }
+            item {
                 Text(
-                    text = supporting,
-                    style = MaterialTheme.typography.labelMedium,
+                    text = stringResource(R.string.viewer_privacy_note),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -393,7 +630,25 @@ private fun MetricCard(
 }
 
 @Composable
-private fun DataScreen() {
+private fun MetricCard(title: String, value: String, supporting: String, icon: ImageVector) {
+    Card(shape = RoundedCornerShape(24.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text(supporting, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DataScreen(catalog: CatalogRuntimeState) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
@@ -415,6 +670,17 @@ private fun DataScreen() {
         }
         item {
             SettingsCard(
+                icon = Icons.AutoMirrored.Outlined.List,
+                title = stringResource(R.string.catalog_data_title),
+                body = stringResource(
+                    R.string.catalog_data_details,
+                    catalog.summary.total,
+                    catalog.summary.outOfScope,
+                ),
+            )
+        }
+        item {
+            SettingsCard(
                 icon = Icons.Outlined.Build,
                 title = stringResource(R.string.model_pack_title),
                 body = stringResource(R.string.model_pack_missing),
@@ -424,16 +690,9 @@ private fun DataScreen() {
 }
 
 @Composable
-private fun SettingsCard(
-    icon: ImageVector,
-    title: String,
-    body: String,
-) {
+private fun SettingsCard(icon: ImageVector, title: String, body: String) {
     Card(shape = RoundedCornerShape(24.dp)) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -451,6 +710,24 @@ private fun SettingsCard(
 @Composable
 private fun NaytiPreview() {
     NaytiTheme(darkTheme = false) {
-        NaytiApp()
+        NaytiAppContent(
+            catalog =
+                CatalogRuntimeState(
+                    status = CatalogRuntimeStatus.PermissionRequired,
+                    access =
+                        AccessRevision(
+                            1,
+                            MediaPermissionSnapshot(MediaAccessScope.None, false, false),
+                        ),
+                    summary = CatalogSummary.Empty,
+                    recentItems = emptyList(),
+                    lastErrorCode = null,
+                ),
+            viewerProbe = ViewerProbeState.Idle,
+            onRequestAccess = {},
+            onRefresh = {},
+            onProbe = {},
+            onClearProbe = {},
+        )
     }
 }

@@ -3,6 +3,8 @@ package app.nayti.indexer
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import app.nayti.search.engine.fusion.MultimodalQueryIntent
+import app.nayti.search.engine.VectorSegmentV1Reader
 import app.nayti.storage.CatalogAssetEntity
 import app.nayti.storage.CatalogAvailability
 import app.nayti.storage.CatalogStorage
@@ -316,6 +318,28 @@ class VectorPublicationStoreInstrumentedTest {
     }
 
     @Test
+    fun incompatibleWorkContractIsRejectedBeforeDatabaseStaging() = runBlocking {
+        val assetId = insertAsset(1_000)
+        val lease = stageRunningWork(assetId, "wrong-contract")
+        val work = checkNotNull(storage.indexStateDao.work(assetId, IndexChannel.VISUAL))
+        storage.indexStateDao.replaceWork(work.copy(componentHash = SecondEmbeddingHash))
+
+        val failure = runCatching { store().publish(request(1_000, assetId, lease)) }.exceptionOrNull()
+
+        assertTrue(failure is VectorPublicationLeaseRejectedException)
+        assertNull(storage.vectorIndexDao.publication("publication-1000"))
+        assertNull(storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(IndexWorkState.RUNNING, storage.indexStateDao.work(assetId, IndexChannel.VISUAL)?.state)
+        val recovery =
+            IndexStartupRecovery(root, storage.indexStateDao, storage.vectorIndexDao).recover(
+                nowMillis = now,
+                orphanGraceMillis = 0,
+                deepVerifySegments = true,
+            )
+        assertEquals(1, recovery.vector.deletedOrphans)
+    }
+
+    @Test
     fun newEmbeddingGenerationStartsFreshManifestFromActiveSnapshot() = runBlocking {
         val firstAsset = insertAsset(1)
         val first = store().publish(request(1_001, firstAsset, stageRunningWork(firstAsset, "first-generation")))
@@ -338,6 +362,252 @@ class VectorPublicationStoreInstrumentedTest {
         assertNull(manifest.parentRevision)
         assertEquals(SecondGenerationId, manifest.generationId)
         assertEquals(1, storage.vectorIndexDao.manifestSegments(manifest.revision).size)
+    }
+
+    @Test
+    fun imageToImageSearchUsesCurrentEligibleVectorsAndReleasesLease() = runBlocking {
+        val sourceAsset = insertAsset(1)
+        store().publish(
+            request(2_001, sourceAsset, stageRunningWork(sourceAsset, "visual-source")).withVector(100),
+        )
+        now += 100
+        val similarAsset = insertAsset(2)
+        store().publish(
+            request(2_002, similarAsset, stageRunningWork(similarAsset, "visual-similar")).withVector(100),
+        )
+        now += 100
+        val differentAsset = insertAsset(3)
+        store().publish(
+            request(2_003, differentAsset, stageRunningWork(differentAsset, "visual-different")).withVector(-100),
+        )
+        val search =
+            VisualSimilaritySearch(
+                vectors = storage.vectorIndexDao,
+                vectorRoot = root,
+                clock = { now },
+                leaseTokens = { "visual-query-test" },
+            )
+
+        val initial = search.searchSimilar(sourceAsset)
+
+        assertEquals(VisualSimilaritySearchStatus.READY, initial.status)
+        assertEquals(listOf(similarAsset, differentAsset), initial.hits.map { it.assetId })
+        assertTrue(initial.hits.first().rawScore > initial.hits.last().rawScore)
+        assertNull(storage.vectorIndexDao.queryLease("visual-query-test"))
+
+        val changed = checkNotNull(storage.catalogDao.asset(similarAsset))
+        assertEquals(1, storage.catalogDao.updateAsset(changed.copy(sourceFingerprint = "changed-source")))
+        val afterSourceChange = search.searchSimilar(sourceAsset)
+        assertEquals(listOf(differentAsset), afterSourceChange.hits.map { it.assetId })
+
+        storage.catalogDao.recordAccessObservation("Full", AccessRevision + 1, now + 1)
+        val afterAccessChange = search.searchSimilar(sourceAsset)
+        assertEquals(VisualSimilaritySearchStatus.SOURCE_NOT_INDEXED, afterAccessChange.status)
+        assertTrue(afterAccessChange.hits.isEmpty())
+        assertNull(storage.vectorIndexDao.queryLease("visual-query-test"))
+    }
+
+    @Test
+    fun textToImageSearchUsesActiveEmbeddingContractAndReleasesResources() = runBlocking {
+        val firstAsset = insertAsset(1)
+        store().publish(
+            request(2_101, firstAsset, stageRunningWork(firstAsset, "text-first")).withVector(100),
+        )
+        now += 100
+        val secondAsset = insertAsset(2)
+        store().publish(
+            request(2_102, secondAsset, stageRunningWork(secondAsset, "text-second")).withVector(60),
+        )
+        now += 100
+        val thirdAsset = insertAsset(3)
+        store().publish(
+            request(2_103, thirdAsset, stageRunningWork(thirdAsset, "text-third")).withVector(-100),
+        )
+        var openedContract: VisualQueryContract? = null
+        var sessionClosed = false
+        val similarity =
+            VisualSimilaritySearch(
+                vectors = storage.vectorIndexDao,
+                vectorRoot = root,
+                clock = { now },
+                leaseTokens = { "text-query-test" },
+            )
+        val search =
+            VisualTextSearch(
+                similarity = similarity,
+                sessions = VisualTextQuerySessionFactory { contract ->
+                    openedContract = contract
+                    object : VisualTextQuerySession {
+                        override val embeddingSpaceHash = contract.embeddingSpaceHash
+                        override val dimension = contract.dimension
+
+                        override fun encodeQuery(text: String): ByteArray {
+                            assertEquals("красный автомобиль", text)
+                            return ByteArray(contract.dimension) { 100.toByte() }
+                        }
+
+                        override fun close() {
+                            sessionClosed = true
+                        }
+                    }
+                },
+            )
+
+        val result = search.search("  красный автомобиль  ", limit = 2)
+
+        assertEquals(VisualTextSearchStatus.READY, result.status)
+        assertEquals(listOf(firstAsset, secondAsset), result.hits.map { it.assetId })
+        assertEquals(EmbeddingHash, openedContract?.embeddingSpaceHash)
+        assertEquals(PackManifestHash, openedContract?.packManifestSha256)
+        assertTrue(sessionClosed)
+        assertNull(storage.vectorIndexDao.queryLease("text-query-test"))
+    }
+
+    @Test
+    fun textToImageSearchRejectsIncompatibleSessionAndStillReleasesLease() = runBlocking {
+        val assetId = insertAsset(1)
+        store().publish(
+            request(2_201, assetId, stageRunningWork(assetId, "text-contract")).withVector(100),
+        )
+        var sessionClosed = false
+        val search =
+            VisualTextSearch(
+                similarity =
+                    VisualSimilaritySearch(
+                        vectors = storage.vectorIndexDao,
+                        vectorRoot = root,
+                        clock = { now },
+                        leaseTokens = { "text-invalid-session" },
+                    ),
+                sessions = VisualTextQuerySessionFactory { contract ->
+                    object : VisualTextQuerySession {
+                        override val embeddingSpaceHash = SecondEmbeddingHash
+                        override val dimension = contract.dimension
+                        override fun encodeQuery(text: String) = ByteArray(contract.dimension)
+                        override fun close() {
+                            sessionClosed = true
+                        }
+                    }
+                },
+            )
+
+        val failure = runCatching { search.search("test") }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertTrue(sessionClosed)
+        assertNull(storage.vectorIndexDao.queryLease("text-invalid-session"))
+    }
+
+    @Test
+    fun unifiedSearchRoutesVisualScenesButNeverSendsIdentifiersToSiglip() = runBlocking {
+        val firstAsset = insertAsset(1)
+        store().publish(
+            request(2_301, firstAsset, stageRunningWork(firstAsset, "unified-first"))
+                .withVector(100)
+                .copy(lexicalPublicationEpoch = 0),
+        )
+        now += 100
+        val secondAsset = insertAsset(2)
+        store().publish(
+            request(2_302, secondAsset, stageRunningWork(secondAsset, "unified-second"))
+                .withVector(-100)
+                .copy(lexicalPublicationEpoch = 0),
+        )
+        var visualSessionsOpened = 0
+        val similarity =
+            VisualSimilaritySearch(
+                vectors = storage.vectorIndexDao,
+                vectorRoot = root,
+                clock = { now },
+                leaseTokens = { "unified-visual-query" },
+            )
+        val visual =
+            VisualTextSearch(
+                similarity = similarity,
+                sessions = VisualTextQuerySessionFactory { contract ->
+                    visualSessionsOpened += 1
+                    object : VisualTextQuerySession {
+                        override val embeddingSpaceHash = contract.embeddingSpaceHash
+                        override val dimension = contract.dimension
+                        override fun encodeQuery(text: String) = ByteArray(contract.dimension) { 100.toByte() }
+                        override fun close() = Unit
+                    }
+                },
+            )
+        val semantic =
+            OcrSemanticSearch(
+                vectors = storage.vectorIndexDao,
+                semantic = storage.ocrSemanticDao,
+                vectorRoot = root,
+                sessions = SemanticQuerySessionFactory { error("Semantic manifest is absent") },
+                clock = { now },
+                leaseTokens = { "unified-semantic-query" },
+            )
+        val unified =
+            UnifiedSearch(
+                vectors = storage.vectorIndexDao,
+                text = OcrHybridSearch(storage.ocrDao, storage.vectorIndexDao, semantic),
+                visual = visual,
+            )
+
+        val scene =
+            unified.search(
+                query = "red car on a road",
+                pipelineVersion = "visual-v1",
+                fallbackComponentHash = ComponentHash,
+            )
+
+        assertEquals(MultimodalQueryIntent.VISUAL_SCENE, scene.intent)
+        assertEquals(listOf(firstAsset, secondAsset), scene.hits.map { it.assetId })
+        assertEquals(UnifiedSearchReason.VISUAL_CONTENT, scene.hits.first().reason)
+        assertEquals(1, visualSessionsOpened)
+        assertNull(storage.vectorIndexDao.queryLease("unified-semantic-query"))
+        assertNull(storage.vectorIndexDao.queryLease("unified-visual-query"))
+
+        val identifier =
+            unified.search(
+                query = "№ АБ-123/45",
+                pipelineVersion = "visual-v1",
+                fallbackComponentHash = ComponentHash,
+            )
+
+        assertEquals(MultimodalQueryIntent.IDENTIFIER, identifier.intent)
+        assertTrue(identifier.hits.isEmpty())
+        assertEquals(1, visualSessionsOpened)
+    }
+
+    @Test
+    fun visualCompactionKeepsNewestRecordWhenOneAssetWasReindexed() = runBlocking {
+        val assetId = insertAsset(1)
+        repeat(8) { index ->
+            now += 100
+            val iteration = 3_100 + index
+            store().publish(
+                request(iteration, assetId, stageRunningWork(assetId, "reindex-$index"))
+                    .withVector(index + 1),
+            )
+        }
+
+        assertEquals(
+            1,
+            VectorIndexCompactor(root, storage.vectorIndexDao, nowMillis = { now })
+                .compactAvailable(1, IndexChannel.VISUAL),
+        )
+
+        val active = checkNotNull(storage.vectorIndexDao.activeSnapshotId()).let { id ->
+            checkNotNull(storage.vectorIndexDao.snapshot(id))
+        }
+        val manifest = checkNotNull(active.visualManifestRevision).let { revision ->
+            checkNotNull(storage.vectorIndexDao.manifest(revision))
+        }
+        assertEquals(1L, manifest.recordCount)
+        val artifact = storage.vectorIndexDao.manifestSegments(manifest.revision).single().let { entry ->
+            checkNotNull(storage.vectorIndexDao.segment(entry.segmentSha256))
+        }
+        assertEquals(1, artifact.compactionLevel)
+        val decoded = VectorSegmentV1Reader.decode(root.resolve(artifact.relativePath).readBytes())
+        assertEquals(assetId, decoded.records.single().assetId)
+        assertTrue(decoded.records.single().vector.all { value -> value == 8.toByte() })
     }
 
     private fun store(observer: (VectorPublicationBoundary) -> Unit = {}) =
@@ -385,6 +655,11 @@ class VectorPublicationStoreInstrumentedTest {
             pHashPublicationEpoch = iteration.toLong(),
             catalogWatermark = iteration.toLong(),
             segmentId = UUID.nameUUIDFromBytes("segment-$iteration".encodeToByteArray()),
+        )
+
+    private fun VectorPublicationRequest.withVector(value: Int): VectorPublicationRequest =
+        copy(
+            records = records.map { record -> record.copy(vector = ByteArray(Dimension) { value.toByte() }) },
         )
 
     private suspend fun insertAsset(mediaStoreId: Long): Long =
@@ -483,7 +758,7 @@ class VectorPublicationStoreInstrumentedTest {
         const val GenerationId = "visual-generation-1"
         const val SecondGenerationId = "visual-generation-2"
         const val Dimension = 8
-        const val ComponentHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        const val ComponentHash = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
         const val EmbeddingHash = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
         const val SecondEmbeddingHash = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
         const val PackManifestHash = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"

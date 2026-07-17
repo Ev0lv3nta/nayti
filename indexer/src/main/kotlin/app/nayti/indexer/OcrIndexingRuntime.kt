@@ -1,6 +1,8 @@
 package app.nayti.indexer
 
+import app.nayti.ml.runtime.visual.Siglip2Contract
 import app.nayti.platform.media.BoundedMediaDecoder
+import app.nayti.search.engine.similarity.PerceptualHashV1
 import app.nayti.storage.CatalogStorage
 import app.nayti.storage.IndexChannel
 import app.nayti.storage.IndexChannelCoverage
@@ -56,6 +58,7 @@ class OcrIndexingRuntime(
         IndexExecutionClock { System.nanoTime() / 1_000_000L },
     private val resourceGovernor: IndexResourceGovernor =
         IndexResourceGovernor { IndexResourceDecision(canContinue = true) },
+    private val neuralLane: NeuralExecutionLane = NeuralExecutionLane(),
 ) {
     private val running = AtomicBoolean(false)
     private val continueExecution = AtomicBoolean(false)
@@ -167,7 +170,7 @@ class OcrIndexingRuntime(
                 windows += 1
                 operationId = result.operation.operationId
                 currentOperationId.set(operationId)
-                publishCoverage(pack, result.semanticPublished, operationId, hostType)
+                publishCoverage(pack, result.visualPublished, operationId, hostType)
                 if (!result.saturated) break
             }
             val coverage = coverage(pack)
@@ -246,15 +249,27 @@ class OcrIndexingRuntime(
                     channels =
                         listOf(
                             IndexChannelContract(
-                                channel = IndexChannel.OCR,
+                                channel = IndexChannel.PHASH,
                                 priority = 0,
+                                pipelineVersion = PerceptualHashV1.PipelineVersion,
+                                componentHash = PerceptualHashV1.ComponentHash,
+                            ),
+                            IndexChannelContract(
+                                channel = IndexChannel.OCR,
+                                priority = 1,
                                 pipelineVersion = PipelineVersion,
                                 componentHash = pack.manifestSha256,
                             ),
                             IndexChannelContract(
                                 channel = IndexChannel.OCR_SEMANTIC,
-                                priority = 1,
+                                priority = 2,
                                 pipelineVersion = OcrSemanticChannelExecutor.PipelineVersion,
+                                componentHash = pack.manifestSha256,
+                            ),
+                            IndexChannelContract(
+                                channel = IndexChannel.VISUAL,
+                                priority = 3,
+                                pipelineVersion = Siglip2Contract.PipelineVersion,
                                 componentHash = pack.manifestSha256,
                             ),
                         ),
@@ -264,68 +279,138 @@ class OcrIndexingRuntime(
         currentOperationId.set(operation.operationId)
 
         var report = EmptyReport
-        var semanticPublished = 0
         var saturated = false
         if (
             canContinue(budget, initiator, activeConstraint) &&
-            hasOutstanding(pack, IndexChannel.OCR, PipelineVersion)
+            hasOutstanding(
+                IndexChannel.PHASH,
+                PerceptualHashV1.PipelineVersion,
+                PerceptualHashV1.ComponentHash,
+            )
         ) {
-            OcrExecutionSession.open(
-                packId = pack.packId,
-                packVersion = pack.packVersion,
-                resolver = packResolver,
-                ocr = storage.ocrDao,
-                decoder = decoder,
-            ).use { session ->
-                val phase =
-                    runPhase(
-                        operation = operation,
-                        hostType = hostType,
-                        itemLimit = itemLimit,
-                        channel = IndexChannel.OCR,
-                        executor = session.executor,
-                        budget = budget,
-                        initiator = initiator,
-                        activeConstraint = activeConstraint,
-                    )
-                report = report.merge(phase)
-                saturated = saturated || phase.claimed == itemLimit
+            val phase =
+                runPhase(
+                    operation = operation,
+                    hostType = hostType,
+                    itemLimit = itemLimit,
+                    channel = IndexChannel.PHASH,
+                    executor = PerceptualHashChannelExecutor(storage.perceptualHashDao, decoder),
+                    budget = budget,
+                    initiator = initiator,
+                    activeConstraint = activeConstraint,
+                )
+            report = report.merge(phase)
+            saturated = saturated || phase.claimed == itemLimit
+        }
+        if (
+            canContinue(budget, initiator, activeConstraint) &&
+            hasOutstanding(IndexChannel.OCR, PipelineVersion, pack.manifestSha256)
+        ) {
+            neuralLane.withPermit {
+                OcrExecutionSession.open(
+                    packId = pack.packId,
+                    packVersion = pack.packVersion,
+                    resolver = packResolver,
+                    ocr = storage.ocrDao,
+                    decoder = decoder,
+                ).use { session ->
+                    val phase =
+                        runPhase(
+                            operation = operation,
+                            hostType = hostType,
+                            itemLimit = itemLimit,
+                            channel = IndexChannel.OCR,
+                            executor = session.executor,
+                            budget = budget,
+                            initiator = initiator,
+                            activeConstraint = activeConstraint,
+                        )
+                    report = report.merge(phase)
+                    saturated = saturated || phase.claimed == itemLimit
+                }
             }
         }
         if (
             canContinue(budget, initiator, activeConstraint) &&
-            hasOutstanding(pack, IndexChannel.OCR_SEMANTIC, OcrSemanticChannelExecutor.PipelineVersion)
+            hasOutstanding(
+                IndexChannel.OCR_SEMANTIC,
+                OcrSemanticChannelExecutor.PipelineVersion,
+                pack.manifestSha256,
+            )
         ) {
-            OcrSemanticExecutionSession.open(
-                packId = pack.packId,
-                packVersion = pack.packVersion,
-                resolver = packResolver,
-                indexState = storage.indexStateDao,
-                semantic = storage.ocrSemanticDao,
-                vectors = storage.vectorIndexDao,
-                vectorRoot = vectorRoot,
-            ).use { session ->
-                val phase =
-                    runPhase(
-                        operation = operation,
-                        hostType = hostType,
-                        itemLimit = itemLimit,
-                        channel = IndexChannel.OCR_SEMANTIC,
-                        executor = session.executor,
-                        budget = budget,
-                        initiator = initiator,
-                        activeConstraint = activeConstraint,
-                    )
-                report = report.merge(phase)
-                semanticPublished = phase.published
-                saturated = saturated || phase.claimed == itemLimit
-                if (phase.published > 0 && budget.hasTimeRemaining()) {
-                    VectorIndexCompactor(vectorRoot, storage.vectorIndexDao)
-                        .compactAvailable(MaximumCompactionsPerWindow)
+            neuralLane.withPermit {
+                OcrSemanticExecutionSession.open(
+                    packId = pack.packId,
+                    packVersion = pack.packVersion,
+                    resolver = packResolver,
+                    indexState = storage.indexStateDao,
+                    semantic = storage.ocrSemanticDao,
+                    vectors = storage.vectorIndexDao,
+                    vectorRoot = vectorRoot,
+                ).use { session ->
+                    val phase =
+                        runPhase(
+                            operation = operation,
+                            hostType = hostType,
+                            itemLimit = itemLimit,
+                            channel = IndexChannel.OCR_SEMANTIC,
+                            executor = session.executor,
+                            budget = budget,
+                            initiator = initiator,
+                            activeConstraint = activeConstraint,
+                        )
+                    report = report.merge(phase)
+                    saturated = saturated || phase.claimed == itemLimit
+                    if (phase.published > 0 && budget.hasTimeRemaining()) {
+                        VectorIndexCompactor(vectorRoot, storage.vectorIndexDao)
+                            .compactAvailable(MaximumCompactionsPerWindow)
+                    }
                 }
             }
         }
-        return WindowResult(operation, report, semanticPublished, saturated)
+        var visualPublished = 0
+        if (
+            canContinue(budget, initiator, activeConstraint) &&
+            hasOutstanding(
+                IndexChannel.VISUAL,
+                Siglip2Contract.PipelineVersion,
+                pack.manifestSha256,
+            )
+        ) {
+            neuralLane.withPermit {
+                VisualExecutionSession.open(
+                    packId = pack.packId,
+                    packVersion = pack.packVersion,
+                    resolver = packResolver,
+                    indexState = storage.indexStateDao,
+                    semantic = storage.ocrSemanticDao,
+                    hashes = storage.perceptualHashDao,
+                    vectors = storage.vectorIndexDao,
+                    decoder = decoder,
+                    vectorRoot = vectorRoot,
+                ).use { session ->
+                    val phase =
+                        runPhase(
+                            operation = operation,
+                            hostType = hostType,
+                            itemLimit = itemLimit,
+                            channel = IndexChannel.VISUAL,
+                            executor = session.executor,
+                            budget = budget,
+                            initiator = initiator,
+                            activeConstraint = activeConstraint,
+                        )
+                    report = report.merge(phase)
+                    visualPublished = phase.published
+                    saturated = saturated || phase.claimed == itemLimit
+                    if (phase.published > 0 && budget.hasTimeRemaining()) {
+                        VectorIndexCompactor(vectorRoot, storage.vectorIndexDao)
+                            .compactAvailable(MaximumCompactionsPerWindow, IndexChannel.VISUAL)
+                    }
+                }
+            }
+        }
+        return WindowResult(operation, report, visualPublished, saturated)
     }
 
     private suspend fun runPhase(
@@ -360,14 +445,18 @@ class OcrIndexingRuntime(
         )
     }
 
-    private suspend fun hasOutstanding(pack: ModelPackEntity, channel: String, pipelineVersion: String): Boolean {
+    private suspend fun hasOutstanding(
+        channel: String,
+        pipelineVersion: String,
+        componentHash: String,
+    ): Boolean {
         val access = storage.catalogDao.accessObservation() ?: return false
         if (access.accessScope == "None") return false
         return storage.indexStateDao.channelCoverage(
             channel = channel,
             accessRevision = access.processAccessRevision,
             pipelineVersion = pipelineVersion,
-            componentHash = pack.manifestSha256,
+            componentHash = componentHash,
         ).outstandingAssetCount > 0
     }
 
@@ -480,9 +569,9 @@ class OcrIndexingRuntime(
         val access = storage.catalogDao.accessObservation() ?: return null
         if (access.accessScope == "None") return null
         return storage.indexStateDao.channelCoverage(
-            channel = IndexChannel.OCR_SEMANTIC,
+            channel = IndexChannel.VISUAL,
             accessRevision = access.processAccessRevision,
-            pipelineVersion = OcrSemanticChannelExecutor.PipelineVersion,
+            pipelineVersion = Siglip2Contract.PipelineVersion,
             componentHash = pack.manifestSha256,
         )
     }
@@ -514,12 +603,12 @@ class OcrIndexingRuntime(
         )
 
     private fun operationId(pack: ModelPackEntity, catalogRevision: Long): String =
-        "search-${pack.manifestSha256.take(16)}-catalog-$catalogRevision"
+        "search-v3-${pack.manifestSha256.take(16)}-catalog-$catalogRevision"
 
     private data class WindowResult(
         val operation: IndexOperationEntity,
         val report: IndexExecutionReport,
-        val semanticPublished: Int,
+        val visualPublished: Int,
         val saturated: Boolean,
     )
 

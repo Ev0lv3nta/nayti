@@ -14,6 +14,8 @@
     <string name="search_action">Найти</string>
     <string name="search_failed">Поиск остановлен: %1$s</string>
     <string name="search_lexical_only">Поиск по смыслу ещё готовится; сейчас показаны совпадения по тексту.</string>
+    <string name="search_visual_pending">Поиск по содержимому фото ещё готовится; выдача использует доступные текстовые сигналы.</string>
+    <string name="search_visual_result">Совпадение по содержимому фотографии</string>
     <plurals name="search_result_count">
         <item quantity="one">Найден %1$d результат</item>
         <item quantity="few">Найдено %1$d результата</item>
@@ -26,6 +28,7 @@
     <string name="evidence_text">Совпадение текста</string>
     <string name="evidence_fuzzy">Похожее написание</string>
     <string name="evidence_semantic">Текст по смыслу</string>
+    <string name="evidence_visual">Содержимое фото</string>
     <string name="library_not_connected">Медиатека пока не подключена</string>
     <string name="library_not_connected_details">Nayti попросит доступ только к фотографиям и покажет, что уже готово к поиску.</string>
     <string name="library_connected">Медиатека подключена</string>
@@ -72,6 +75,18 @@
     <string name="viewer_ocr_details">Оригинал %1$d × %2$d · распознано областей: %3$d</string>
     <string name="viewer_read_failed">Чтение остановлено: %1$s</string>
     <string name="viewer_privacy_note">Изображение открывается локально в ограниченном размере и освобождается после закрытия экрана.</string>
+    <string name="viewer_find_similar">Найти похожие фотографии</string>
+    <string name="viewer_similar_title">Похожие фотографии</string>
+    <string name="viewer_similar_not_ready">Эта фотография ещё не готова для поиска похожих. Продолжите подготовку медиатеки.</string>
+    <string name="viewer_similar_empty">Среди уже обработанных фотографий похожих кадров не найдено.</string>
+    <string name="viewer_similar_failed">Поиск похожих остановлен: %1$s</string>
+    <string name="viewer_find_duplicates">Найти копии и близкие кадры</string>
+    <string name="viewer_duplicates_title">Копии и близкие кадры</string>
+    <string name="viewer_duplicates_not_ready">Эта фотография ещё не готова для поиска копий.</string>
+    <string name="viewer_duplicates_empty">Копий и почти одинаковых кадров не найдено.</string>
+    <string name="viewer_duplicates_failed">Поиск копий остановлен: %1$s</string>
+    <string name="viewer_duplicate_exact">Точная копия</string>
+    <string name="viewer_duplicate_near">Почти тот же кадр</string>
     <string name="data_eyebrow">Контроль</string>
     <string name="data_title">Данные и модели</string>
     <string name="data_subtitle">Управление локальным индексом, model pack и диагностикой без скрытой синхронизации.</string>

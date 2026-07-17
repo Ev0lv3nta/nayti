@@ -88,13 +88,16 @@ import app.nayti.indexer.ModelPackRuntimeStatus
 import app.nayti.indexer.OcrIndexingState
 import app.nayti.indexer.OcrIndexingStatus
 import app.nayti.indexer.OcrSemanticSearchStatus
+import app.nayti.indexer.PerceptualHashSearchStatus
+import app.nayti.indexer.UnifiedSearchReason
+import app.nayti.indexer.VisualSimilaritySearchStatus
+import app.nayti.indexer.VisualTextSearchStatus
 import app.nayti.platform.media.AccessRevision
 import app.nayti.platform.media.MediaAccessScope
 import app.nayti.platform.media.MediaPermissionEvaluator
 import app.nayti.platform.media.MediaPermissionSnapshot
 import app.nayti.storage.OcrRegionEntity
 import app.nayti.storage.IndexOperationState
-import app.nayti.search.engine.fusion.TextFusionReason
 import app.nayti.ui.theme.NaytiTheme
 
 private enum class RootDestination(
@@ -115,6 +118,8 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
     val modelPack by viewModel.modelPack.collectAsStateWithLifecycle()
     val indexing by viewModel.indexing.collectAsStateWithLifecycle()
     val search by viewModel.search.collectAsStateWithLifecycle()
+    val similar by viewModel.similar.collectAsStateWithLifecycle()
+    val duplicates by viewModel.duplicates.collectAsStateWithLifecycle()
     val viewerProbe by viewModel.viewerProbe.collectAsStateWithLifecycle()
     val permissionLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -133,6 +138,8 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
         modelPack = modelPack,
         indexing = indexing,
         search = search,
+        similar = similar,
+        duplicates = duplicates,
         viewerProbe = viewerProbe,
         onRequestAccess = {
             permissionLauncher.launch(
@@ -142,6 +149,8 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
         onRefresh = { viewModel.refresh(forceFull = true) },
         onImportModelPack = { modelPackLauncher.launch(arrayOf("application/octet-stream")) },
         onSearch = viewModel::search,
+        onFindSimilar = viewModel::findSimilar,
+        onFindDuplicates = viewModel::findDuplicates,
         onStartIndexing = {
             if (!viewModel.startIndexing() && Build.VERSION.SDK_INT >= 33) {
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -161,11 +170,15 @@ private fun NaytiAppContent(
     modelPack: ModelPackRuntimeState,
     indexing: OcrIndexingState,
     search: SearchUiState,
+    similar: SimilarUiState,
+    duplicates: DuplicateUiState,
     viewerProbe: ViewerProbeState,
     onRequestAccess: () -> Unit,
     onRefresh: () -> Unit,
     onImportModelPack: () -> Unit,
     onSearch: (String) -> Unit,
+    onFindSimilar: (Long) -> Unit,
+    onFindDuplicates: (Long) -> Unit,
     onStartIndexing: () -> Unit,
     onPauseIndexing: () -> Unit,
     onStopIndexing: () -> Unit,
@@ -246,12 +259,23 @@ private fun NaytiAppContent(
                     ?: (search as? SearchUiState.Ready)?.results
                         ?.firstOrNull { result -> result.asset.assetId == assetId }
                         ?.toCatalogItem()
+                    ?: (similar as? SimilarUiState.Ready)?.results
+                        ?.firstOrNull { result -> result.asset.assetId == assetId }
+                        ?.asset?.toCatalogItem()
+                    ?: (duplicates as? DuplicateUiState.Ready)?.results
+                        ?.firstOrNull { result -> result.asset.assetId == assetId }
+                        ?.asset?.toCatalogItem()
                 ViewerScreen(
                     item = item,
                     accessRevision = catalog.access.value,
                     probeState = viewerProbe,
+                    similarState = similar,
+                    duplicateState = duplicates,
                     onBack = navController::popBackStack,
                     onProbe = { onProbe(assetId) },
+                    onFindSimilar = { onFindSimilar(assetId) },
+                    onFindDuplicates = { onFindDuplicates(assetId) },
+                    onOpenSimilar = { similarAssetId -> navController.navigate("viewer/$similarAssetId") },
                     onClearProbe = onClearProbe,
                 )
             }
@@ -383,6 +407,18 @@ private fun SearchScreen(
                         )
                     }
                 }
+                if (
+                    search.visualStatus == VisualTextSearchStatus.NO_ACTIVE_SNAPSHOT ||
+                    search.visualStatus == VisualTextSearchStatus.NO_VISUAL_MANIFEST
+                ) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.search_visual_pending),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 items(search.results, key = { result -> result.asset.assetId }) { result ->
                     SearchResultCard(result, onClick = { onOpenAsset(result.asset.assetId) })
                 }
@@ -411,13 +447,13 @@ private fun SearchResultCard(result: SearchResultItem, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = result.hit.displaySnippet,
+                text = result.hit.displaySnippet ?: stringResource(R.string.search_visual_result),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = evidenceLabel(result.hit.evidence),
+                text = evidenceLabel(result.hit.reason),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
@@ -426,15 +462,16 @@ private fun SearchResultCard(result: SearchResultItem, onClick: () -> Unit) {
 }
 
 @Composable
-private fun evidenceLabel(evidence: TextFusionReason): String =
+private fun evidenceLabel(evidence: UnifiedSearchReason): String =
     stringResource(
         when (evidence) {
-            TextFusionReason.EXACT_IDENTIFIER -> R.string.evidence_identifier
-            TextFusionReason.QUOTED_PHRASE -> R.string.evidence_phrase
-            TextFusionReason.PERSON_NAME -> R.string.evidence_person
-            TextFusionReason.LITERAL_TEXT -> R.string.evidence_text
-            TextFusionReason.FUZZY_TEXT -> R.string.evidence_fuzzy
-            TextFusionReason.SEMANTIC_TEXT -> R.string.evidence_semantic
+            UnifiedSearchReason.EXACT_IDENTIFIER -> R.string.evidence_identifier
+            UnifiedSearchReason.QUOTED_PHRASE -> R.string.evidence_phrase
+            UnifiedSearchReason.PERSON_NAME -> R.string.evidence_person
+            UnifiedSearchReason.LITERAL_TEXT -> R.string.evidence_text
+            UnifiedSearchReason.FUZZY_TEXT -> R.string.evidence_fuzzy
+            UnifiedSearchReason.SEMANTIC_TEXT -> R.string.evidence_semantic
+            UnifiedSearchReason.VISUAL_CONTENT -> R.string.evidence_visual
         },
     )
 
@@ -799,8 +836,13 @@ private fun ViewerScreen(
     item: CatalogItem?,
     accessRevision: Long,
     probeState: ViewerProbeState,
+    similarState: SimilarUiState,
+    duplicateState: DuplicateUiState,
     onBack: () -> Unit,
     onProbe: () -> Unit,
+    onFindSimilar: () -> Unit,
+    onFindDuplicates: () -> Unit,
+    onOpenSimilar: (Long) -> Unit,
     onClearProbe: () -> Unit,
 ) {
     LaunchedEffect(item?.assetId, accessRevision) {
@@ -886,6 +928,166 @@ private fun ViewerScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            item {
+                FilledTonalButton(
+                    onClick = onFindSimilar,
+                    enabled = similarState !is SimilarUiState.Searching,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (similarState is SimilarUiState.Searching && similarState.sourceAssetId == item.assetId) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text(stringResource(R.string.viewer_find_similar))
+                    }
+                }
+            }
+            item {
+                OutlinedButton(
+                    onClick = onFindDuplicates,
+                    enabled = duplicateState !is DuplicateUiState.Searching,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (duplicateState is DuplicateUiState.Searching && duplicateState.sourceAssetId == item.assetId) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text(stringResource(R.string.viewer_find_duplicates))
+                    }
+                }
+            }
+            when (similarState) {
+                SimilarUiState.Idle,
+                is SimilarUiState.Searching,
+                -> Unit
+                is SimilarUiState.Failed -> if (similarState.sourceAssetId == item.assetId) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.viewer_similar_failed, similarState.code),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+                is SimilarUiState.Ready -> if (similarState.sourceAssetId == item.assetId) {
+                    if (similarState.status != VisualSimilaritySearchStatus.READY) {
+                        item {
+                            Text(
+                                text = stringResource(R.string.viewer_similar_not_ready),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    } else if (similarState.results.isEmpty()) {
+                        item { Text(stringResource(R.string.viewer_similar_empty)) }
+                    } else {
+                        item {
+                            Text(
+                                text = stringResource(R.string.viewer_similar_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                        items(similarState.results, key = { result -> result.asset.assetId }) { result ->
+                            SimilarResultCard(result, onClick = { onOpenSimilar(result.asset.assetId) })
+                        }
+                    }
+                }
+            }
+            when (duplicateState) {
+                DuplicateUiState.Idle,
+                is DuplicateUiState.Searching,
+                -> Unit
+                is DuplicateUiState.Failed -> if (duplicateState.sourceAssetId == item.assetId) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.viewer_duplicates_failed, duplicateState.code),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+                is DuplicateUiState.Ready -> if (duplicateState.sourceAssetId == item.assetId) {
+                    if (duplicateState.status != PerceptualHashSearchStatus.READY) {
+                        item {
+                            Text(
+                                text = stringResource(R.string.viewer_duplicates_not_ready),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    } else if (duplicateState.results.isEmpty()) {
+                        item { Text(stringResource(R.string.viewer_duplicates_empty)) }
+                    } else {
+                        item {
+                            Text(
+                                text = stringResource(R.string.viewer_duplicates_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                        items(duplicateState.results, key = { result -> result.asset.assetId }) { result ->
+                            DuplicateResultCard(result, onClick = { onOpenSimilar(result.asset.assetId) })
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SimilarResultCard(result: SimilarResultItem, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = result.asset.displayName ?: stringResource(
+                    R.string.catalog_unnamed_photo,
+                    result.asset.assetId,
+                ),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(R.string.evidence_visual),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DuplicateResultCard(result: DuplicateResultItem, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = result.asset.displayName ?: stringResource(
+                    R.string.catalog_unnamed_photo,
+                    result.asset.assetId,
+                ),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = stringResource(
+                    if (result.match.distance == 0) {
+                        R.string.viewer_duplicate_exact
+                    } else {
+                        R.string.viewer_duplicate_near
+                    },
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }
@@ -1056,15 +1258,18 @@ private fun modelPackDescription(state: ModelPackRuntimeState): String =
     }
 
 private fun SearchResultItem.toCatalogItem(): CatalogItem =
+    asset.toCatalogItem()
+
+private fun app.nayti.storage.CatalogAssetEntity.toCatalogItem(): CatalogItem =
     CatalogItem(
-        assetId = asset.assetId,
-        key = app.nayti.platform.media.MediaKey(asset.volumeName, asset.mediaStoreId),
-        displayName = asset.displayName,
-        bucketDisplayName = asset.bucketDisplayName,
-        mimeType = asset.mimeType,
-        width = asset.width,
-        height = asset.height,
-        dateTakenMillis = asset.dateTakenMillis,
+        assetId = assetId,
+        key = app.nayti.platform.media.MediaKey(volumeName, mediaStoreId),
+        displayName = displayName,
+        bucketDisplayName = bucketDisplayName,
+        mimeType = mimeType,
+        width = width,
+        height = height,
+        dateTakenMillis = dateTakenMillis,
     )
 
 @Composable
@@ -1118,11 +1323,15 @@ private fun NaytiPreview() {
                     errorCode = null,
                 ),
             search = SearchUiState.Idle,
+            similar = SimilarUiState.Idle,
+            duplicates = DuplicateUiState.Idle,
             viewerProbe = ViewerProbeState.Idle,
             onRequestAccess = {},
             onRefresh = {},
             onImportModelPack = {},
             onSearch = {},
+            onFindSimilar = {},
+            onFindDuplicates = {},
             onStartIndexing = {},
             onPauseIndexing = {},
             onStopIndexing = {},

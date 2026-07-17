@@ -13,18 +13,27 @@ class VectorIndexCompactor(
 ) {
     private val store = VectorCompactionStore(rootDirectory, dao, nowMillis)
 
-    suspend fun compactAvailable(maxOperations: Int): Int {
+    suspend fun compactAvailable(
+        maxOperations: Int,
+        channel: String = IndexChannel.OCR_SEMANTIC,
+    ): Int {
         require(maxOperations > 0)
+        require(channel == IndexChannel.OCR_SEMANTIC || channel == IndexChannel.VISUAL)
         var completed = 0
-        while (completed < maxOperations && compactOneSemantic()) completed += 1
+        while (completed < maxOperations && compactOne(channel)) completed += 1
         return completed
     }
 
-    private suspend fun compactOneSemantic(): Boolean {
+    private suspend fun compactOne(channel: String): Boolean {
         val active = dao.activeSnapshotId()?.let { dao.snapshot(it) } ?: return false
-        val revision = active.semanticManifestRevision ?: return false
+        val revision =
+            if (channel == IndexChannel.VISUAL) {
+                active.visualManifestRevision
+            } else {
+                active.semanticManifestRevision
+            } ?: return false
         val manifest = checkNotNull(dao.manifest(revision))
-        check(manifest.channel == IndexChannel.OCR_SEMANTIC)
+        check(manifest.channel == channel)
         val entries = dao.manifestSegments(revision)
         val artifacts = entries.map { entry -> checkNotNull(dao.segment(entry.segmentSha256)) }
         val plan =

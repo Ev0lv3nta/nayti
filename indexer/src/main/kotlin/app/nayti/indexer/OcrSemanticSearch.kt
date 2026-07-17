@@ -69,6 +69,7 @@ fun interface SemanticQuerySessionFactory {
 
 class InstalledUser2QuerySessionFactory(
     private val resolver: InstalledOcrPackResolver,
+    private val neuralLane: NeuralExecutionLane = NeuralExecutionLane(),
 ) : SemanticQuerySessionFactory {
     override suspend fun open(contract: SemanticQueryContract): SemanticQuerySession {
         require(contract.dimension == User2Contract.EmbeddingDimension)
@@ -79,20 +80,33 @@ class InstalledUser2QuerySessionFactory(
                 User2EmbeddingSpaceIdentity.calculate(pack.payloadDirectory.parent)
             }
         check(actualEmbeddingSpace == contract.embeddingSpaceHash)
-        val runtime = withContext(Dispatchers.Default) { User2OrtRuntime.open(pack.payloadDirectory) }
-        return User2QuerySession(runtime, actualEmbeddingSpace)
+        val permit = neuralLane.acquire()
+        return try {
+            val runtime = withContext(Dispatchers.Default) { User2OrtRuntime.open(pack.payloadDirectory) }
+            User2QuerySession(runtime, actualEmbeddingSpace, permit)
+        } catch (failure: Throwable) {
+            permit.close()
+            throw failure
+        }
     }
 }
 
 private class User2QuerySession(
     private val runtime: User2OrtRuntime,
     override val embeddingSpaceHash: String,
+    private val permit: NeuralExecutionPermit,
 ) : SemanticQuerySession {
     override val dimension: Int = User2Contract.EmbeddingDimension
 
     override fun encodeQuery(text: String): ByteArray = runtime.encodeQuery(text).quantized
 
-    override fun close() = runtime.close()
+    override fun close() {
+        try {
+            runtime.close()
+        } finally {
+            permit.close()
+        }
+    }
 }
 
 class OcrSemanticSearch(

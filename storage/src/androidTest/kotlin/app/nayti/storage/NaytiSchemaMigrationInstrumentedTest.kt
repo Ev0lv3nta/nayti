@@ -45,7 +45,11 @@ class NaytiSchemaMigrationInstrumentedTest {
 
         migration.runMigrationsAndValidate(
             StorageContract.CurrentSchemaVersion,
-            listOf(StorageMigrations.From1To2, StorageMigrations.From2To3),
+            listOf(
+                StorageMigrations.From1To2,
+                StorageMigrations.From2To3,
+                StorageMigrations.From3To4,
+            ),
         ).use { connection ->
             connection.prepare(
                 "SELECT recordId, assetId, semanticChunkId FROM vector_segment_record WHERE segmentSha256 = ?",
@@ -83,6 +87,20 @@ class NaytiSchemaMigrationInstrumentedTest {
                 statement.bindText(1, SegmentSha)
                 assertTrue(statement.step())
                 assertEquals(0L, statement.getLong(0))
+                assertFalse(statement.step())
+            }
+            connection.execSQL(
+                "INSERT INTO perceptual_hash_result " +
+                    "(assetId, sourceFingerprint, accessRevision, pipelineVersion, componentHash, " +
+                    "hashBits, publicationEpoch, createdAtMillis) " +
+                    "VALUES (7, 'source-v1', 3, 'phash-v1', '$EmbeddingSha', 42, 11, 100)",
+            )
+            connection.prepare(
+                "SELECT hashBits, publicationEpoch FROM perceptual_hash_result WHERE assetId = 7",
+            ).use { statement ->
+                assertTrue(statement.step())
+                assertEquals(42L, statement.getLong(0))
+                assertEquals(11L, statement.getLong(1))
                 assertFalse(statement.step())
             }
         }

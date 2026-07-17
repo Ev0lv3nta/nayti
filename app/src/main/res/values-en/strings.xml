@@ -14,6 +14,8 @@
     <string name="search_action">Search</string>
     <string name="search_failed">Search stopped: %1$s</string>
     <string name="search_lexical_only">Meaning-based search is still being prepared; these results match the text.</string>
+    <string name="search_visual_pending">Photo-content search is still being prepared; results use the available text signals.</string>
+    <string name="search_visual_result">Matched by photo content</string>
     <plurals name="search_result_count">
         <item quantity="one">%1$d result found</item>
         <item quantity="other">%1$d results found</item>
@@ -24,6 +26,7 @@
     <string name="evidence_text">Text match</string>
     <string name="evidence_fuzzy">Similar spelling</string>
     <string name="evidence_semantic">Meaning of the text</string>
+    <string name="evidence_visual">Photo content</string>
     <string name="library_not_connected">Your library is not connected yet</string>
     <string name="library_not_connected_details">Nayti will request access to photos only and show what is already searchable.</string>
     <string name="library_connected">Library connected</string>
@@ -68,6 +71,18 @@
     <string name="viewer_ocr_details">Source %1$d × %2$d · recognized regions: %3$d</string>
     <string name="viewer_read_failed">Read stopped: %1$s</string>
     <string name="viewer_privacy_note">The image opens locally at a bounded size and is released when this screen closes.</string>
+    <string name="viewer_find_similar">Find similar photos</string>
+    <string name="viewer_similar_title">Similar photos</string>
+    <string name="viewer_similar_not_ready">This photo is not ready for similarity search yet. Continue preparing the library.</string>
+    <string name="viewer_similar_empty">No similar frames were found among the photos processed so far.</string>
+    <string name="viewer_similar_failed">Similarity search stopped: %1$s</string>
+    <string name="viewer_find_duplicates">Find copies and near-duplicates</string>
+    <string name="viewer_duplicates_title">Copies and near-duplicates</string>
+    <string name="viewer_duplicates_not_ready">This photo is not ready for duplicate search yet.</string>
+    <string name="viewer_duplicates_empty">No copies or near-identical frames were found.</string>
+    <string name="viewer_duplicates_failed">Duplicate search stopped: %1$s</string>
+    <string name="viewer_duplicate_exact">Exact copy</string>
+    <string name="viewer_duplicate_near">Nearly the same frame</string>
     <string name="data_eyebrow">Control</string>
     <string name="data_title">Data and models</string>
     <string name="data_subtitle">Manage the local index, model pack, and diagnostics without hidden sync.</string>

@@ -3,6 +3,7 @@ package app.nayti.indexer
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import app.nayti.search.engine.fusion.MultimodalQueryIntent
 import app.nayti.search.engine.VectorSegmentV1Reader
 import app.nayti.storage.CatalogAssetEntity
 import app.nayti.storage.CatalogAvailability
@@ -495,6 +496,84 @@ class VectorPublicationStoreInstrumentedTest {
         assertTrue(failure is IllegalStateException)
         assertTrue(sessionClosed)
         assertNull(storage.vectorIndexDao.queryLease("text-invalid-session"))
+    }
+
+    @Test
+    fun unifiedSearchRoutesVisualScenesButNeverSendsIdentifiersToSiglip() = runBlocking {
+        val firstAsset = insertAsset(1)
+        store().publish(
+            request(2_301, firstAsset, stageRunningWork(firstAsset, "unified-first"))
+                .withVector(100)
+                .copy(lexicalPublicationEpoch = 0),
+        )
+        now += 100
+        val secondAsset = insertAsset(2)
+        store().publish(
+            request(2_302, secondAsset, stageRunningWork(secondAsset, "unified-second"))
+                .withVector(-100)
+                .copy(lexicalPublicationEpoch = 0),
+        )
+        var visualSessionsOpened = 0
+        val similarity =
+            VisualSimilaritySearch(
+                vectors = storage.vectorIndexDao,
+                vectorRoot = root,
+                clock = { now },
+                leaseTokens = { "unified-visual-query" },
+            )
+        val visual =
+            VisualTextSearch(
+                similarity = similarity,
+                sessions = VisualTextQuerySessionFactory { contract ->
+                    visualSessionsOpened += 1
+                    object : VisualTextQuerySession {
+                        override val embeddingSpaceHash = contract.embeddingSpaceHash
+                        override val dimension = contract.dimension
+                        override fun encodeQuery(text: String) = ByteArray(contract.dimension) { 100.toByte() }
+                        override fun close() = Unit
+                    }
+                },
+            )
+        val semantic =
+            OcrSemanticSearch(
+                vectors = storage.vectorIndexDao,
+                semantic = storage.ocrSemanticDao,
+                vectorRoot = root,
+                sessions = SemanticQuerySessionFactory { error("Semantic manifest is absent") },
+                clock = { now },
+                leaseTokens = { "unified-semantic-query" },
+            )
+        val unified =
+            UnifiedSearch(
+                vectors = storage.vectorIndexDao,
+                text = OcrHybridSearch(storage.ocrDao, storage.vectorIndexDao, semantic),
+                visual = visual,
+            )
+
+        val scene =
+            unified.search(
+                query = "red car on a road",
+                pipelineVersion = "visual-v1",
+                fallbackComponentHash = ComponentHash,
+            )
+
+        assertEquals(MultimodalQueryIntent.VISUAL_SCENE, scene.intent)
+        assertEquals(listOf(firstAsset, secondAsset), scene.hits.map { it.assetId })
+        assertEquals(UnifiedSearchReason.VISUAL_CONTENT, scene.hits.first().reason)
+        assertEquals(1, visualSessionsOpened)
+        assertNull(storage.vectorIndexDao.queryLease("unified-semantic-query"))
+        assertNull(storage.vectorIndexDao.queryLease("unified-visual-query"))
+
+        val identifier =
+            unified.search(
+                query = "№ АБ-123/45",
+                pipelineVersion = "visual-v1",
+                fallbackComponentHash = ComponentHash,
+            )
+
+        assertEquals(MultimodalQueryIntent.IDENTIFIER, identifier.intent)
+        assertTrue(identifier.hits.isEmpty())
+        assertEquals(1, visualSessionsOpened)
     }
 
     @Test

@@ -58,6 +58,7 @@ class OcrIndexingRuntime(
         IndexExecutionClock { System.nanoTime() / 1_000_000L },
     private val resourceGovernor: IndexResourceGovernor =
         IndexResourceGovernor { IndexResourceDecision(canContinue = true) },
+    private val neuralLane: NeuralExecutionLane = NeuralExecutionLane(),
 ) {
     private val running = AtomicBoolean(false)
     private val continueExecution = AtomicBoolean(false)
@@ -305,26 +306,28 @@ class OcrIndexingRuntime(
             canContinue(budget, initiator, activeConstraint) &&
             hasOutstanding(IndexChannel.OCR, PipelineVersion, pack.manifestSha256)
         ) {
-            OcrExecutionSession.open(
-                packId = pack.packId,
-                packVersion = pack.packVersion,
-                resolver = packResolver,
-                ocr = storage.ocrDao,
-                decoder = decoder,
-            ).use { session ->
-                val phase =
-                    runPhase(
-                        operation = operation,
-                        hostType = hostType,
-                        itemLimit = itemLimit,
-                        channel = IndexChannel.OCR,
-                        executor = session.executor,
-                        budget = budget,
-                        initiator = initiator,
-                        activeConstraint = activeConstraint,
-                    )
-                report = report.merge(phase)
-                saturated = saturated || phase.claimed == itemLimit
+            neuralLane.withPermit {
+                OcrExecutionSession.open(
+                    packId = pack.packId,
+                    packVersion = pack.packVersion,
+                    resolver = packResolver,
+                    ocr = storage.ocrDao,
+                    decoder = decoder,
+                ).use { session ->
+                    val phase =
+                        runPhase(
+                            operation = operation,
+                            hostType = hostType,
+                            itemLimit = itemLimit,
+                            channel = IndexChannel.OCR,
+                            executor = session.executor,
+                            budget = budget,
+                            initiator = initiator,
+                            activeConstraint = activeConstraint,
+                        )
+                    report = report.merge(phase)
+                    saturated = saturated || phase.claimed == itemLimit
+                }
             }
         }
         if (
@@ -335,31 +338,33 @@ class OcrIndexingRuntime(
                 pack.manifestSha256,
             )
         ) {
-            OcrSemanticExecutionSession.open(
-                packId = pack.packId,
-                packVersion = pack.packVersion,
-                resolver = packResolver,
-                indexState = storage.indexStateDao,
-                semantic = storage.ocrSemanticDao,
-                vectors = storage.vectorIndexDao,
-                vectorRoot = vectorRoot,
-            ).use { session ->
-                val phase =
-                    runPhase(
-                        operation = operation,
-                        hostType = hostType,
-                        itemLimit = itemLimit,
-                        channel = IndexChannel.OCR_SEMANTIC,
-                        executor = session.executor,
-                        budget = budget,
-                        initiator = initiator,
-                        activeConstraint = activeConstraint,
-                    )
-                report = report.merge(phase)
-                saturated = saturated || phase.claimed == itemLimit
-                if (phase.published > 0 && budget.hasTimeRemaining()) {
-                    VectorIndexCompactor(vectorRoot, storage.vectorIndexDao)
-                        .compactAvailable(MaximumCompactionsPerWindow)
+            neuralLane.withPermit {
+                OcrSemanticExecutionSession.open(
+                    packId = pack.packId,
+                    packVersion = pack.packVersion,
+                    resolver = packResolver,
+                    indexState = storage.indexStateDao,
+                    semantic = storage.ocrSemanticDao,
+                    vectors = storage.vectorIndexDao,
+                    vectorRoot = vectorRoot,
+                ).use { session ->
+                    val phase =
+                        runPhase(
+                            operation = operation,
+                            hostType = hostType,
+                            itemLimit = itemLimit,
+                            channel = IndexChannel.OCR_SEMANTIC,
+                            executor = session.executor,
+                            budget = budget,
+                            initiator = initiator,
+                            activeConstraint = activeConstraint,
+                        )
+                    report = report.merge(phase)
+                    saturated = saturated || phase.claimed == itemLimit
+                    if (phase.published > 0 && budget.hasTimeRemaining()) {
+                        VectorIndexCompactor(vectorRoot, storage.vectorIndexDao)
+                            .compactAvailable(MaximumCompactionsPerWindow)
+                    }
                 }
             }
         }
@@ -372,34 +377,36 @@ class OcrIndexingRuntime(
                 pack.manifestSha256,
             )
         ) {
-            VisualExecutionSession.open(
-                packId = pack.packId,
-                packVersion = pack.packVersion,
-                resolver = packResolver,
-                indexState = storage.indexStateDao,
-                semantic = storage.ocrSemanticDao,
-                hashes = storage.perceptualHashDao,
-                vectors = storage.vectorIndexDao,
-                decoder = decoder,
-                vectorRoot = vectorRoot,
-            ).use { session ->
-                val phase =
-                    runPhase(
-                        operation = operation,
-                        hostType = hostType,
-                        itemLimit = itemLimit,
-                        channel = IndexChannel.VISUAL,
-                        executor = session.executor,
-                        budget = budget,
-                        initiator = initiator,
-                        activeConstraint = activeConstraint,
-                    )
-                report = report.merge(phase)
-                visualPublished = phase.published
-                saturated = saturated || phase.claimed == itemLimit
-                if (phase.published > 0 && budget.hasTimeRemaining()) {
-                    VectorIndexCompactor(vectorRoot, storage.vectorIndexDao)
-                        .compactAvailable(MaximumCompactionsPerWindow, IndexChannel.VISUAL)
+            neuralLane.withPermit {
+                VisualExecutionSession.open(
+                    packId = pack.packId,
+                    packVersion = pack.packVersion,
+                    resolver = packResolver,
+                    indexState = storage.indexStateDao,
+                    semantic = storage.ocrSemanticDao,
+                    hashes = storage.perceptualHashDao,
+                    vectors = storage.vectorIndexDao,
+                    decoder = decoder,
+                    vectorRoot = vectorRoot,
+                ).use { session ->
+                    val phase =
+                        runPhase(
+                            operation = operation,
+                            hostType = hostType,
+                            itemLimit = itemLimit,
+                            channel = IndexChannel.VISUAL,
+                            executor = session.executor,
+                            budget = budget,
+                            initiator = initiator,
+                            activeConstraint = activeConstraint,
+                        )
+                    report = report.merge(phase)
+                    visualPublished = phase.published
+                    saturated = saturated || phase.claimed == itemLimit
+                    if (phase.published > 0 && budget.hasTimeRemaining()) {
+                        VectorIndexCompactor(vectorRoot, storage.vectorIndexDao)
+                            .compactAvailable(MaximumCompactionsPerWindow, IndexChannel.VISUAL)
+                    }
                 }
             }
         }

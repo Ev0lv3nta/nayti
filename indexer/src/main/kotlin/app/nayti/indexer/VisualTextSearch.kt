@@ -32,6 +32,7 @@ fun interface VisualTextQuerySessionFactory {
 
 class InstalledSiglip2TextQuerySessionFactory(
     private val resolver: InstalledOcrPackResolver,
+    private val neuralLane: NeuralExecutionLane = NeuralExecutionLane(),
 ) : VisualTextQuerySessionFactory {
     override suspend fun open(contract: VisualQueryContract): VisualTextQuerySession {
         require(contract.dimension == Siglip2Contract.EmbeddingDimension)
@@ -42,23 +43,36 @@ class InstalledSiglip2TextQuerySessionFactory(
                 Siglip2EmbeddingSpaceIdentity.calculate(pack.payloadDirectory.parent)
             }
         check(actualEmbeddingSpace == contract.embeddingSpaceHash)
-        val runtime =
-            withContext(Dispatchers.Default) {
-                Siglip2TextOrtRuntime.open(pack.payloadDirectory)
-            }
-        return Siglip2TextQuerySession(runtime, actualEmbeddingSpace)
+        val permit = neuralLane.acquire()
+        return try {
+            val runtime =
+                withContext(Dispatchers.Default) {
+                    Siglip2TextOrtRuntime.open(pack.payloadDirectory)
+                }
+            Siglip2TextQuerySession(runtime, actualEmbeddingSpace, permit)
+        } catch (failure: Throwable) {
+            permit.close()
+            throw failure
+        }
     }
 }
 
 private class Siglip2TextQuerySession(
     private val runtime: Siglip2TextOrtRuntime,
     override val embeddingSpaceHash: String,
+    private val permit: NeuralExecutionPermit,
 ) : VisualTextQuerySession {
     override val dimension: Int = Siglip2Contract.EmbeddingDimension
 
     override fun encodeQuery(text: String): ByteArray = runtime.encodeQuery(text).quantized
 
-    override fun close() = runtime.close()
+    override fun close() {
+        try {
+            runtime.close()
+        } finally {
+            permit.close()
+        }
+    }
 }
 
 /** Encodes natural-language queries in the active SigLIP2 space and scans the visual snapshot. */

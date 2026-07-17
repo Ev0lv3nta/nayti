@@ -10,16 +10,23 @@ import app.nayti.indexer.CatalogRuntimeState
 import app.nayti.indexer.ModelPackRuntime
 import app.nayti.indexer.ModelPackRuntimeState
 import app.nayti.indexer.ModelPackRuntimeStatus
-import app.nayti.indexer.HybridOcrHit
-import app.nayti.indexer.OcrHybridSearch
 import app.nayti.indexer.OcrIndexingRuntime
 import app.nayti.indexer.OcrIndexingState
 import app.nayti.indexer.OcrSemanticSearchStatus
+import app.nayti.indexer.PerceptualHashSearch
+import app.nayti.indexer.PerceptualHashSearchStatus
+import app.nayti.indexer.UnifiedSearch
+import app.nayti.indexer.UnifiedSearchHit
+import app.nayti.indexer.VisualSimilarityHit
+import app.nayti.indexer.VisualSimilaritySearch
+import app.nayti.indexer.VisualSimilaritySearchStatus
+import app.nayti.indexer.VisualTextSearchStatus
 import app.nayti.platform.media.DecodedMediaImage
 import app.nayti.ml.runtime.pack.SafModelPackSource
 import app.nayti.storage.CatalogAssetEntity
 import app.nayti.storage.CatalogStorage
 import app.nayti.storage.OcrRegionEntity
+import app.nayti.search.engine.similarity.PerceptualHashMatch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -47,7 +54,7 @@ sealed interface ViewerProbeState {
 
 data class SearchResultItem(
     val asset: CatalogAssetEntity,
-    val hit: HybridOcrHit,
+    val hit: UnifiedSearchHit,
 )
 
 sealed interface SearchUiState {
@@ -59,9 +66,48 @@ sealed interface SearchUiState {
         val query: String,
         val results: List<SearchResultItem>,
         val semanticStatus: OcrSemanticSearchStatus,
+        val visualStatus: VisualTextSearchStatus?,
     ) : SearchUiState
 
     data class Failed(val code: String) : SearchUiState
+}
+
+data class SimilarResultItem(
+    val asset: CatalogAssetEntity,
+    val hit: VisualSimilarityHit,
+)
+
+sealed interface SimilarUiState {
+    data object Idle : SimilarUiState
+
+    data class Searching(val sourceAssetId: Long) : SimilarUiState
+
+    data class Ready(
+        val sourceAssetId: Long,
+        val status: VisualSimilaritySearchStatus,
+        val results: List<SimilarResultItem>,
+    ) : SimilarUiState
+
+    data class Failed(val sourceAssetId: Long, val code: String) : SimilarUiState
+}
+
+data class DuplicateResultItem(
+    val asset: CatalogAssetEntity,
+    val match: PerceptualHashMatch,
+)
+
+sealed interface DuplicateUiState {
+    data object Idle : DuplicateUiState
+
+    data class Searching(val sourceAssetId: Long) : DuplicateUiState
+
+    data class Ready(
+        val sourceAssetId: Long,
+        val status: PerceptualHashSearchStatus,
+        val results: List<DuplicateResultItem>,
+    ) : DuplicateUiState
+
+    data class Failed(val sourceAssetId: Long, val code: String) : DuplicateUiState
 }
 
 @HiltViewModel
@@ -69,7 +115,9 @@ class CatalogViewModel @Inject constructor(
     private val runtime: CatalogRuntime,
     private val modelPacks: ModelPackRuntime,
     private val ocrIndexing: OcrIndexingRuntime,
-    private val hybridSearch: OcrHybridSearch,
+    private val unifiedSearch: UnifiedSearch,
+    private val visualSimilarity: VisualSimilaritySearch,
+    private val perceptualHashes: PerceptualHashSearch,
     private val indexingService: IndexingServiceController,
     private val storage: CatalogStorage,
     @param:ApplicationContext private val context: Context,
@@ -82,8 +130,14 @@ class CatalogViewModel @Inject constructor(
     val viewerProbe: StateFlow<ViewerProbeState> = mutableViewerProbe.asStateFlow()
     private val mutableSearch = MutableStateFlow<SearchUiState>(SearchUiState.Idle)
     val search: StateFlow<SearchUiState> = mutableSearch.asStateFlow()
+    private val mutableSimilar = MutableStateFlow<SimilarUiState>(SimilarUiState.Idle)
+    val similar: StateFlow<SimilarUiState> = mutableSimilar.asStateFlow()
+    private val mutableDuplicates = MutableStateFlow<DuplicateUiState>(DuplicateUiState.Idle)
+    val duplicates: StateFlow<DuplicateUiState> = mutableDuplicates.asStateFlow()
     private val searchGeneration = AtomicLong(0)
     private val viewerGeneration = AtomicLong(0)
+    private val similarGeneration = AtomicLong(0)
+    private val duplicateGeneration = AtomicLong(0)
 
     init {
         viewModelScope.launch {
@@ -187,7 +241,7 @@ class CatalogViewModel @Inject constructor(
             val result =
                 try {
                     val searchResult =
-                        hybridSearch.search(
+                        unifiedSearch.search(
                             query = normalizedQuery,
                             pipelineVersion = OcrIndexingRuntime.PipelineVersion,
                             fallbackComponentHash = pack.manifestSha256,
@@ -195,11 +249,52 @@ class CatalogViewModel @Inject constructor(
                     val hydrated = searchResult.hits.mapNotNull { hit ->
                         storage.catalogDao.asset(hit.assetId)?.let { asset -> SearchResultItem(asset, hit) }
                     }
-                    SearchUiState.Ready(normalizedQuery, hydrated, searchResult.semanticStatus)
+                    SearchUiState.Ready(
+                        normalizedQuery,
+                        hydrated,
+                        searchResult.semanticStatus,
+                        searchResult.visualStatus,
+                    )
                 } catch (failure: Exception) {
                     SearchUiState.Failed(failure::class.java.simpleName.uppercase())
                 }
             if (searchGeneration.get() == generation) mutableSearch.value = result
+        }
+    }
+
+    fun findSimilar(sourceAssetId: Long) {
+        val generation = similarGeneration.incrementAndGet()
+        mutableSimilar.value = SimilarUiState.Searching(sourceAssetId)
+        viewModelScope.launch {
+            val result =
+                try {
+                    val searchResult = visualSimilarity.searchSimilar(sourceAssetId)
+                    val hydrated = searchResult.hits.mapNotNull { hit ->
+                        storage.catalogDao.asset(hit.assetId)?.let { asset -> SimilarResultItem(asset, hit) }
+                    }
+                    SimilarUiState.Ready(sourceAssetId, searchResult.status, hydrated)
+                } catch (failure: Exception) {
+                    SimilarUiState.Failed(sourceAssetId, failure::class.java.simpleName.uppercase())
+                }
+            if (similarGeneration.get() == generation) mutableSimilar.value = result
+        }
+    }
+
+    fun findDuplicates(sourceAssetId: Long) {
+        val generation = duplicateGeneration.incrementAndGet()
+        mutableDuplicates.value = DuplicateUiState.Searching(sourceAssetId)
+        viewModelScope.launch {
+            val result =
+                try {
+                    val searchResult = perceptualHashes.nearDuplicates(sourceAssetId)
+                    val hydrated = searchResult.hits.mapNotNull { match ->
+                        storage.catalogDao.asset(match.assetId)?.let { asset -> DuplicateResultItem(asset, match) }
+                    }
+                    DuplicateUiState.Ready(sourceAssetId, searchResult.status, hydrated)
+                } catch (failure: Exception) {
+                    DuplicateUiState.Failed(sourceAssetId, failure::class.java.simpleName.uppercase())
+                }
+            if (duplicateGeneration.get() == generation) mutableDuplicates.value = result
         }
     }
 }

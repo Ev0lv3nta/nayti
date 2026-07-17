@@ -205,6 +205,16 @@ class VectorPublicationStoreInstrumentedTest {
         val originalRevision = checkNotNull(active.visualManifestRevision)
         val originalEntries = storage.vectorIndexDao.manifestSegments(originalRevision)
         assertEquals(3, originalEntries.size)
+        storage.vectorIndexDao.acquireActiveSnapshotLease(
+            QuerySnapshotLeaseEntity(
+                leaseToken = "compaction-query",
+                snapshotId = active.snapshotId,
+                accessRevision = AccessRevision,
+                createdAtMillis = now,
+                expiresAtMillis = now + 60_000,
+            ),
+            now,
+        )
         storage.vectorIndexDao.sealGeneration(GenerationId, originalRevision, now)
         assertEquals(VectorGenerationState.SEALED, storage.vectorIndexDao.generation(GenerationId)?.state)
 
@@ -233,6 +243,7 @@ class VectorPublicationStoreInstrumentedTest {
         val compactedManifest = checkNotNull(storage.vectorIndexDao.manifest(compacted.visualManifestRevision!!))
         val compactedEntries = storage.vectorIndexDao.manifestSegments(compactedManifest.revision)
         assertEquals(active.snapshotId, compacted.parentSnapshotId)
+        assertEquals(active.snapshotId, storage.vectorIndexDao.queryLease("compaction-query")?.snapshotId)
         assertEquals(originalEntries.size - 1, compactedEntries.size)
         assertEquals(3L, compactedManifest.recordCount)
         val merged = checkNotNull(storage.vectorIndexDao.segment(compactedEntries.first().segmentSha256))

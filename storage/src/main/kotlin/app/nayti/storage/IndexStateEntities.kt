@@ -154,6 +154,14 @@ data class IndexOperationProgress(
     val outstandingCount: Long,
 )
 
+data class IndexChannelCoverage(
+    val channel: String,
+    val accessibleAssetCount: Long,
+    val committedAssetCount: Long,
+    val permanentGapCount: Long,
+    val outstandingAssetCount: Long,
+)
+
 object IndexErrorScope {
     const val ITEM = "ITEM"
     const val OPERATION = "OPERATION"

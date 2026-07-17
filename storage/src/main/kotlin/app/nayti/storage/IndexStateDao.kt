@@ -205,6 +205,34 @@ interface IndexStateDao {
     )
     suspend fun operationProgress(operationId: String): IndexOperationProgress
 
+    @Query(
+        "SELECT :channel AS channel, " +
+            "(SELECT COUNT(*) FROM catalog_asset WHERE availability = 'AVAILABLE') AS accessibleAssetCount, " +
+            "(SELECT COUNT(*) FROM catalog_asset AS asset INNER JOIN index_channel_work AS work " +
+            "ON work.assetId = asset.assetId AND work.channel = :channel " +
+            "WHERE asset.availability = 'AVAILABLE' AND work.sourceFingerprint = asset.sourceFingerprint " +
+            "AND work.accessRevision = :accessRevision AND work.pipelineVersion = :pipelineVersion " +
+            "AND work.componentHash = :componentHash AND work.state = 'DONE') AS committedAssetCount, " +
+            "(SELECT COUNT(*) FROM catalog_asset AS asset INNER JOIN index_channel_work AS work " +
+            "ON work.assetId = asset.assetId AND work.channel = :channel " +
+            "WHERE asset.availability = 'AVAILABLE' AND work.sourceFingerprint = asset.sourceFingerprint " +
+            "AND work.accessRevision = :accessRevision AND work.pipelineVersion = :pipelineVersion " +
+            "AND work.componentHash = :componentHash AND work.state = 'PERMANENT_ERROR') AS permanentGapCount, " +
+            "((SELECT COUNT(*) FROM catalog_asset WHERE availability = 'AVAILABLE') - " +
+            "(SELECT COUNT(*) FROM catalog_asset AS asset INNER JOIN index_channel_work AS work " +
+            "ON work.assetId = asset.assetId AND work.channel = :channel " +
+            "WHERE asset.availability = 'AVAILABLE' AND work.sourceFingerprint = asset.sourceFingerprint " +
+            "AND work.accessRevision = :accessRevision AND work.pipelineVersion = :pipelineVersion " +
+            "AND work.componentHash = :componentHash AND work.state IN ('DONE', 'PERMANENT_ERROR'))) " +
+            "AS outstandingAssetCount",
+    )
+    suspend fun channelCoverageRow(
+        channel: String,
+        accessRevision: Long,
+        pipelineVersion: String,
+        componentHash: String,
+    ): IndexChannelCoverage
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertErrorIfAbsent(error: IndexErrorLedgerEntity): Long
 
@@ -548,6 +576,27 @@ interface IndexStateDao {
             check(completeOperationRow(operationId, terminal, nowMillis) == 1)
         }
         return progress
+    }
+
+    @Transaction
+    suspend fun channelCoverage(
+        channel: String,
+        accessRevision: Long,
+        pipelineVersion: String,
+        componentHash: String,
+    ): IndexChannelCoverage {
+        require(channel in IndexChannel.all)
+        require(accessRevision > 0)
+        require(contractValue(pipelineVersion))
+        require(Sha256.matches(componentHash))
+        val coverage = channelCoverageRow(channel, accessRevision, pipelineVersion, componentHash)
+        check(coverage.accessibleAssetCount >= 0)
+        check(coverage.committedAssetCount >= 0 && coverage.permanentGapCount >= 0 && coverage.outstandingAssetCount >= 0)
+        check(
+            coverage.committedAssetCount + coverage.permanentGapCount + coverage.outstandingAssetCount ==
+                coverage.accessibleAssetCount,
+        )
+        return coverage
     }
 
     private fun identifier(value: String): Boolean = value.length in 1..96 && Identifier.matches(value)

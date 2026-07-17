@@ -76,6 +76,10 @@ class IndexExecutionCoordinatorInstrumentedTest {
         }
         assertEquals(IndexOperationState.COMPLETED, storage.indexStateDao.operation(OperationId)?.state)
         assertEquals(0L, storage.indexStateDao.operationProgress(OperationId).outstandingCount)
+        val coverage = storage.indexStateDao.channelCoverage(IndexChannel.OCR, AccessRevision, "ocr-v1", ComponentHash)
+        assertEquals(3L, coverage.accessibleAssetCount)
+        assertEquals(3L, coverage.committedAssetCount)
+        assertEquals(0L, coverage.outstandingAssetCount)
     }
 
     @Test
@@ -137,6 +141,11 @@ class IndexExecutionCoordinatorInstrumentedTest {
         assertEquals("DECODE_FAILED", error?.code)
         assertEquals(false, error?.retryable)
         assertNull(error?.resolvedAtMillis)
+        val coverage = storage.indexStateDao.channelCoverage(IndexChannel.VISUAL, AccessRevision, "visual-v1", ComponentHash)
+        assertEquals(1L, coverage.accessibleAssetCount)
+        assertEquals(0L, coverage.committedAssetCount)
+        assertEquals(1L, coverage.permanentGapCount)
+        assertEquals(0L, coverage.outstandingAssetCount)
     }
 
     @Test

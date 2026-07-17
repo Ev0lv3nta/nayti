@@ -16,6 +16,8 @@ Operation отдельно фиксирует exact набор `assetId` и уп
 
 Committed progress вычисляется join-ом captured operation assets/channels с текущими work rows при точном совпадении fingerprint, pipeline и component hash. Он не хранится вторым счётчиком. Operation становится `COMPLETED` только когда каждый planned item имеет `DONE`, либо `COMPLETED_WITH_GAPS`, если часть items завершилась `PERMANENT_ERROR`; transient и отсутствующие outcomes остаются outstanding.
 
+Покрытие query capability считается отдельно от прогресса конкретной operation. Оно сопоставляет всю текущую доступную библиотеку с точным контрактом channel и делит assets на committed, permanent gaps и outstanding; сумма категорий обязана совпадать с числом доступных assets. Поэтому завершённая старая operation не может ошибочно объявить актуальный индекс полным после изменения MediaStore либо версии модели.
+
 Отдельный error ledger агрегирует redacted code по стабильному ключу и различает item, operation и process scope. Work row остаётся источником retry state, а ledger — наблюдаемой историей occurrence/resolution; подробности пользовательского контента туда не записываются.
 
 Перед SQL-publication одна Room transaction повторно сверяет:

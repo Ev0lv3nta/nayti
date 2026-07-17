@@ -73,6 +73,16 @@ class PackProfileTest(unittest.TestCase):
             profile.raw["components"][0]["artifactPath"],
         )
 
+        alpha2 = load_profile(
+            Path(__file__).parents[1] / "manifests" / "pack-profile.alpha2.json",
+        )
+        self.assertEqual("0.1.0-alpha.2", alpha2.raw["packVersion"])
+        self.assertEqual(40, len(alpha2.files))
+        self.assertEqual(
+            "preprocessing/eslav-recognizer-decoder.json",
+            alpha2.raw["components"][-1]["decoderPath"],
+        )
+
     def _profile(self) -> dict:
         return {
             "schemaVersion": 1,

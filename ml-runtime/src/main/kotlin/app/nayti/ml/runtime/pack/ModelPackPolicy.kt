@@ -45,9 +45,13 @@ data class ModelPackPolicy(
         if (filesByPath[RequiredKatManifest]?.role != "test-manifest") {
             throw ModelPackException("Missing runtime known-answer manifest")
         }
+        if (filesByPath[RequiredOcrDecoder]?.role != "decoder") {
+            throw ModelPackException("Missing OCR decoder")
+        }
         val allowedRoles =
             setOf(
                 "contract",
+                "decoder",
                 "license",
                 "model",
                 "notice",
@@ -75,6 +79,10 @@ data class ModelPackPolicy(
         if (actualArtifacts.values.any { filesByPath[it]?.role != "model" }) {
             throw ModelPackException("Component artifact is not a declared model")
         }
+        val recognizer = components.single { it.string("componentId") == "eslav-recognizer" }
+        if (recognizer.string("decoderPath") != RequiredOcrDecoder) {
+            throw ModelPackException("Recognizer decoder contract mismatch")
+        }
         val containsUserData = manifest.provenance.entries["containsUserData"] as? JsonValue.BooleanValue
         if (containsUserData?.value != false) throw ModelPackException("Pack provenance does not exclude user data")
     }
@@ -82,6 +90,7 @@ data class ModelPackPolicy(
     private companion object {
         const val RequiredOperatorConfig = "operators/required-operators.config"
         const val RequiredKatManifest = "tests/manifest.json"
+        const val RequiredOcrDecoder = "preprocessing/eslav-recognizer-decoder.json"
         val RequiredArtifacts =
             mapOf(
                 "siglip2-image" to "models/siglip2_image.ort",

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "onnxRuntime": {
+    "repository": "microsoft/onnxruntime",
+    "revision": "8f0278c77bf44b0cc83c098c6c722b92a36ac4b5",
+    "release": "v1.27.0",
+    "license": "MIT"
+  },
+  "onnxRuntimeExtensions": {
+    "repository": "microsoft/onnxruntime-extensions",
+    "revision": "fe4e13f46b19fb490c90b09fe280277308bd5bb7",
+    "pythonBuildVersion": "0.15.0+fe4e13f",
+    "license": "MIT",
+    "buildOptions": [
+      "pp-api",
+      "no-opencv"
+    ]
+  }
+}

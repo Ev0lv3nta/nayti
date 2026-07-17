@@ -1,0 +1,40 @@
+[project]
+name = "nayti-model-tools"
+version = "0.1.0"
+description = "Reproducible model export and parity tools for Nayti"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "huggingface-hub==1.23.0",
+    "numpy==2.5.1",
+    "onnx==1.22.0",
+    "onnxruntime==1.27.0",
+    "onnxruntime-extensions==0.15.2",
+    "onnxscript==0.7.1",
+    "pillow==12.3.0",
+    "psutil==7.2.2",
+    "pyyaml==6.0.3",
+    "safetensors==0.8.0",
+    "sentencepiece==0.2.2",
+    "torch==2.12.0",
+    "transformers==5.14.1",
+]
+
+[project.scripts]
+nayti-model = "nayti_model_tools.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+]
+
+[build-system]
+requires = ["hatchling==1.28.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nayti_model_tools"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]

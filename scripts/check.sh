@@ -20,6 +20,7 @@ python3 scripts/verify_manifest_policy.py \
   app/build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml
 
 python3 -m unittest discover -s scripts/tests
+PYTHONPATH=model-tools/src python3 -m unittest discover -s model-tools/tests
 
 debug_apk="app/build/outputs/apk/debug/app-debug.apk"
 python3 scripts/verify_native_page_size.py "$debug_apk"

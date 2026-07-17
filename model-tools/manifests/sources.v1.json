@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 1,
+  "components": [
+    {
+      "componentId": "siglip2-base-patch16-256",
+      "repository": "google/siglip2-base-patch16-256",
+      "revision": "3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab",
+      "license": {
+        "spdx": "Apache-2.0",
+        "evidenceUrl": "https://huggingface.co/google/siglip2-base-patch16-256/tree/3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab"
+      },
+      "files": [
+        {
+          "path": "config.json",
+          "role": "model-config",
+          "length": 276,
+          "sha256": "7b5aedcb8893e31376e129c1ffd7a5392f1a806dbc793ce53eda220c2ec59edf"
+        },
+        {
+          "path": "model.safetensors",
+          "role": "weights",
+          "length": 1500985224,
+          "sha256": "6125cacc01fa93bdc98a0c5101cefcd69b2ed1f8ab4f38d86f4ad5984f5dc863"
+        },
+        {
+          "path": "preprocessor_config.json",
+          "role": "image-preprocessor",
+          "length": 394,
+          "sha256": "d14ba2ee3fd816f3de8abaddc31953565128eaf37c73ad4bed32101a98465aff"
+        },
+        {
+          "path": "special_tokens_map.json",
+          "role": "tokenizer-config",
+          "length": 636,
+          "sha256": "baec30ea10906f16adb8c18af7a34023002c1746542612b8b41c9f09e1351351"
+        },
+        {
+          "path": "tokenizer.json",
+          "role": "tokenizer",
+          "length": 34363039,
+          "sha256": "cb9140fae3ac5122c972d37adf83e1248471a38147ad76f8215c8872c6fd8322"
+        },
+        {
+          "path": "tokenizer.model",
+          "role": "sentencepiece-model",
+          "length": 4241003,
+          "sha256": "61a7b147390c64585d6c3543dd6fc636906c9af3865a5548f27f31aee1d4c8e2"
+        },
+        {
+          "path": "tokenizer_config.json",
+          "role": "tokenizer-config",
+          "length": 47164,
+          "sha256": "14afe629fe4959b9e0d51e1852b8d9f7ad074f90a1a7125a4fcdd17f06e78fc8"
+        }
+      ]
+    },
+    {
+      "componentId": "user2-small",
+      "repository": "deepvk/USER2-small",
+      "revision": "23f65b34cf7632032061f5cc66c14714e6d4cee4",
+      "license": {
+        "spdx": "Apache-2.0",
+        "evidenceUrl": "https://huggingface.co/deepvk/USER2-small/tree/23f65b34cf7632032061f5cc66c14714e6d4cee4"
+      },
+      "files": [
+        {
+          "path": "1_Pooling/config.json",
+          "role": "pooling-config",
+          "length": 296,
+          "sha256": "a19c83805e1ce4174f3fbfec4ac8d3b8dbae0c958f8fd51b80937eb33e0c5335"
+        },
+        {
+          "path": "config.json",
+          "role": "model-config",
+          "length": 2266,
+          "sha256": "ccf3bfc44ddc6eb2184c35347b975c17d1bffe7a63103e5fdc92c6a48adc062c"
+        },
+        {
+          "path": "config_sentence_transformers.json",
+          "role": "sentence-transformer-config",
+          "length": 359,
+          "sha256": "3a032a6eacfd7c2ed17dbad876d0b940ed7d2ac0091da43c2a89a880e692ddb9"
+        },
+        {
+          "path": "model.safetensors",
+          "role": "weights",
+          "length": 137572816,
+          "sha256": "f4fb765b2302192d3ac2315fd3ee0951f23efca4ad4ad19636b637e81d790529"
+        },
+        {
+          "path": "modules.json",
+          "role": "sentence-transformer-config",
+          "length": 229,
+          "sha256": "8f4b264b80206c830bebbdcae377e137925650a433b689343a63bdc9b3145460"
+        },
+        {
+          "path": "sentence_bert_config.json",
+          "role": "sentence-transformer-config",
+          "length": 54,
+          "sha256": "eb9b44b13c0f52a3b3685c3b1cbdea1ba8b04bea123b98f61610048940776eb1"
+        },
+        {
+          "path": "special_tokens_map.json",
+          "role": "tokenizer-config",
+          "length": 837,
+          "sha256": "2ea3c1eb27baf06d75115d453c067c1832d7101a97243b298a4af8d59c916d62"
+        },
+        {
+          "path": "tokenizer.json",
+          "role": "tokenizer",
+          "length": 4753524,
+          "sha256": "8bdc337bdee65a5fdb697df1ac7453b2ae5c34c105125eac5f68c87827395c4e"
+        },
+        {
+          "path": "tokenizer_config.json",
+          "role": "tokenizer-config",
+          "length": 21151,
+          "sha256": "818f4315a225493cfb33e07d6cb49e56432a90364ef080cbe0c594ceb28ec59a"
+        }
+      ]
+    },
+    {
+      "componentId": "ppocrv6-small-det-onnx",
+      "repository": "PaddlePaddle/PP-OCRv6_small_det_onnx",
+      "revision": "28fe5895c24fd108c19eb3e8479f4ab385fbfc62",
+      "license": {
+        "spdx": "Apache-2.0",
+        "evidenceUrl": "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx/tree/28fe5895c24fd108c19eb3e8479f4ab385fbfc62"
+      },
+      "files": [
+        {
+          "path": "inference.json",
+          "role": "inference-config",
+          "length": 229307,
+          "sha256": "89240f689a4a77aad75ef55a8df0a15c8e1d4980a327d17e58f24bbadde5aeab"
+        },
+        {
+          "path": "inference.onnx",
+          "role": "deploy-graph",
+          "length": 9880512,
+          "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e"
+        },
+        {
+          "path": "inference.yml",
+          "role": "inference-config",
+          "length": 885,
+          "sha256": "193f435274bf9f0b5f71a929bbfbcf148282df7e633b34e7c373e8f44741b516"
+        }
+      ]
+    },
+    {
+      "componentId": "eslav-ppocrv5-mobile-rec-onnx",
+      "repository": "PaddlePaddle/eslav_PP-OCRv5_mobile_rec_onnx",
+      "revision": "9a32171fc5718746875e1a261818884517975013",
+      "license": {
+        "spdx": "Apache-2.0",
+        "evidenceUrl": "https://huggingface.co/PaddlePaddle/eslav_PP-OCRv5_mobile_rec_onnx/tree/9a32171fc5718746875e1a261818884517975013"
+      },
+      "files": [
+        {
+          "path": "inference.onnx",
+          "role": "deploy-graph",
+          "length": 7887627,
+          "sha256": "b3018ef2b09a0250b6e0c8e871c927098363e5fd4df890cc68e8358eb0aaf1bd"
+        },
+        {
+          "path": "inference.yml",
+          "role": "inference-config",
+          "length": 4538,
+          "sha256": "025039bac23eb4a308efcefa4d58eab3af440767815c6ba6938468bf6353ee5a"
+        }
+      ]
+    }
+  ]
+}

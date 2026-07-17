@@ -154,8 +154,7 @@ class CatalogViewModel @Inject constructor(
 
     fun startIndexing(): Boolean {
         if (!indexingService.notificationsGranted) return false
-        indexingService.start()
-        return true
+        return indexingService.start()
     }
 
     fun pauseIndexing() = indexingService.pause()

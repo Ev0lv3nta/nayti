@@ -14,6 +14,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.nayti.MainActivity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -106,6 +107,27 @@ class IndexingForegroundPolicyInstrumentedTest {
         }
     }
 
+    @Test
+    fun backgroundProcessDoesNotDispatchForegroundServiceStart() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val notifications = context.getSystemService(NotificationManager::class.java)
+        val controller = IndexingServiceController(context)
+
+        ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+            scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+            assertTrue(
+                "process did not leave its user-visible state",
+                awaitCondition(ProcessBackgroundDeadlineMillis) { !controller.startAllowed },
+            )
+            assertFalse(controller.start())
+            assertTrue(
+                notifications.activeNotifications.none { status ->
+                    status.notification.channelId == NotificationChannelId
+                },
+            )
+        }
+    }
+
     private fun awaitCondition(timeoutMillis: Long, condition: () -> Boolean): Boolean {
         val deadline = SystemClock.elapsedRealtime() + timeoutMillis
         while (SystemClock.elapsedRealtime() < deadline) {
@@ -119,6 +141,7 @@ class IndexingForegroundPolicyInstrumentedTest {
         const val NotificationChannelId = "indexing"
         const val NotificationDeadlineMillis = 5_000L
         const val ServiceStopDeadlineMillis = 5_000L
+        const val ProcessBackgroundDeadlineMillis = 5_000L
         const val PollMillis = 10L
     }
 }

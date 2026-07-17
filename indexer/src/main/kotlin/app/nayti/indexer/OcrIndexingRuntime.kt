@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 enum class OcrIndexingStatus {
     Idle,
@@ -55,8 +57,10 @@ class OcrIndexingRuntime(
 ) {
     private val running = AtomicBoolean(false)
     private val continueExecution = AtomicBoolean(false)
+    private val activeHostType = AtomicReference<String?>(null)
     private val currentOperationId = AtomicReference<String?>(null)
     private val currentPack = AtomicReference<ModelPackEntity?>(null)
+    private val executionMutex = Mutex()
     private val mutableState = MutableStateFlow(EmptyState)
 
     val state: StateFlow<OcrIndexingState> = mutableState.asStateFlow()
@@ -69,29 +73,36 @@ class OcrIndexingRuntime(
         }
     }
 
-    fun runSlice(pack: ModelPackEntity) {
-        scope.launch {
-            runWindows(
+    suspend fun runAppForeground(pack: ModelPackEntity): Boolean {
+        if (!hasAutoResumableOperation(pack) || !executionMutex.tryLock()) return false
+        return try {
+            if (!hasAutoResumableOperation(pack)) return false
+            runWindowsLocked(
                 pack = pack,
                 hostType = OcrExecutionHost.AppForeground,
                 maximumWindows = 1,
                 itemLimit = SliceItemLimit,
                 maximumDurationMillis = ExecutionWindowMillis,
-                initiator = IndexExecutionInitiator.Manual,
+                initiator = IndexExecutionInitiator.Automatic,
             )
+        } finally {
+            executionMutex.unlock()
         }
     }
 
     suspend fun runForeground(pack: ModelPackEntity): Boolean {
-        resumeForExplicitStart(pack)
-        return runWindows(
-            pack = pack,
-            hostType = OcrExecutionHost.UserForegroundService,
-            maximumWindows = MaximumForegroundWindows,
-            itemLimit = ForegroundWindowItemLimit,
-            maximumDurationMillis = ForegroundExecutionBudgetMillis,
-            initiator = IndexExecutionInitiator.Manual,
-        )
+        requestAppForegroundStop()
+        return executionMutex.withLock {
+            resumeForExplicitStart(pack)
+            runWindowsLocked(
+                pack = pack,
+                hostType = OcrExecutionHost.UserForegroundService,
+                maximumWindows = MaximumForegroundWindows,
+                itemLimit = ForegroundWindowItemLimit,
+                maximumDurationMillis = ForegroundExecutionBudgetMillis,
+                initiator = IndexExecutionInitiator.Manual,
+            )
+        }
     }
 
     suspend fun pause() {
@@ -120,7 +131,11 @@ class OcrIndexingRuntime(
         }
     }
 
-    private suspend fun runWindows(
+    fun requestAppForegroundStop() {
+        if (activeHostType.get() == OcrExecutionHost.AppForeground) requestStop()
+    }
+
+    private suspend fun runWindowsLocked(
         pack: ModelPackEntity,
         hostType: String,
         maximumWindows: Int,
@@ -130,7 +145,8 @@ class OcrIndexingRuntime(
     ): Boolean {
         require(maximumWindows > 0)
         require(itemLimit in 1..256)
-        if (!running.compareAndSet(false, true)) return false
+        check(activeHostType.compareAndSet(null, hostType))
+        running.set(true)
         currentPack.set(pack)
         continueExecution.set(true)
         val budget = IndexExecutionBudget(clock, maximumDurationMillis)
@@ -194,7 +210,14 @@ class OcrIndexingRuntime(
         } finally {
             continueExecution.set(false)
             running.set(false)
+            check(activeHostType.compareAndSet(hostType, null))
         }
+    }
+
+    private suspend fun hasAutoResumableOperation(pack: ModelPackEntity): Boolean {
+        val catalogRevision = storage.catalogDao.watermark()?.catalogRevision ?: 0
+        val operation = storage.indexStateDao.operation(operationId(pack, catalogRevision)) ?: return false
+        return AppForegroundExecutionPolicy.canResume(operation)
     }
 
     private suspend fun executeWindow(

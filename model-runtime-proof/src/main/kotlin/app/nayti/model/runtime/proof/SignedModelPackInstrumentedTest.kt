@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.nayti.ml.runtime.ocr.DetectedTextRegion
-import app.nayti.ml.runtime.ocr.OcrDecoderVocabulary
 import app.nayti.ml.runtime.ocr.OcrDetectorPostprocessor
 import app.nayti.ml.runtime.ocr.OcrDetectorPreprocessor
 import app.nayti.ml.runtime.ocr.OcrOrtRuntime
@@ -18,7 +17,7 @@ import app.nayti.ml.runtime.pack.AndroidModelPackPolicy
 import app.nayti.ml.runtime.pack.AndroidModelPackStorageBudget
 import app.nayti.ml.runtime.pack.FileModelPackSource
 import app.nayti.ml.runtime.pack.ModelPackInstaller
-import app.nayti.ml.runtime.pack.ModelPackPayloadValidator
+import app.nayti.ml.runtime.pack.OrtKnownAnswerPayloadValidator
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -47,16 +46,7 @@ class SignedModelPackInstrumentedTest {
                 trustedKeys = AlphaModelPackTrust.keys,
                 policy = AndroidModelPackPolicy.current(appVersionCode = 1),
                 storageBudget = AndroidModelPackStorageBudget(context),
-                payloadValidator = ModelPackPayloadValidator { candidate ->
-                    OcrDecoderVocabulary.parseCanonical(
-                        Files.readAllBytes(
-                            candidate.payloadDirectory.resolve(
-                                "preprocessing/eslav-recognizer-decoder.json",
-                            ),
-                        ),
-                    )
-                    OrtKnownAnswerGate().validatePackPayload(candidate.payloadDirectory.toFile())
-                },
+                payloadValidator = OrtKnownAnswerPayloadValidator(),
             )
 
         try {

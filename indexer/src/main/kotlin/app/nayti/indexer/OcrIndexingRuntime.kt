@@ -124,11 +124,9 @@ class OcrIndexingRuntime(
         transitionAndPublish(IndexOperationState.PLANNED, autoResume = true)
     }
 
-    fun requestSystemStop() {
+    suspend fun stopForSystem() {
         requestStop()
-        scope.launch {
-            transitionAndPublish(IndexOperationState.WAITING_SYSTEM, autoResume = true)
-        }
+        transitionAndPublish(IndexOperationState.WAITING_SYSTEM, autoResume = true)
     }
 
     fun requestAppForegroundStop() {

@@ -206,6 +206,25 @@ class IndexStateInstrumentedTest {
     }
 
     @Test
+    fun systemStopInvalidatesLeaseAndAllowsAutomaticResume() = runBlocking {
+        val assetId = insertAsset("source-a")
+        catalog.recordAccessObservation("Full", AccessRevision, 1)
+        startOperationAndWindow("window-a", expiresAtMillis = 1_000)
+        index.ensureWork(assetId, IndexChannel.OCR, AccessRevision, "ocr-v1", ComponentHash, 2)
+        val stale = index.claimBatch("window-a", IndexChannel.OCR, "claim-a", 10, 100, 1).single()
+
+        val waiting = index.transitionOperation(OperationId, IndexOperationState.WAITING_SYSTEM, true, 20)
+
+        assertEquals(IndexOperationState.WAITING_SYSTEM, waiting.state)
+        assertTrue(waiting.autoResume)
+        assertEquals(IndexExecutionWindowState.CANCELLED, index.executionWindow("window-a")?.state)
+        assertEquals(IndexWorkState.PENDING, index.work(assetId, IndexChannel.OCR)?.state)
+        assertNull(index.commitSqlPublication(checkNotNull(stale.leaseToken), "late", ResultHash, 1, 21))
+        index.startExecutionWindow(window("window-b", 22, 500), 22)
+        assertEquals(IndexOperationState.RUNNING, index.operation(OperationId)?.state)
+    }
+
+    @Test
     fun publicationTokenCollisionCannotReplaceAnotherAssetsEvidence() = runBlocking {
         val firstAssetId = insertAsset("source-a", mediaStoreId = 7)
         val secondAssetId = insertAsset("source-b", mediaStoreId = 8)

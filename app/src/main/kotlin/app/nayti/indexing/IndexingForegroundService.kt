@@ -68,9 +68,15 @@ class IndexingForegroundService : Service() {
     }
 
     override fun onTimeout(startId: Int, fgsType: Int) {
-        indexing.requestSystemStop()
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf(startId)
+        serviceScope.launch {
+            try {
+                indexing.stopForSystem()
+            } finally {
+                executionJob?.cancel()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf(startId)
+            }
+        }
     }
 
     override fun onDestroy() {

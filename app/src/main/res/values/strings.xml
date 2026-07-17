@@ -38,7 +38,11 @@
     <string name="readiness_subtitle">Здесь видно, сколько фотографий уже доступно каждому поисковому каналу.</string>
     <string name="ocr_readiness_title">Текст на фотографиях</string>
     <string name="ocr_readiness_counts">Готово %1$d из %2$d · ошибок %3$d</string>
-    <string name="ocr_run_slice">Обработать следующие 8 фото</string>
+    <string name="ocr_start">Начать подготовку</string>
+    <string name="ocr_resume">Продолжить</string>
+    <string name="ocr_pause">Пауза</string>
+    <string name="ocr_stop_for_now">Остановить пока что</string>
+    <string name="ocr_cancel">Отменить задачу</string>
     <string name="ocr_index_failed">Индексация остановлена безопасно: %1$s</string>
     <string name="connect_library">Подключить медиатеку</string>
     <string name="access_none_title">Нужен доступ к фотографиям</string>
@@ -79,6 +83,13 @@
     <string name="model_pack_installing">Проверяем подпись, файлы и семь нейросетевых графов. Не закрывайте приложение.</string>
     <string name="model_pack_ready">Версия %1$s · %2$d МБ · проверен локально</string>
     <string name="model_pack_failed">Импорт безопасно отклонён: %1$s</string>
+    <string name="model_pack_failed_using_previous">Импорт безопасно отклонён: %1$s. Продолжаем использовать проверенную версию %2$s.</string>
     <string name="model_pack_import">Импортировать pack</string>
     <string name="model_pack_replace">Импортировать другую версию</string>
+    <string name="indexing_notification_channel">Подготовка поиска</string>
+    <string name="indexing_notification_title">Nayti готовит фотографии к поиску</string>
+    <string name="indexing_notification_progress">Готово %1$d из %2$d</string>
+    <string name="indexing_notification_model_missing">Сначала импортируйте model pack</string>
+    <string name="indexing_notification_pause">Пауза</string>
+    <string name="indexing_notification_stop">Остановить</string>
 </resources>

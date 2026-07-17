@@ -10,6 +10,7 @@ from pathlib import Path
 
 ANDROID = "{http://schemas.android.com/apk/res/android}"
 ALLOWED_PERMISSIONS = {
+    "android.permission.ACCESS_NETWORK_STATE",
     "android.permission.FOREGROUND_SERVICE",
     "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
     "android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING",
@@ -17,6 +18,8 @@ ALLOWED_PERMISSIONS = {
     "android.permission.READ_EXTERNAL_STORAGE",
     "android.permission.READ_MEDIA_IMAGES",
     "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+    "android.permission.RECEIVE_BOOT_COMPLETED",
+    "android.permission.WAKE_LOCK",
 }
 ALLOWED_EXPORTED_COMPONENTS = {"app.nayti.MainActivity"}
 DEBUG_ONLY_EXPORTED_COMPONENTS = {
@@ -25,6 +28,8 @@ DEBUG_ONLY_EXPORTED_COMPONENTS = {
 }
 PROTECTED_EXPORTED_COMPONENTS = {
     "androidx.profileinstaller.ProfileInstallReceiver": "android.permission.DUMP",
+    "androidx.work.impl.background.systemjob.SystemJobService": "android.permission.BIND_JOB_SERVICE",
+    "androidx.work.impl.diagnostics.DiagnosticsReceiver": "android.permission.DUMP",
 }
 
 

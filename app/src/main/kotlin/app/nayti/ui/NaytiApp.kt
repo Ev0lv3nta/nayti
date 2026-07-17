@@ -1,5 +1,6 @@
 package app.nayti.ui
 
+import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -41,6 +42,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -91,6 +93,7 @@ import app.nayti.platform.media.MediaAccessScope
 import app.nayti.platform.media.MediaPermissionEvaluator
 import app.nayti.platform.media.MediaPermissionSnapshot
 import app.nayti.storage.OcrRegionEntity
+import app.nayti.storage.IndexOperationState
 import app.nayti.ui.theme.NaytiTheme
 
 private enum class RootDestination(
@@ -120,6 +123,10 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) viewModel.importModelPack(uri)
         }
+    val notificationPermissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) viewModel.startIndexing()
+        }
     NaytiAppContent(
         catalog = catalog,
         modelPack = modelPack,
@@ -134,7 +141,14 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
         onRefresh = { viewModel.refresh(forceFull = true) },
         onImportModelPack = { modelPackLauncher.launch(arrayOf("application/octet-stream")) },
         onSearch = viewModel::search,
-        onRunOcrSlice = viewModel::runOcrSlice,
+        onStartIndexing = {
+            if (!viewModel.startIndexing() && Build.VERSION.SDK_INT >= 33) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        },
+        onPauseIndexing = viewModel::pauseIndexing,
+        onStopIndexing = viewModel::stopIndexingForNow,
+        onCancelIndexing = viewModel::cancelIndexing,
         onProbe = viewModel::probe,
         onClearProbe = viewModel::clearProbe,
     )
@@ -151,7 +165,10 @@ private fun NaytiAppContent(
     onRefresh: () -> Unit,
     onImportModelPack: () -> Unit,
     onSearch: (String) -> Unit,
-    onRunOcrSlice: () -> Unit,
+    onStartIndexing: () -> Unit,
+    onPauseIndexing: () -> Unit,
+    onStopIndexing: () -> Unit,
+    onCancelIndexing: () -> Unit,
     onProbe: (Long) -> Unit,
     onClearProbe: () -> Unit,
 ) {
@@ -209,7 +226,10 @@ private fun NaytiAppContent(
                     indexing = indexing,
                     onRequestAccess = onRequestAccess,
                     onRefresh = onRefresh,
-                    onRunOcrSlice = onRunOcrSlice,
+                    onStartIndexing = onStartIndexing,
+                    onPauseIndexing = onPauseIndexing,
+                    onStopIndexing = onStopIndexing,
+                    onCancelIndexing = onCancelIndexing,
                     onOpenItem = { item -> navController.navigate("viewer/${item.assetId}") },
                 )
             }
@@ -273,7 +293,8 @@ private fun SearchScreen(
     var query by rememberSaveable { mutableStateOf("") }
     val canSearch =
         catalog.access.permission.scope != MediaAccessScope.None &&
-            modelPack.status == ModelPackRuntimeStatus.Ready
+            modelPack.installed != null &&
+            modelPack.status != ModelPackRuntimeStatus.Installing
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -301,7 +322,7 @@ private fun SearchScreen(
                         stringResource(
                             if (catalog.access.permission.scope == MediaAccessScope.None) {
                                 R.string.search_waiting_access
-                            } else if (modelPack.status != ModelPackRuntimeStatus.Ready) {
+                            } else if (modelPack.installed == null) {
                                 R.string.search_waiting_model_pack
                             } else {
                                 R.string.search_catalog_ready
@@ -494,7 +515,10 @@ private fun ReadinessScreen(
     indexing: OcrIndexingState,
     onRequestAccess: () -> Unit,
     onRefresh: () -> Unit,
-    onRunOcrSlice: () -> Unit,
+    onStartIndexing: () -> Unit,
+    onPauseIndexing: () -> Unit,
+    onStopIndexing: () -> Unit,
+    onCancelIndexing: () -> Unit,
     onOpenItem: (CatalogItem) -> Unit,
 ) {
     LazyColumn(
@@ -515,7 +539,10 @@ private fun ReadinessScreen(
                 catalog = catalog,
                 modelPack = modelPack,
                 indexing = indexing,
-                onRunOcrSlice = onRunOcrSlice,
+                onStartIndexing = onStartIndexing,
+                onPauseIndexing = onPauseIndexing,
+                onStopIndexing = onStopIndexing,
+                onCancelIndexing = onCancelIndexing,
             )
         }
         item {
@@ -565,13 +592,24 @@ private fun OcrReadinessCard(
     catalog: CatalogRuntimeState,
     modelPack: ModelPackRuntimeState,
     indexing: OcrIndexingState,
-    onRunOcrSlice: () -> Unit,
+    onStartIndexing: () -> Unit,
+    onPauseIndexing: () -> Unit,
+    onStopIndexing: () -> Unit,
+    onCancelIndexing: () -> Unit,
 ) {
-    val canRun =
+    val canStart =
         catalog.summary.available > 0 &&
-            modelPack.status == ModelPackRuntimeStatus.Ready &&
+            modelPack.installed != null &&
+            modelPack.status != ModelPackRuntimeStatus.Installing &&
             indexing.outstanding > 0 &&
             indexing.status != OcrIndexingStatus.Running
+    val resumable = indexing.status == OcrIndexingStatus.Paused ||
+        indexing.status == OcrIndexingStatus.Waiting
+    val cancellable = indexing.operationId != null && indexing.operationState !in setOf(
+        IndexOperationState.COMPLETED,
+        IndexOperationState.COMPLETED_WITH_GAPS,
+        IndexOperationState.CANCELLED,
+    )
     Card(shape = RoundedCornerShape(24.dp)) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -595,8 +633,28 @@ private fun OcrReadinessCard(
                     CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp)
                 }
             }
-            Button(onClick = onRunOcrSlice, enabled = canRun) {
-                Text(stringResource(R.string.ocr_run_slice))
+            if (indexing.status == OcrIndexingStatus.Running) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedButton(onClick = onPauseIndexing) {
+                        Text(stringResource(R.string.ocr_pause))
+                    }
+                    TextButton(onClick = onStopIndexing) {
+                        Text(stringResource(R.string.ocr_stop_for_now))
+                    }
+                }
+            } else {
+                Button(onClick = onStartIndexing, enabled = canStart) {
+                    Text(
+                        stringResource(
+                            if (resumable) R.string.ocr_resume else R.string.ocr_start,
+                        ),
+                    )
+                }
+            }
+            if (cancellable) {
+                TextButton(onClick = onCancelIndexing) {
+                    Text(stringResource(R.string.ocr_cancel))
+                }
             }
             indexing.errorCode?.let { code ->
                 Text(
@@ -971,7 +1029,16 @@ private fun modelPackDescription(state: ModelPackRuntimeState): String =
                 state.installed?.packVersion.orEmpty(),
                 (state.installed?.payloadBytes ?: 0) / (1024 * 1024),
             )
-        ModelPackRuntimeStatus.Failed -> stringResource(R.string.model_pack_failed, state.errorCode.orEmpty())
+        ModelPackRuntimeStatus.Failed ->
+            if (state.installed == null) {
+                stringResource(R.string.model_pack_failed, state.errorCode.orEmpty())
+            } else {
+                stringResource(
+                    R.string.model_pack_failed_using_previous,
+                    state.errorCode.orEmpty(),
+                    state.installed?.packVersion.orEmpty(),
+                )
+            }
     }
 
 private fun SearchResultItem.toCatalogItem(): CatalogItem =
@@ -1042,7 +1109,10 @@ private fun NaytiPreview() {
             onRefresh = {},
             onImportModelPack = {},
             onSearch = {},
-            onRunOcrSlice = {},
+            onStartIndexing = {},
+            onPauseIndexing = {},
+            onStopIndexing = {},
+            onCancelIndexing = {},
             onProbe = {},
             onClearProbe = {},
         )

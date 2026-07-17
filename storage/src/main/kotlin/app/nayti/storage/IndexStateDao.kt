@@ -15,6 +15,12 @@ interface IndexStateDao {
     @Query("SELECT * FROM index_operation WHERE operationId = :operationId")
     suspend fun operation(operationId: String): IndexOperationEntity?
 
+    @Query(
+        "SELECT * FROM index_operation WHERE targetPackId = :packId AND targetPackVersion = :packVersion " +
+            "ORDER BY createdAtMillis DESC, operationId DESC LIMIT 1",
+    )
+    suspend fun latestOperation(packId: String, packVersion: String): IndexOperationEntity?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertOperationChannels(channels: List<IndexOperationChannelEntity>)
 
@@ -30,11 +36,30 @@ interface IndexStateDao {
     @Query("UPDATE index_operation SET state = :state, updatedAtMillis = :nowMillis WHERE operationId = :operationId")
     suspend fun updateOperationState(operationId: String, state: String, nowMillis: Long): Int
 
+    @Query(
+        "UPDATE index_operation SET state = :state, autoResume = :autoResume, " +
+            "updatedAtMillis = :nowMillis, " +
+            "completedAtMillis = CASE WHEN :state = 'CANCELLED' THEN :nowMillis ELSE NULL END " +
+            "WHERE operationId = :operationId",
+    )
+    suspend fun updateOperationControlRow(
+        operationId: String,
+        state: String,
+        autoResume: Boolean,
+        nowMillis: Long,
+    ): Int
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertExecutionWindow(window: IndexExecutionWindowEntity)
 
     @Query("SELECT * FROM index_execution_window WHERE windowId = :windowId")
     suspend fun executionWindow(windowId: String): IndexExecutionWindowEntity?
+
+    @Query(
+        "SELECT * FROM index_execution_window " +
+            "WHERE operationId = :operationId AND state = 'RUNNING' ORDER BY startedAtMillis, windowId",
+    )
+    suspend fun runningExecutionWindows(operationId: String): List<IndexExecutionWindowEntity>
 
     @Query(
         "SELECT COUNT(*) FROM index_execution_window " +
@@ -385,6 +410,9 @@ interface IndexStateDao {
                     IndexOperationState.WAITING_SYSTEM,
                 ),
         )
+        check(operation.state != IndexOperationState.WAITING_SYSTEM || operation.autoResume) {
+            "Operation is stopped until an explicit resume"
+        }
         expireExecutionWindows(nowMillis)
         releaseExpiredWork(nowMillis)
         check(liveExecutionWindowCount(window.operationId, nowMillis) == 0)
@@ -519,6 +547,43 @@ interface IndexStateDao {
     }
 
     @Transaction
+    suspend fun transitionOperation(
+        operationId: String,
+        state: String,
+        autoResume: Boolean,
+        nowMillis: Long,
+    ): IndexOperationEntity {
+        require(state in ControllableOperationStates)
+        require(
+            when (state) {
+                IndexOperationState.PLANNED,
+                IndexOperationState.PAUSED_CONSTRAINT,
+                -> autoResume
+                IndexOperationState.PAUSED_USER,
+                IndexOperationState.CANCELLED,
+                -> !autoResume
+                IndexOperationState.WAITING_SYSTEM -> true
+                else -> false
+            },
+        )
+        val current = checkNotNull(operation(operationId))
+        if (current.state == state && current.autoResume == autoResume) return current
+        val waitingPolicyChange = current.state == IndexOperationState.WAITING_SYSTEM && state == current.state
+        check(waitingPolicyChange || state in allowedControlTargets(current.state)) {
+            "Invalid operation transition: ${current.state} -> $state"
+        }
+        if (state != IndexOperationState.PLANNED) {
+            runningExecutionWindows(operationId).forEach { window ->
+                if (stopExecutionWindowRow(window.windowId, IndexExecutionWindowState.CANCELLED, nowMillis) == 1) {
+                    releaseWindowWork(window.windowId, nowMillis)
+                }
+            }
+        }
+        check(updateOperationControlRow(operationId, state, autoResume, nowMillis) == 1)
+        return checkNotNull(operation(operationId))
+    }
+
+    @Transaction
     suspend fun recoverExpiredExecution(nowMillis: Long): Pair<Int, Int> {
         val windows = expireExecutionWindows(nowMillis)
         val work = releaseExpiredWork(nowMillis)
@@ -603,12 +668,48 @@ interface IndexStateDao {
 
     private fun contractValue(value: String): Boolean = value.length in 1..128 && ContractValue.matches(value)
 
+    private fun allowedControlTargets(state: String): Set<String> =
+        when (state) {
+            IndexOperationState.PLANNED,
+            IndexOperationState.RUNNING,
+            -> setOf(
+                IndexOperationState.PAUSED_USER,
+                IndexOperationState.PAUSED_CONSTRAINT,
+                IndexOperationState.WAITING_SYSTEM,
+                IndexOperationState.CANCELLED,
+            )
+            IndexOperationState.PAUSED_USER -> setOf(IndexOperationState.PLANNED, IndexOperationState.CANCELLED)
+            IndexOperationState.PAUSED_CONSTRAINT ->
+                setOf(
+                    IndexOperationState.PLANNED,
+                    IndexOperationState.PAUSED_USER,
+                    IndexOperationState.WAITING_SYSTEM,
+                    IndexOperationState.CANCELLED,
+                )
+            IndexOperationState.WAITING_SYSTEM ->
+                setOf(
+                    IndexOperationState.PLANNED,
+                    IndexOperationState.PAUSED_USER,
+                    IndexOperationState.PAUSED_CONSTRAINT,
+                    IndexOperationState.CANCELLED,
+                )
+            else -> emptySet()
+        }
+
     companion object {
         private val Identifier = Regex("[A-Za-z0-9][A-Za-z0-9._:-]*")
         private val ContractValue = Regex("[A-Za-z0-9][A-Za-z0-9._:+/-]*")
         private val Sha256 = Regex("[0-9a-f]{64}")
         private val ErrorCode = Regex("[A-Z][A-Z0-9_]{0,63}")
         private val ErrorKey = Regex("[A-Za-z0-9][A-Za-z0-9._:-]*")
+        private val ControllableOperationStates =
+            setOf(
+                IndexOperationState.PLANNED,
+                IndexOperationState.PAUSED_USER,
+                IndexOperationState.PAUSED_CONSTRAINT,
+                IndexOperationState.WAITING_SYSTEM,
+                IndexOperationState.CANCELLED,
+            )
         const val MaximumLeaseDurationMillis = 15 * 60 * 1_000L
         const val MaximumBatchSize = 256
         const val MaximumClaimNonceLength = 48

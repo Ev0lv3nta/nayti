@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.nayti.indexing.IndexingServiceController
 import app.nayti.indexer.CatalogRuntime
 import app.nayti.indexer.CatalogRuntimeState
 import app.nayti.indexer.ModelPackRuntime
@@ -63,6 +64,7 @@ class CatalogViewModel @Inject constructor(
     private val runtime: CatalogRuntime,
     private val modelPacks: ModelPackRuntime,
     private val ocrIndexing: OcrIndexingRuntime,
+    private val indexingService: IndexingServiceController,
     private val storage: CatalogStorage,
     @param:ApplicationContext private val context: Context,
 ) : ViewModel() {
@@ -150,9 +152,16 @@ class CatalogViewModel @Inject constructor(
         modelPacks.install(SafModelPackSource(context.contentResolver, uri))
     }
 
-    fun runOcrSlice() {
-        modelPack.value.installed?.let(ocrIndexing::runSlice)
+    fun startIndexing(): Boolean {
+        if (!indexingService.notificationsGranted) return false
+        return indexingService.start()
     }
+
+    fun pauseIndexing() = indexingService.pause()
+
+    fun stopIndexingForNow() = indexingService.stopForNow()
+
+    fun cancelIndexing() = indexingService.cancel()
 
     fun search(query: String) {
         val normalizedQuery = query.trim()
@@ -163,7 +172,7 @@ class CatalogViewModel @Inject constructor(
         }
         val generation = searchGeneration.incrementAndGet()
         val pack = modelPack.value.installed
-        if (modelPack.value.status != ModelPackRuntimeStatus.Ready || pack == null) {
+        if (modelPack.value.status == ModelPackRuntimeStatus.Installing || pack == null) {
             mutableSearch.value = SearchUiState.Failed("MODEL_PACK_REQUIRED")
             return
         }

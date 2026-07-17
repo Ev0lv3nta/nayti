@@ -12,6 +12,7 @@ import app.nayti.storage.IndexStateDao
 import app.nayti.storage.IndexWorkState
 import app.nayti.storage.StorageContract
 import java.security.MessageDigest
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -160,6 +161,60 @@ class IndexExecutionCoordinatorInstrumentedTest {
         assertTrue(failure is IllegalArgumentException)
         assertNull(storage.indexStateDao.operation(OperationId))
         assertTrue(storage.indexStateDao.workStateCounts().isEmpty())
+    }
+
+    @Test
+    fun executionControlStopsBeforeAnotherItemAndReleasesPrefetchedClaims() = runBlocking {
+        repeat(3) { index -> insertAsset(mediaStoreId = index + 1L) }
+        storage.catalogDao.recordAccessObservation("Full", AccessRevision, 1)
+        val clock = MutableClock(10)
+        var continueExecution = true
+        val delegate = DeterministicExecutor(storage.indexStateDao, clock)
+        val executor =
+            IndexChannelExecutor { claim ->
+                delegate.execute(claim).also { continueExecution = false }
+            }
+        val coordinator = coordinator(clock, "controlled", mapOf(IndexChannel.OCR to executor))
+        val operation = coordinator.planOperation(
+            request(IndexChannelContract(IndexChannel.OCR, 0, "ocr-v1", ComponentHash)),
+        )
+        val window = coordinator.startExecutionWindow(operation.operationId, "TEST", 1_000)
+
+        val report = coordinator.runWindow(
+            windowId = window.windowId,
+            itemLimit = 3,
+            control = IndexExecutionControl { continueExecution },
+        )
+
+        assertEquals(3, report.claimed)
+        assertEquals(1, report.published)
+        assertEquals(1L, countState(IndexWorkState.DONE))
+        assertEquals(2L, countState(IndexWorkState.PENDING))
+        assertEquals(0L, countState(IndexWorkState.RUNNING))
+        assertEquals(IndexOperationState.RUNNING, storage.indexStateDao.operation(OperationId)?.state)
+    }
+
+    @Test
+    fun coroutineCancellationInvalidatesWindowAndClaimImmediately() = runBlocking {
+        insertAsset(mediaStoreId = 1)
+        storage.catalogDao.recordAccessObservation("Full", AccessRevision, 1)
+        val clock = MutableClock(10)
+        val coordinator = coordinator(
+            clock,
+            "cancelled",
+            mapOf(IndexChannel.OCR to IndexChannelExecutor { throw CancellationException("stop") }),
+        )
+        val operation = coordinator.planOperation(
+            request(IndexChannelContract(IndexChannel.OCR, 0, "ocr-v1", ComponentHash)),
+        )
+        val window = coordinator.startExecutionWindow(operation.operationId, "TEST", 1_000)
+
+        val failure = runCatching { coordinator.runWindow(window.windowId) }.exceptionOrNull()
+
+        assertTrue(failure is CancellationException)
+        assertEquals(0L, countState(IndexWorkState.RUNNING))
+        assertEquals(1L, countState(IndexWorkState.PENDING))
+        assertEquals("CANCELLED", storage.indexStateDao.executionWindow(window.windowId)?.state)
     }
 
     private fun coordinator(

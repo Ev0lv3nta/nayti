@@ -159,6 +159,72 @@ class IndexStateInstrumentedTest {
     }
 
     @Test
+    fun userPauseInvalidatesLeaseAndExplicitResumeAllowsAnotherWindow() = runBlocking {
+        val assetId = insertAsset("source-a")
+        catalog.recordAccessObservation("Full", AccessRevision, 1)
+        startOperationAndWindow("window-a", expiresAtMillis = 1_000)
+        index.ensureWork(assetId, IndexChannel.OCR, AccessRevision, "ocr-v1", ComponentHash, 2)
+        val stale = index.claimBatch("window-a", IndexChannel.OCR, "claim-a", 10, 100, 1).single()
+
+        val paused = index.transitionOperation(OperationId, IndexOperationState.PAUSED_USER, false, 20)
+
+        assertEquals(IndexOperationState.PAUSED_USER, paused.state)
+        assertEquals(IndexExecutionWindowState.CANCELLED, index.executionWindow("window-a")?.state)
+        assertEquals(IndexWorkState.PENDING, index.work(assetId, IndexChannel.OCR)?.state)
+        assertNull(index.commitSqlPublication(checkNotNull(stale.leaseToken), "late", ResultHash, 1, 21))
+        assertTrue(runCatching { index.startExecutionWindow(window("blocked", 22, 500), 22) }.isFailure)
+
+        val resumed = index.transitionOperation(OperationId, IndexOperationState.PLANNED, true, 23)
+        assertEquals(IndexOperationState.PLANNED, resumed.state)
+        index.startExecutionWindow(window("window-b", 24, 500), 24)
+        assertEquals(IndexOperationState.RUNNING, index.operation(OperationId)?.state)
+    }
+
+    @Test
+    fun stopForNowDisablesAutomaticStartAndCancelIsTerminal() = runBlocking {
+        insertAsset("source-a")
+        catalog.recordAccessObservation("Full", AccessRevision, 1)
+        startOperationAndWindow("window-a", expiresAtMillis = 1_000)
+
+        val stopped = index.transitionOperation(OperationId, IndexOperationState.WAITING_SYSTEM, false, 20)
+
+        assertEquals(IndexOperationState.WAITING_SYSTEM, stopped.state)
+        assertTrue(!stopped.autoResume)
+        assertTrue(runCatching { index.startExecutionWindow(window("blocked", 21, 500), 21) }.isFailure)
+
+        val scheduled = index.transitionOperation(OperationId, IndexOperationState.WAITING_SYSTEM, true, 22)
+        assertTrue(scheduled.autoResume)
+        index.transitionOperation(OperationId, IndexOperationState.PLANNED, true, 23)
+        val cancelled = index.transitionOperation(OperationId, IndexOperationState.CANCELLED, false, 24)
+        assertEquals(IndexOperationState.CANCELLED, cancelled.state)
+        assertEquals(24L, cancelled.completedAtMillis)
+        assertTrue(
+            runCatching {
+                index.transitionOperation(OperationId, IndexOperationState.PLANNED, true, 25)
+            }.isFailure,
+        )
+    }
+
+    @Test
+    fun systemStopInvalidatesLeaseAndAllowsAutomaticResume() = runBlocking {
+        val assetId = insertAsset("source-a")
+        catalog.recordAccessObservation("Full", AccessRevision, 1)
+        startOperationAndWindow("window-a", expiresAtMillis = 1_000)
+        index.ensureWork(assetId, IndexChannel.OCR, AccessRevision, "ocr-v1", ComponentHash, 2)
+        val stale = index.claimBatch("window-a", IndexChannel.OCR, "claim-a", 10, 100, 1).single()
+
+        val waiting = index.transitionOperation(OperationId, IndexOperationState.WAITING_SYSTEM, true, 20)
+
+        assertEquals(IndexOperationState.WAITING_SYSTEM, waiting.state)
+        assertTrue(waiting.autoResume)
+        assertEquals(IndexExecutionWindowState.CANCELLED, index.executionWindow("window-a")?.state)
+        assertEquals(IndexWorkState.PENDING, index.work(assetId, IndexChannel.OCR)?.state)
+        assertNull(index.commitSqlPublication(checkNotNull(stale.leaseToken), "late", ResultHash, 1, 21))
+        index.startExecutionWindow(window("window-b", 22, 500), 22)
+        assertEquals(IndexOperationState.RUNNING, index.operation(OperationId)?.state)
+    }
+
+    @Test
     fun publicationTokenCollisionCannotReplaceAnotherAssetsEvidence() = runBlocking {
         val firstAssetId = insertAsset("source-a", mediaStoreId = 7)
         val secondAssetId = insertAsset("source-b", mediaStoreId = 8)

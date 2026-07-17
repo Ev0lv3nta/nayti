@@ -25,9 +25,14 @@ uv run --project model-tools --no-sync nayti-model export-siglip2-tokenizer
 uv run --project model-tools --no-sync nayti-model convert-ort
 uv run --project model-tools --no-sync nayti-model verify-ort
 uv run --project model-tools --no-sync nayti-model prepare-android-kat
+uv run --project model-tools --no-sync nayti-model quantize-encoders
+uv run --project model-tools --no-sync nayti-model pack-keygen
+uv run --project model-tools --no-sync nayti-model pack-assemble
+uv run --project model-tools --no-sync nayti-model pack-inspect --pack "$NAYTI_MODEL_LAB/model-packs/nayti-alpha.naytipack"
 model-tools/scripts/build_reduced_ort_android.sh
 model-tools/scripts/verify_reduced_ort_aar.sh
 model-tools/scripts/run_reduced_ort_android_smoke.sh
+model-tools/scripts/run_signed_pack_android_smoke.sh
 uv run --project model-tools pytest
 ```
 
@@ -46,5 +51,13 @@ Pinned validation build создаётся командой `model-tools/scripts
 После сборки `verify_reduced_ort_aar.sh` проверяет exact ARM64 library set, 16 KiB ELF LOAD alignment, AArch64 headers, системные зависимости и наличие публичного ORT API вместе с `HfJsonTokenizer`. AAR и распакованные библиотеки остаются только в `model-lab`.
 
 `prepare-android-kat` сохраняет synthetic raw inputs, cross-platform reference outputs, tensor contracts и exact model identities в локальный `android-kat`. `run_reduced_ort_android_smoke.sh` требует одно подключённое ARM64-устройство, включает test-only Gradle module только через explicit `NAYTI_ORT_AAR`, проверяет ELF/APK ZIP alignment, потоково помещает KAT и семь models в private app storage, запускает их последовательно и всегда очищает временные bytes/package. Ожидаемый page size можно зафиксировать через `NAYTI_EXPECTED_PAGE_SIZE`.
+
+`run_signed_pack_android_smoke.sh` проверяет exact SHA-256 alpha pack и reduced AAR, оценивает свободное место до копирования и прогоняет production importer на недоверенном контейнере. Все семь ORT known-answer tests выполняются над app-private staging payload; immutable candidate публикуется только после их успеха. Скрипт всегда удаляет временный pack, candidate directory и test APK.
+
+`quantize-encoders` строит measured mixed profile из проверенных FP32 exports. SigLIP2 image остаётся FP32; SigLIP2 text получает только row-wise QInt8 token embedding; USER2 дополнительно использует dynamic per-channel QInt8 для constant-weight MatMul/Gemm. Более агрессивные SigLIP2 candidates прошли host, но не ARM64 cosine gate и не публикуются. Candidate становится deploy-артефактом атомарно только после held-out cosine и top-10 retrieval gates. OCR и tokenizer graphs остаются FP32/int64.
+
+`pack-keygen` создаёт отдельную workspace-local пару Ed25519 для alpha model pack; private key никогда не попадает в Git и не связан с APK signing. `pack-assemble` строит deterministic uncompressed container из reviewable profile, подписывает canonical manifest и затем заново проверяет подпись, exact lengths и SHA-256 всего payload. `pack-inspect` выполняет ту же потоковую проверку без извлечения файлов. Формат и threat model зафиксированы в `docs/adr/0001-model-pack-container.md`.
+
+Reviewable `pack-profile.alpha1.json` перечисляет семь ORT graphs, machine-readable contracts, exact KAT, preprocessing, operator allowlist, provenance, CycloneDX SBOM, notices и Apache-2.0 text. Generated pack и private key остаются в `model-lab`; в Git находятся только профиль, публичные сведения о происхождении и тесты формата.
 
 Непинованные revisions, глобальный Hugging Face cache и пользовательские фотографии в этом toolchain запрещены.

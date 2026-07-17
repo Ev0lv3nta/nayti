@@ -11,6 +11,9 @@ BUILD_SCRIPT = Path(__file__).parents[1] / "scripts" / "build_ortx_validation.sh
 ANDROID_BUILD_SCRIPT = Path(__file__).parents[1] / "scripts" / "build_reduced_ort_android.sh"
 ANDROID_VERIFY_SCRIPT = Path(__file__).parents[1] / "scripts" / "verify_reduced_ort_aar.sh"
 ANDROID_SMOKE_SCRIPT = Path(__file__).parents[1] / "scripts" / "run_reduced_ort_android_smoke.sh"
+SIGNED_PACK_SMOKE_SCRIPT = (
+    Path(__file__).parents[1] / "scripts" / "run_signed_pack_android_smoke.sh"
+)
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}")
 
 
@@ -58,6 +61,12 @@ class RuntimeSourcesTest(unittest.TestCase):
         self.assertIn("--check-zip-alignment", android_smoke_script)
         self.assertIn("NAYTI_EXPECTED_PAGE_SIZE", android_smoke_script)
         self.assertIn("OK (1 test)", android_smoke_script)
+
+        signed_pack_smoke_script = SIGNED_PACK_SMOKE_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("SignedModelPackInstrumentedTest", signed_pack_smoke_script)
+        self.assertIn("expected_pack_sha256", signed_pack_smoke_script)
+        self.assertIn("pack_kib * 3 + 524288", signed_pack_smoke_script)
+        self.assertIn("OK (1 test)", signed_pack_smoke_script)
 
 
 if __name__ == "__main__":

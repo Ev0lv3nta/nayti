@@ -21,19 +21,29 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
-@RunWith(AndroidJUnit4::class)
-class ReducedOrtInstrumentedTest {
-    @Test
-    fun runsEveryGraphWithPinnedReducedRuntime() {
-        val arguments = InstrumentationRegistry.getArguments()
-        val rootArgument = requireNotNull(arguments.getString("katRoot")) {
-            "instrumentation argument katRoot is required"
-        }
-        val root = File(rootArgument).canonicalFile
-        val manifestFile = resolveChild(root, "manifest.json")
+internal class OrtKnownAnswerGate {
+    fun validateDirectBundle(root: File) {
+        val canonicalRoot = root.canonicalFile
+        validate(
+            modelRoot = canonicalRoot,
+            fixtureRoot = canonicalRoot,
+            manifestFile = resolveChild(canonicalRoot, "manifest.json"),
+        )
+    }
+
+    fun validatePackPayload(payloadRoot: File) {
+        val canonicalRoot = payloadRoot.canonicalFile
+        validate(
+            modelRoot = resolveChild(canonicalRoot, "models"),
+            fixtureRoot = resolveChild(canonicalRoot, "tests"),
+            manifestFile = resolveChild(canonicalRoot, "tests/manifest.json"),
+        )
+    }
+
+    private fun validate(modelRoot: File, fixtureRoot: File, manifestFile: File) {
         val manifest = JSONObject(manifestFile.readText(Charsets.UTF_8))
 
-        assertEquals(1, manifest.getInt("schemaVersion"))
+        assertEquals(2, manifest.getInt("schemaVersion"))
         assertEquals("little", manifest.getString("byteOrder"))
         assertEquals(20260717, manifest.getInt("seed"))
 
@@ -45,18 +55,19 @@ class ReducedOrtInstrumentedTest {
         environment.setTelemetry(false)
 
         for (modelName in MODEL_ORDER) {
-            runModel(environment, root, modelName, models.getJSONObject(modelName))
+            runModel(environment, modelRoot, fixtureRoot, modelName, models.getJSONObject(modelName))
         }
     }
 
     private fun runModel(
         environment: OrtEnvironment,
-        root: File,
+        modelRoot: File,
+        fixtureRoot: File,
         modelName: String,
         contract: JSONObject,
     ) {
         val modelContract = contract.getJSONObject("model")
-        val modelFile = resolveChild(root, modelContract.getString("path"))
+        val modelFile = resolveChild(modelRoot, modelContract.getString("path"))
         assertFileIdentity(modelFile, modelContract)
 
         OrtSession.SessionOptions().use { options ->
@@ -71,12 +82,12 @@ class ReducedOrtInstrumentedTest {
                     for (inputName in session.inputNames.sorted()) {
                         feeds[inputName] = createInput(
                             environment,
-                            root,
+                            fixtureRoot,
                             inputContracts.getJSONObject(inputName),
                         )
                     }
                     session.run(feeds).use { result ->
-                        verifyOutputs(modelName, root, contract.getJSONArray("outputs"), result)
+                        verifyOutputs(modelName, fixtureRoot, contract.getJSONArray("outputs"), result)
                     }
                 } finally {
                     feeds.values.forEach(OnnxTensor::close)
@@ -153,14 +164,44 @@ class ReducedOrtInstrumentedTest {
         val expected = readDirect(expectedFile).asFloatBuffer()
         val actual = actualTensor.floatBuffer
         assertEquals(expected.remaining(), actual.remaining())
-        val tolerance = contract.getJSONObject("tolerance")
-        val absoluteTolerance = tolerance.getDouble("absolute")
-        val relativeTolerance = tolerance.getDouble("relative")
+        val comparison = contract.getJSONObject("comparison")
+        val expectedValues = FloatArray(expected.remaining()) { index -> expected.get(index) }
+        val actualValues = FloatArray(actual.remaining()) { index -> actual.get(index) }
+        for (index in actualValues.indices) {
+            assertTrue("non-finite $modelName/$outputName[$index]", actualValues[index].isFinite())
+        }
+        when (val kind = comparison.getString("kind")) {
+            "allclose" -> compareAllClose(
+                modelName,
+                outputName,
+                expectedValues,
+                actualValues,
+                comparison,
+            )
+            "cosine" -> compareCosine(
+                modelName,
+                outputName,
+                expectedValues,
+                actualValues,
+                comparison,
+            )
+            else -> error("unsupported float comparison: $kind")
+        }
+    }
+
+    private fun compareAllClose(
+        modelName: String,
+        outputName: String,
+        expected: FloatArray,
+        actual: FloatArray,
+        comparison: JSONObject,
+    ) {
+        val absoluteTolerance = comparison.getDouble("absolute")
+        val relativeTolerance = comparison.getDouble("relative")
         var maximumAbsoluteError = 0.0
-        for (index in 0 until expected.remaining()) {
-            val expectedValue = expected.get(index)
-            val actualValue = actual.get(index)
-            assertTrue("non-finite $modelName/$outputName[$index]", actualValue.isFinite())
+        for (index in expected.indices) {
+            val expectedValue = expected[index]
+            val actualValue = actual[index]
             val error = abs(actualValue.toDouble() - expectedValue.toDouble())
             maximumAbsoluteError = maxOf(maximumAbsoluteError, error)
             val bound = absoluteTolerance + relativeTolerance * abs(expectedValue.toDouble())
@@ -170,6 +211,41 @@ class ReducedOrtInstrumentedTest {
             )
         }
         Log.i(TAG, "$modelName/$outputName maxAbs=$maximumAbsoluteError")
+    }
+
+    private fun compareCosine(
+        modelName: String,
+        outputName: String,
+        expected: FloatArray,
+        actual: FloatArray,
+        comparison: JSONObject,
+    ) {
+        var dot = 0.0
+        var expectedSquaredNorm = 0.0
+        var actualSquaredNorm = 0.0
+        var maximumAbsoluteError = 0.0
+        for (index in expected.indices) {
+            val expectedValue = expected[index].toDouble()
+            val actualValue = actual[index].toDouble()
+            dot += expectedValue * actualValue
+            expectedSquaredNorm += expectedValue * expectedValue
+            actualSquaredNorm += actualValue * actualValue
+            maximumAbsoluteError = maxOf(maximumAbsoluteError, abs(actualValue - expectedValue))
+        }
+        assertTrue("zero expected norm $modelName/$outputName", expectedSquaredNorm > 0.0)
+        assertTrue("zero actual norm $modelName/$outputName", actualSquaredNorm > 0.0)
+        val cosine = dot / kotlin.math.sqrt(expectedSquaredNorm * actualSquaredNorm)
+        val minimumCosine = comparison.getDouble("minimumCosine")
+        val maximumAllowedError = comparison.getDouble("maximumAbsoluteError")
+        assertTrue(
+            "$modelName/$outputName cosine=$cosine minimum=$minimumCosine",
+            cosine >= minimumCosine,
+        )
+        assertTrue(
+            "$modelName/$outputName maxAbs=$maximumAbsoluteError maximum=$maximumAllowedError",
+            maximumAbsoluteError <= maximumAllowedError,
+        )
+        Log.i(TAG, "$modelName/$outputName cosine=$cosine maxAbs=$maximumAbsoluteError")
     }
 
     private fun compareLongOutput(
@@ -245,5 +321,16 @@ class ReducedOrtInstrumentedTest {
             "user2_encoder",
             "user2_tokenizer",
         )
+    }
+}
+
+@RunWith(AndroidJUnit4::class)
+class ReducedOrtInstrumentedTest {
+    @Test
+    fun runsEveryGraphWithPinnedReducedRuntime() {
+        val rootArgument = requireNotNull(InstrumentationRegistry.getArguments().getString("katRoot")) {
+            "instrumentation argument katRoot is required"
+        }
+        OrtKnownAnswerGate().validateDirectBundle(File(rootArgument))
     }
 }

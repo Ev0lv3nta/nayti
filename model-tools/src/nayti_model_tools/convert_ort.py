@@ -27,14 +27,24 @@ ARTIFACTS = (
         deployment_ir_version=4,
     ),
     ModelArtifact("ppocrv6_detector", "upstream/ppocrv6-small-det-onnx/inference.onnx"),
-    ModelArtifact("siglip2_image", "exports/siglip2/siglip2_image_fp32.onnx"),
-    ModelArtifact("siglip2_text", "exports/siglip2/siglip2_text_fp32.onnx"),
+    ModelArtifact(
+        "siglip2_image",
+        "exports/siglip2/siglip2_image_fp32.onnx",
+    ),
+    ModelArtifact(
+        "siglip2_text",
+        "quantized-encoders/siglip2_text_rowwise_int8.onnx",
+    ),
     ModelArtifact("siglip2_tokenizer", "exports/siglip2/siglip2_tokenizer.onnx"),
-    ModelArtifact("user2_encoder", "exports/user2/user2_fp32.onnx"),
+    ModelArtifact(
+        "user2_encoder",
+        "quantized-encoders/user2_encoder_dynamic_int8.onnx",
+    ),
     ModelArtifact("user2_tokenizer", "exports/user2/user2_tokenizer.onnx"),
 )
 
-ANDROID_KAT_SCHEMA_VERSION = 1
+ANDROID_KAT_SCHEMA_VERSION = 2
+EMBEDDING_MODELS = {"siglip2_image", "siglip2_text", "user2_encoder"}
 
 
 def convert_models_to_ort(lab_root: Path, force: bool) -> Path:
@@ -45,95 +55,109 @@ def convert_models_to_ort(lab_root: Path, force: bool) -> Path:
     lab_root = lab_root.resolve()
     _require_free_space(lab_root)
     _require_runtime_versions(ort.__version__, ortx.__version__)
-    inputs = _generated_child(lab_root, "ort-inputs")
-    outputs = _generated_child(lab_root, "ort-models")
-    _prepare_empty_directory(inputs, force)
-    _prepare_empty_directory(outputs, force)
+    final_inputs = _generated_child(lab_root, "ort-inputs")
+    final_outputs = _generated_child(lab_root, "ort-models")
+    inputs = _generated_child(lab_root, ".ort-inputs.candidate")
+    outputs = _generated_child(lab_root, ".ort-models.candidate")
+    _prepare_conversion_staging((inputs, outputs), (final_inputs, final_outputs), force)
 
-    preparations: dict[str, Any] = {}
-    for artifact in ARTIFACTS:
-        source = _required_source(lab_root, artifact.source)
-        destination = inputs / f"{artifact.name}.onnx"
-        if artifact.deployment_ir_version is None:
-            destination.symlink_to(source)
+    try:
+        preparations: dict[str, Any] = {}
+        for artifact in ARTIFACTS:
+            source = _required_source(lab_root, artifact.source)
+            destination = inputs / f"{artifact.name}.onnx"
+            if artifact.deployment_ir_version is None:
+                destination.symlink_to(source)
+                preparations[artifact.name] = {
+                    "kind": "verified-source-symlink",
+                    "sourceSha256": _sha256_file(source),
+                }
+                continue
+
+            model = onnx.load(source)
+            original_ir_version = model.ir_version
+            if original_ir_version >= artifact.deployment_ir_version:
+                raise ValueError(
+                    f"unexpected {artifact.name} IR version {original_ir_version}; "
+                    f"expected less than {artifact.deployment_ir_version}",
+                )
+            model.ir_version = artifact.deployment_ir_version
+            onnx.checker.check_model(model, full_check=False)
+            onnx.save(model, destination)
             preparations[artifact.name] = {
-                "kind": "verified-source-symlink",
+                "kind": "ir-version-normalization",
+                "originalIrVersion": original_ir_version,
+                "deploymentIrVersion": model.ir_version,
                 "sourceSha256": _sha256_file(source),
+                "preparedSha256": _sha256_file(destination),
             }
-            continue
 
-        model = onnx.load(source)
-        original_ir_version = model.ir_version
-        if original_ir_version >= artifact.deployment_ir_version:
-            raise ValueError(
-                f"unexpected {artifact.name} IR version {original_ir_version}; "
-                f"expected less than {artifact.deployment_ir_version}",
-            )
-        model.ir_version = artifact.deployment_ir_version
-        onnx.checker.check_model(model, full_check=False)
-        onnx.save(model, destination)
-        preparations[artifact.name] = {
-            "kind": "ir-version-normalization",
-            "originalIrVersion": original_ir_version,
-            "deploymentIrVersion": model.ir_version,
-            "sourceSha256": _sha256_file(source),
-            "preparedSha256": _sha256_file(destination),
+        command = [
+            sys.executable,
+            "-m",
+            "onnxruntime.tools.convert_onnx_models_to_ort",
+            str(inputs),
+            "--output_dir",
+            str(outputs),
+            "--optimization_style",
+            "Fixed",
+            "--enable_type_reduction",
+            "--custom_op_library",
+            ortx.get_library_path(),
+            "--target_platform",
+            "arm",
+        ]
+        subprocess.run(command, check=True)
+
+        expected = {f"{artifact.name}.ort" for artifact in ARTIFACTS}
+        actual = {path.name for path in outputs.glob("*.ort")}
+        if actual != expected:
+            raise ValueError(f"unexpected ORT output set: {sorted(actual)} != {sorted(expected)}")
+        config = outputs / "required_operators_and_types.config"
+        if not config.is_file():
+            raise ValueError("ORT converter did not create the required operator config")
+        _normalize_operator_config(config, expected)
+        config_text = config.read_text(encoding="utf-8")
+        if "ai.onnx.contrib;1;HfJsonTokenizer" not in config_text:
+            raise ValueError("required operator config lost the tokenizer custom op")
+
+        report = {
+            "schemaVersion": 1,
+            "toolchain": {
+                "onnx": onnx.__version__,
+                "onnxruntime": ort.__version__,
+                "onnxruntimeExtensions": ortx.__version__,
+            },
+            "conversion": {
+                "optimizationStyle": "Fixed",
+                "targetPlatform": "arm",
+                "typeReduction": True,
+                "preparations": preparations,
+            },
+            "operatorConfig": {
+                "path": config.name,
+                "length": config.stat().st_size,
+                "sha256": _sha256_file(config),
+            },
+            "artifacts": {
+                artifact.name: _file_identity(outputs / f"{artifact.name}.ort")
+                for artifact in ARTIFACTS
+            },
         }
-
-    command = [
-        sys.executable,
-        "-m",
-        "onnxruntime.tools.convert_onnx_models_to_ort",
-        str(inputs),
-        "--output_dir",
-        str(outputs),
-        "--optimization_style",
-        "Fixed",
-        "--enable_type_reduction",
-        "--custom_op_library",
-        ortx.get_library_path(),
-        "--target_platform",
-        "arm",
-    ]
-    subprocess.run(command, check=True)
-
-    expected = {f"{artifact.name}.ort" for artifact in ARTIFACTS}
-    actual = {path.name for path in outputs.glob("*.ort")}
-    if actual != expected:
-        raise ValueError(f"unexpected ORT output set: {sorted(actual)} != {sorted(expected)}")
-    config = outputs / "required_operators_and_types.config"
-    if not config.is_file():
-        raise ValueError("ORT converter did not create the required operator config")
-    config_text = config.read_text(encoding="utf-8")
-    if "ai.onnx.contrib;1;HfJsonTokenizer" not in config_text:
-        raise ValueError("required operator config lost the tokenizer custom op")
-
-    report = {
-        "schemaVersion": 1,
-        "toolchain": {
-            "onnx": onnx.__version__,
-            "onnxruntime": ort.__version__,
-            "onnxruntimeExtensions": ortx.__version__,
-        },
-        "conversion": {
-            "optimizationStyle": "Fixed",
-            "targetPlatform": "arm",
-            "typeReduction": True,
-            "preparations": preparations,
-        },
-        "operatorConfig": {
-            "path": config.name,
-            "length": config.stat().st_size,
-            "sha256": _sha256_file(config),
-        },
-        "artifacts": {
-            artifact.name: _file_identity(outputs / f"{artifact.name}.ort")
-            for artifact in ARTIFACTS
-        },
-    }
-    report_path = outputs / "conversion.report.json"
-    report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return report_path
+        report_path = outputs / "conversion.report.json"
+        report_path.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        _publish_conversion(
+            ((inputs, final_inputs), (outputs, final_outputs)),
+            force,
+        )
+        return final_outputs / report_path.name
+    except BaseException:
+        shutil.rmtree(inputs, ignore_errors=True)
+        shutil.rmtree(outputs, ignore_errors=True)
+        raise
 
 
 def verify_ort_models(lab_root: Path) -> Path:
@@ -281,7 +305,18 @@ def prepare_android_kat(lab_root: Path, force: bool) -> Path:
                 "sha256": hashlib.sha256(payload).hexdigest(),
             }
             if contiguous.dtype == np.dtype("float32"):
-                descriptor["tolerance"] = {"absolute": 2e-5, "relative": 2e-5}
+                if artifact.name in EMBEDDING_MODELS:
+                    descriptor["comparison"] = {
+                        "kind": "cosine",
+                        "minimumCosine": 0.995,
+                        "maximumAbsoluteError": 0.02,
+                    }
+                else:
+                    descriptor["comparison"] = {
+                        "kind": "allclose",
+                        "absolute": 2e-5,
+                        "relative": 2e-5,
+                    }
             output_descriptors.append(descriptor)
         manifest_models[artifact.name] = {
             "model": _file_identity(model),
@@ -401,6 +436,63 @@ def _prepare_empty_directory(path: Path, force: bool) -> None:
             raise ValueError(f"refusing to replace non-directory: {path}")
         shutil.rmtree(path)
     path.mkdir(parents=False)
+
+
+def _prepare_conversion_staging(
+    staging: tuple[Path, Path],
+    destinations: tuple[Path, Path],
+    force: bool,
+) -> None:
+    for path in staging:
+        if path.exists():
+            raise FileExistsError(f"conversion staging directory already exists: {path}")
+    for destination in destinations:
+        backup = destination.with_name(f".{destination.name}.backup")
+        if backup.exists():
+            raise FileExistsError(f"stale conversion backup requires review: {backup}")
+        if destination.exists() and (
+            not force or destination.is_symlink() or not destination.is_dir()
+        ):
+            raise FileExistsError(
+                f"verified conversion exists; pass --force to replace it: {destination}",
+            )
+    for path in staging:
+        path.mkdir()
+
+
+def _normalize_operator_config(path: Path, model_names: set[str]) -> None:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    operators = [line for line in lines if line and not line.startswith("#")]
+    if not operators:
+        raise ValueError("operator config contains no operator contracts")
+    canonical = ["# Generated from Nayti deployment model set:"]
+    canonical.extend(f"# - {name}" for name in sorted(model_names))
+    canonical.extend(operators)
+    path.write_text("\n".join(canonical) + "\n", encoding="utf-8")
+
+
+def _publish_conversion(pairs: tuple[tuple[Path, Path], ...], force: bool) -> None:
+    backups: list[tuple[Path, Path]] = []
+    published: list[tuple[Path, Path]] = []
+    try:
+        for _, destination in pairs:
+            if destination.exists():
+                if not force:
+                    raise FileExistsError(destination)
+                backup = destination.with_name(f".{destination.name}.backup")
+                destination.rename(backup)
+                backups.append((backup, destination))
+        for staging, destination in pairs:
+            staging.rename(destination)
+            published.append((destination, staging))
+    except BaseException:
+        for destination, staging in reversed(published):
+            destination.rename(staging)
+        for backup, destination in reversed(backups):
+            backup.rename(destination)
+        raise
+    for backup, _ in backups:
+        shutil.rmtree(backup)
 
 
 def _require_free_space(lab_root: Path) -> None:

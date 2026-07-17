@@ -1,0 +1,80 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "metadata": {
+    "component": {
+      "type": "machine-learning-model",
+      "bom-ref": "pkg:generic/nayti-offline-search@0.1.0-alpha.1",
+      "name": "nayti-offline-search",
+      "version": "0.1.0-alpha.1"
+    }
+  },
+  "components": [
+    {
+      "type": "machine-learning-model",
+      "bom-ref": "pkg:huggingface/google/siglip2-base-patch16-256@3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab",
+      "name": "siglip2-base-patch16-256",
+      "version": "3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab",
+      "purl": "pkg:huggingface/google/siglip2-base-patch16-256@3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab",
+      "licenses": [{"license": {"id": "Apache-2.0"}}],
+      "externalReferences": [{"type": "distribution", "url": "https://huggingface.co/google/siglip2-base-patch16-256/tree/3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab"}]
+    },
+    {
+      "type": "machine-learning-model",
+      "bom-ref": "pkg:huggingface/deepvk/USER2-small@23f65b34cf7632032061f5cc66c14714e6d4cee4",
+      "name": "USER2-small",
+      "version": "23f65b34cf7632032061f5cc66c14714e6d4cee4",
+      "purl": "pkg:huggingface/deepvk/USER2-small@23f65b34cf7632032061f5cc66c14714e6d4cee4",
+      "licenses": [{"license": {"id": "Apache-2.0"}}],
+      "externalReferences": [{"type": "distribution", "url": "https://huggingface.co/deepvk/USER2-small/tree/23f65b34cf7632032061f5cc66c14714e6d4cee4"}]
+    },
+    {
+      "type": "machine-learning-model",
+      "bom-ref": "pkg:huggingface/PaddlePaddle/PP-OCRv6_small_det_onnx@28fe5895c24fd108c19eb3e8479f4ab385fbfc62",
+      "name": "PP-OCRv6_small_det_onnx",
+      "version": "28fe5895c24fd108c19eb3e8479f4ab385fbfc62",
+      "purl": "pkg:huggingface/PaddlePaddle/PP-OCRv6_small_det_onnx@28fe5895c24fd108c19eb3e8479f4ab385fbfc62",
+      "licenses": [{"license": {"id": "Apache-2.0"}}],
+      "externalReferences": [{"type": "distribution", "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx/tree/28fe5895c24fd108c19eb3e8479f4ab385fbfc62"}]
+    },
+    {
+      "type": "machine-learning-model",
+      "bom-ref": "pkg:huggingface/PaddlePaddle/eslav_PP-OCRv5_mobile_rec_onnx@9a32171fc5718746875e1a261818884517975013",
+      "name": "eslav_PP-OCRv5_mobile_rec_onnx",
+      "version": "9a32171fc5718746875e1a261818884517975013",
+      "purl": "pkg:huggingface/PaddlePaddle/eslav_PP-OCRv5_mobile_rec_onnx@9a32171fc5718746875e1a261818884517975013",
+      "licenses": [{"license": {"id": "Apache-2.0"}}],
+      "externalReferences": [{"type": "distribution", "url": "https://huggingface.co/PaddlePaddle/eslav_PP-OCRv5_mobile_rec_onnx/tree/9a32171fc5718746875e1a261818884517975013"}]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:github/microsoft/onnxruntime@1.27.0",
+      "name": "onnxruntime",
+      "version": "1.27.0",
+      "purl": "pkg:github/microsoft/onnxruntime@1.27.0",
+      "licenses": [{"license": {"id": "MIT"}}]
+    },
+    {
+      "type": "library",
+      "bom-ref": "pkg:github/microsoft/onnxruntime-extensions@fe4e13f46b19fb490c90b09fe280277308bd5bb7",
+      "name": "onnxruntime-extensions",
+      "version": "0.15.0+fe4e13f",
+      "purl": "pkg:github/microsoft/onnxruntime-extensions@fe4e13f46b19fb490c90b09fe280277308bd5bb7",
+      "licenses": [{"license": {"id": "MIT"}}]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:generic/nayti-offline-search@0.1.0-alpha.1",
+      "dependsOn": [
+        "pkg:huggingface/google/siglip2-base-patch16-256@3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab",
+        "pkg:huggingface/deepvk/USER2-small@23f65b34cf7632032061f5cc66c14714e6d4cee4",
+        "pkg:huggingface/PaddlePaddle/PP-OCRv6_small_det_onnx@28fe5895c24fd108c19eb3e8479f4ab385fbfc62",
+        "pkg:huggingface/PaddlePaddle/eslav_PP-OCRv5_mobile_rec_onnx@9a32171fc5718746875e1a261818884517975013",
+        "pkg:github/microsoft/onnxruntime@1.27.0",
+        "pkg:github/microsoft/onnxruntime-extensions@fe4e13f46b19fb490c90b09fe280277308bd5bb7"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 1,
+  "packId": "nayti-offline-search",
+  "packVersion": "0.1.0-alpha.1",
+  "compatibility": {
+    "minAppVersionCode": 1,
+    "maxAppVersionCode": 1,
+    "engineApi": 1,
+    "minAndroidApi": 30,
+    "abis": [
+      "arm64-v8a"
+    ],
+    "pageSizes": [
+      4096,
+      16384
+    ]
+  },
+  "runtime": {
+    "format": "ORT",
+    "onnxRuntime": "1.27.0",
+    "onnxRuntimeExtensions": "0.15.0+fe4e13f",
+    "executionProvider": "CPU",
+    "targetPlatform": "arm",
+    "operatorConfigPath": "operators/required-operators.config"
+  },
+  "components": [
+    {
+      "componentId": "siglip2-image",
+      "artifactPath": "models/siglip2_image.ort",
+      "sourceComponent": "siglip2-base-patch16-256",
+      "sourceRevision": "3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab",
+      "license": "Apache-2.0",
+      "precision": "FP32",
+      "inputs": {
+        "pixel_values": {
+          "dtype": "float32",
+          "shape": [1, 3, 256, 256],
+          "color": "RGB",
+          "range": [-1, 1]
+        }
+      },
+      "outputs": {
+        "image_embedding": {
+          "dtype": "float32",
+          "shape": [1, 768],
+          "normalization": "L2"
+        }
+      }
+    },
+    {
+      "componentId": "siglip2-text",
+      "artifactPath": "models/siglip2_text.ort",
+      "sourceComponent": "siglip2-base-patch16-256",
+      "sourceRevision": "3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab",
+      "license": "Apache-2.0",
+      "precision": "FP32-transformer-rowwise-QInt8-token-embedding",
+      "inputs": {
+        "input_ids": {
+          "dtype": "int64",
+          "shape": [1, 64]
+        }
+      },
+      "outputs": {
+        "text_embedding": {
+          "dtype": "float32",
+          "shape": [1, 768],
+          "normalization": "L2"
+        }
+      }
+    },
+    {
+      "componentId": "siglip2-tokenizer",
+      "artifactPath": "models/siglip2_tokenizer.ort",
+      "sourceComponent": "siglip2-base-patch16-256",
+      "sourceRevision": "3f9f96cb90da5dbc758b01813f2f6f1aee24c1ab",
+      "license": "Apache-2.0",
+      "maxLength": 64,
+      "customOperator": "HfJsonTokenizer"
+    },
+    {
+      "componentId": "user2-encoder",
+      "artifactPath": "models/user2_encoder.ort",
+      "sourceComponent": "user2-small",
+      "sourceRevision": "23f65b34cf7632032061f5cc66c14714e6d4cee4",
+      "license": "Apache-2.0",
+      "precision": "dynamic-per-channel-QInt8-rowwise-QInt8-token-embedding",
+      "inputs": {
+        "input_ids": {
+          "dtype": "int64",
+          "shape": [1, 128]
+        },
+        "attention_mask": {
+          "dtype": "int64",
+          "shape": [1, 128]
+        }
+      },
+      "outputs": {
+        "sentence_embedding": {
+          "dtype": "float32",
+          "shape": [1, 384],
+          "normalization": "L2"
+        }
+      }
+    },
+    {
+      "componentId": "user2-tokenizer",
+      "artifactPath": "models/user2_tokenizer.ort",
+      "sourceComponent": "user2-small",
+      "sourceRevision": "23f65b34cf7632032061f5cc66c14714e6d4cee4",
+      "license": "Apache-2.0",
+      "maxLength": 128,
+      "customOperator": "HfJsonTokenizer"
+    },
+    {
+      "componentId": "ppocrv6-detector",
+      "artifactPath": "models/ppocrv6_detector.ort",
+      "sourceComponent": "ppocrv6-small-det-onnx",
+      "sourceRevision": "28fe5895c24fd108c19eb3e8479f4ab385fbfc62",
+      "license": "Apache-2.0",
+      "precision": "FP32",
+      "contractPath": "contracts/ocr.json"
+    },
+    {
+      "componentId": "eslav-recognizer",
+      "artifactPath": "models/eslav_recognizer.ort",
+      "sourceComponent": "eslav-ppocrv5-mobile-rec-onnx",
+      "sourceRevision": "9a32171fc5718746875e1a261818884517975013",
+      "license": "Apache-2.0",
+      "precision": "FP32",
+      "contractPath": "contracts/ocr.json"
+    }
+  ],
+  "files": [
+    {"path": "contracts/ocr.json", "role": "contract", "sourceRoot": "lab", "source": "exports/ocr/ocr_contract.report.json"},
+    {"path": "contracts/siglip2-export.json", "role": "contract", "sourceRoot": "lab", "source": "exports/siglip2/siglip2_fp32.report.json"},
+    {"path": "contracts/siglip2-tokenizer.json", "role": "contract", "sourceRoot": "lab", "source": "exports/siglip2/siglip2_tokenizer.report.json"},
+    {"path": "contracts/user2-export.json", "role": "contract", "sourceRoot": "lab", "source": "exports/user2/user2_fp32.report.json"},
+    {"path": "contracts/user2-tokenizer.json", "role": "contract", "sourceRoot": "lab", "source": "exports/user2/user2_tokenizer.report.json"},
+    {"path": "licenses/apache-2.0.txt", "role": "license", "sourceRoot": "repository", "source": "LICENSE"},
+    {"path": "models/eslav_recognizer.ort", "role": "model", "sourceRoot": "lab", "source": "ort-models/eslav_recognizer.ort"},
+    {"path": "models/ppocrv6_detector.ort", "role": "model", "sourceRoot": "lab", "source": "ort-models/ppocrv6_detector.ort"},
+    {"path": "models/siglip2_image.ort", "role": "model", "sourceRoot": "lab", "source": "ort-models/siglip2_image.ort"},
+    {"path": "models/siglip2_text.ort", "role": "model", "sourceRoot": "lab", "source": "ort-models/siglip2_text.ort"},
+    {"path": "models/siglip2_tokenizer.ort", "role": "model", "sourceRoot": "lab", "source": "ort-models/siglip2_tokenizer.ort"},
+    {"path": "models/user2_encoder.ort", "role": "model", "sourceRoot": "lab", "source": "ort-models/user2_encoder.ort"},
+    {"path": "models/user2_tokenizer.ort", "role": "model", "sourceRoot": "lab", "source": "ort-models/user2_tokenizer.ort"},
+    {"path": "operators/required-operators.config", "role": "runtime-config", "sourceRoot": "lab", "source": "ort-models/required_operators_and_types.config"},
+    {"path": "preprocessing/eslav-recognizer.yml", "role": "preprocess-config", "sourceRoot": "lab", "source": "upstream/eslav-ppocrv5-mobile-rec-onnx/inference.yml"},
+    {"path": "preprocessing/ppocrv6-detector.json", "role": "preprocess-config", "sourceRoot": "lab", "source": "upstream/ppocrv6-small-det-onnx/inference.json"},
+    {"path": "preprocessing/ppocrv6-detector.yml", "role": "preprocess-config", "sourceRoot": "lab", "source": "upstream/ppocrv6-small-det-onnx/inference.yml"},
+    {"path": "provenance/conversion-report.json", "role": "provenance", "sourceRoot": "lab", "source": "ort-models/conversion.report.json"},
+    {"path": "provenance/model-pack-sbom.cdx.json", "role": "sbom", "sourceRoot": "repository", "source": "model-tools/manifests/model-pack-sbom.alpha1.cdx.json"},
+    {"path": "provenance/notices.md", "role": "notice", "sourceRoot": "repository", "source": "model-tools/manifests/model-pack-notices.alpha1.md"},
+    {"path": "provenance/quantization-report.json", "role": "provenance", "sourceRoot": "lab", "source": "quantized-encoders/quantization.report.json"},
+    {"path": "provenance/runtime-sources.json", "role": "provenance", "sourceRoot": "repository", "source": "model-tools/manifests/runtime-sources.v1.json"},
+    {"path": "provenance/sources.json", "role": "provenance", "sourceRoot": "repository", "source": "model-tools/manifests/sources.v1.json"},
+    {"path": "provenance/verification-report.json", "role": "provenance", "sourceRoot": "lab", "source": "ort-models/verification.report.json"},
+    {"path": "tests/inputs/eslav_recognizer--x.raw", "role": "test-input", "sourceRoot": "lab", "source": "android-kat/inputs/eslav_recognizer--x.raw"},
+    {"path": "tests/inputs/ppocrv6_detector--x.raw", "role": "test-input", "sourceRoot": "lab", "source": "android-kat/inputs/ppocrv6_detector--x.raw"},
+    {"path": "tests/inputs/siglip2_image--pixel_values.raw", "role": "test-input", "sourceRoot": "lab", "source": "android-kat/inputs/siglip2_image--pixel_values.raw"},
+    {"path": "tests/inputs/siglip2_text--input_ids.raw", "role": "test-input", "sourceRoot": "lab", "source": "android-kat/inputs/siglip2_text--input_ids.raw"},
+    {"path": "tests/inputs/user2_encoder--attention_mask.raw", "role": "test-input", "sourceRoot": "lab", "source": "android-kat/inputs/user2_encoder--attention_mask.raw"},
+    {"path": "tests/inputs/user2_encoder--input_ids.raw", "role": "test-input", "sourceRoot": "lab", "source": "android-kat/inputs/user2_encoder--input_ids.raw"},
+    {"path": "tests/manifest.json", "role": "test-manifest", "sourceRoot": "lab", "source": "android-kat/manifest.json"},
+    {"path": "tests/outputs/eslav_recognizer--00--fetch_name_0.raw", "role": "test-output", "sourceRoot": "lab", "source": "android-kat/outputs/eslav_recognizer--00--fetch_name_0.raw"},
+    {"path": "tests/outputs/ppocrv6_detector--00--fetch_name_0.raw", "role": "test-output", "sourceRoot": "lab", "source": "android-kat/outputs/ppocrv6_detector--00--fetch_name_0.raw"},
+    {"path": "tests/outputs/siglip2_image--00--image_embedding.raw", "role": "test-output", "sourceRoot": "lab", "source": "android-kat/outputs/siglip2_image--00--image_embedding.raw"},
+    {"path": "tests/outputs/siglip2_text--00--text_embedding.raw", "role": "test-output", "sourceRoot": "lab", "source": "android-kat/outputs/siglip2_text--00--text_embedding.raw"},
+    {"path": "tests/outputs/siglip2_tokenizer--00--input_ids.raw", "role": "test-output", "sourceRoot": "lab", "source": "android-kat/outputs/siglip2_tokenizer--00--input_ids.raw"},
+    {"path": "tests/outputs/user2_encoder--00--sentence_embedding.raw", "role": "test-output", "sourceRoot": "lab", "source": "android-kat/outputs/user2_encoder--00--sentence_embedding.raw"},
+    {"path": "tests/outputs/user2_tokenizer--00--input_ids.raw", "role": "test-output", "sourceRoot": "lab", "source": "android-kat/outputs/user2_tokenizer--00--input_ids.raw"},
+    {"path": "tests/outputs/user2_tokenizer--01--attention_mask.raw", "role": "test-output", "sourceRoot": "lab", "source": "android-kat/outputs/user2_tokenizer--01--attention_mask.raw"}
+  ],
+  "provenance": {
+    "sourceManifestPath": "provenance/sources.json",
+    "runtimeSourceManifestPath": "provenance/runtime-sources.json",
+    "quantizationReportPath": "provenance/quantization-report.json",
+    "conversionReportPath": "provenance/conversion-report.json",
+    "verificationReportPath": "provenance/verification-report.json",
+    "katManifestPath": "tests/manifest.json",
+    "sbomPath": "provenance/model-pack-sbom.cdx.json",
+    "noticesPath": "provenance/notices.md",
+    "containsUserData": false
+  }
+}

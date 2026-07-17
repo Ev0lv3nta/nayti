@@ -69,5 +69,15 @@ object StorageMigrations {
             }
         }
 
-    val All: Array<Migration> = arrayOf(From1To2)
+    val From2To3: Migration =
+        object : Migration(2, 3) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "ALTER TABLE `vector_segment_artifact` " +
+                        "ADD COLUMN `compactionLevel` INTEGER NOT NULL DEFAULT 0",
+                )
+            }
+        }
+
+    val All: Array<Migration> = arrayOf(From1To2, From2To3)
 }

@@ -27,8 +27,15 @@ class NaytiSchemaMigrationInstrumentedTest {
         )
 
     @Test
-    fun migration1To2PreservesVectorRowsAndCreatesSemanticMetadata() = runBlocking {
+    fun migration1ToCurrentPreservesVectorRowsAndCreatesSemanticMetadata() = runBlocking {
         migration.createDatabase(StorageContract.InitialSchemaVersion).use { connection ->
+            connection.execSQL(
+                "INSERT INTO vector_segment_artifact " +
+                    "(sha256, segmentId, relativePath, byteLength, formatVersion, channel, " +
+                    "embeddingSpaceHash, dimension, recordCount, createdAtMillis) " +
+                    "VALUES ('$SegmentSha', 'segment-v1', 'segments/v1.nvsg', 128, 1, " +
+                    "'VISUAL', '$EmbeddingSha', 384, 1, 100)",
+            )
             connection.execSQL(
                 "INSERT INTO vector_segment_record " +
                     "(segmentSha256, ordinal, recordId, assetId, sourceFingerprint, chunkOrdinal) " +
@@ -38,7 +45,7 @@ class NaytiSchemaMigrationInstrumentedTest {
 
         migration.runMigrationsAndValidate(
             StorageContract.CurrentSchemaVersion,
-            listOf(StorageMigrations.From1To2),
+            listOf(StorageMigrations.From1To2, StorageMigrations.From2To3),
         ).use { connection ->
             connection.prepare(
                 "SELECT recordId, assetId, semanticChunkId FROM vector_segment_record WHERE segmentSha256 = ?",
@@ -70,12 +77,21 @@ class NaytiSchemaMigrationInstrumentedTest {
                 "INSERT INTO ocr_semantic_chunk_line (chunkId, position, assetId, lineOrdinal) " +
                     "VALUES ('$ChunkSha', 0, 7, 0)",
             )
+            connection.prepare(
+                "SELECT compactionLevel FROM vector_segment_artifact WHERE sha256 = ?",
+            ).use { statement ->
+                statement.bindText(1, SegmentSha)
+                assertTrue(statement.step())
+                assertEquals(0L, statement.getLong(0))
+                assertFalse(statement.step())
+            }
         }
     }
 
     private companion object {
         const val DatabaseName = "nayti-schema-migration.db"
         const val SegmentSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        const val EmbeddingSha = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
         const val ChunkSha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
         const val SetSha = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
     }

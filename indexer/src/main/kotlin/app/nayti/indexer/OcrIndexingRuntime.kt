@@ -319,6 +319,10 @@ class OcrIndexingRuntime(
                 report = report.merge(phase)
                 semanticPublished = phase.published
                 saturated = saturated || phase.claimed == itemLimit
+                if (phase.published > 0 && budget.hasTimeRemaining()) {
+                    VectorIndexCompactor(vectorRoot, storage.vectorIndexDao)
+                        .compactAvailable(MaximumCompactionsPerWindow)
+                }
             }
         }
         return WindowResult(operation, report, semanticPublished, saturated)
@@ -524,6 +528,7 @@ class OcrIndexingRuntime(
         const val SliceItemLimit = 8
         const val ForegroundWindowItemLimit = 256
         private const val MaximumForegroundWindows = 64
+        private const val MaximumCompactionsPerWindow = 8
         private const val ForegroundExecutionBudgetMillis = 5L * 60 * 60 * 1_000
         private const val ProfileId = "balanced-v1"
         private const val ExecutionWindowMillis = 10L * 60 * 1_000

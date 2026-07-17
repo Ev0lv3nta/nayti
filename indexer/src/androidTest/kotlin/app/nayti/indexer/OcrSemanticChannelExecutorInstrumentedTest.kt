@@ -19,6 +19,7 @@ import app.nayti.storage.VectorGenerationEntity
 import app.nayti.storage.VectorGenerationState
 import app.nayti.search.engine.fusion.TextFusionReason
 import java.io.File
+import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -111,6 +112,80 @@ class OcrSemanticChannelExecutorInstrumentedTest {
         assertEquals(OcrSemanticSearchStatus.READY, hybridResult.semanticStatus)
         assertEquals(TextFusionReason.SEMANTIC_TEXT, hybridResult.hits.single().evidence)
         assertEquals(AssetId, hybridResult.hits.single().assetId)
+
+        storage.vectorIndexDao.createGeneration(
+            generation().copy(generationId = CompactionGenerationId),
+        )
+        records.forEachIndexed { index, record ->
+            val lease = "semantic-compaction-lease-$index"
+            storage.indexStateDao.replaceWork(
+                runningWork(
+                    IndexChannel.OCR_SEMANTIC,
+                    OcrSemanticChannelExecutor.PipelineVersion,
+                    lease,
+                ),
+            )
+            val activeForPublication = checkNotNull(storage.vectorIndexDao.activeSnapshotId()).let { id ->
+                checkNotNull(storage.vectorIndexDao.snapshot(id))
+            }
+            VectorPublicationStore(vectorRoot, storage.vectorIndexDao, nowMillis = { now }).publish(
+                VectorPublicationRequest(
+                    publicationToken = "semantic-compaction-input-$index",
+                    generationId = CompactionGenerationId,
+                    manifestRevision = "semantic-compaction-input-manifest-$index",
+                    snapshotId = "semantic-compaction-input-snapshot-$index",
+                    leaseTokens = listOf(lease),
+                    records =
+                        listOf(
+                            PublishedVectorRecord(
+                                recordId = record.recordId,
+                                assetId = record.assetId,
+                                chunkOrdinal = record.chunkOrdinal,
+                                sourceFingerprint = record.sourceFingerprint,
+                                vector = engine.encodeDocument("compaction input $index"),
+                                semanticChunkId = record.semanticChunkId,
+                            ),
+                        ),
+                    rankingConfigVersion = activeForPublication.rankingConfigVersion,
+                    lexicalPublicationEpoch = activeForPublication.lexicalPublicationEpoch,
+                    pHashPublicationEpoch = activeForPublication.pHashPublicationEpoch,
+                    catalogWatermark = activeForPublication.catalogWatermark,
+                ),
+            )
+        }
+        val beforeCompaction = checkNotNull(storage.vectorIndexDao.activeSnapshotId()).let { id ->
+            checkNotNull(storage.vectorIndexDao.snapshot(id))
+        }
+        val compacted =
+            VectorCompactionStore(vectorRoot, storage.vectorIndexDao, nowMillis = { now }).compact(
+                VectorCompactionRequest(
+                    compactionToken = "semantic-compaction",
+                    generationId = CompactionGenerationId,
+                    firstSegmentOrdinal = 0,
+                    segmentCount = 2,
+                    manifestRevision = "semantic-compacted-manifest",
+                    snapshotId = "semantic-compacted-snapshot",
+                    rankingConfigVersion = beforeCompaction.rankingConfigVersion,
+                    lexicalPublicationEpoch = beforeCompaction.lexicalPublicationEpoch,
+                    pHashPublicationEpoch = beforeCompaction.pHashPublicationEpoch,
+                    catalogWatermark = beforeCompaction.catalogWatermark,
+                    segmentId = UUID.nameUUIDFromBytes("semantic-compacted-segment".encodeToByteArray()),
+                ),
+            )
+        val compactedManifest = checkNotNull(compacted.semanticManifestRevision).let { revision ->
+            checkNotNull(storage.vectorIndexDao.manifest(revision))
+        }
+        val compactedSegment = storage.vectorIndexDao.manifestSegments(compactedManifest.revision).single().let { entry ->
+            checkNotNull(storage.vectorIndexDao.segment(entry.segmentSha256))
+        }
+        val compactedRecords = storage.vectorIndexDao.segmentRecords(compactedSegment.sha256)
+        assertEquals(1, compactedSegment.compactionLevel)
+        assertEquals(2, compactedRecords.size)
+        assertTrue(compactedRecords.all { it.semanticChunkId != null })
+        assertEquals(
+            OcrSemanticSearchStatus.READY,
+            search.search("European revenue").status,
+        )
 
         storage.catalogDao.recordAccessObservation("Full", AccessRevision + 1, now + 1)
         assertTrue(
@@ -365,6 +440,7 @@ class OcrSemanticChannelExecutorInstrumentedTest {
         const val PackVersion = "0.1.0-alpha.2"
         const val OcrPipelineVersion = "ocr-v1"
         const val GenerationId = "semantic-generation-1"
+        const val CompactionGenerationId = "semantic-generation-compaction"
         const val Dimension = 384
         const val Fingerprint = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         const val ComponentHash = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"

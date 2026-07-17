@@ -5,5 +5,5 @@ object StorageContract {
     const val ModelPackDirectory: String = "model-packs"
     const val VectorIndexDirectory: String = "vector-index"
     const val InitialSchemaVersion: Int = 1
-    const val CurrentSchemaVersion: Int = 2
+    const val CurrentSchemaVersion: Int = 3
 }

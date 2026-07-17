@@ -694,6 +694,7 @@ interface VectorIndexDao {
         require(segment.embeddingSpaceHash == generation.embeddingSpaceHash)
         require(segment.dimension == generation.dimension)
         require(segment.recordCount in 1..MaximumSegmentRecords)
+        require(segment.compactionLevel >= 0)
         require(records.size == segment.recordCount)
         require(records.map(VectorSegmentRecordEntity::ordinal) == records.indices.toList())
         require(records.all { record ->

@@ -45,6 +45,7 @@ data class VectorSegmentArtifactEntity(
     val dimension: Int,
     val recordCount: Int,
     val createdAtMillis: Long,
+    val compactionLevel: Int = 0,
 )
 
 @Entity(

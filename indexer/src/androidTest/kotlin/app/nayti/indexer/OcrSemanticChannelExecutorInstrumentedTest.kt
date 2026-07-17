@@ -84,6 +84,23 @@ class OcrSemanticChannelExecutorInstrumentedTest {
                 maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
             )
         assertEquals(records.map { it.recordId }.sorted(), evidence.map { it.recordId }.sorted())
+        val search =
+            OcrSemanticSearch(
+                vectors = storage.vectorIndexDao,
+                semantic = storage.ocrSemanticDao,
+                vectorRoot = vectorRoot,
+                sessions = SemanticQuerySessionFactory { contract -> FixedQuerySession(contract) },
+                clock = { now },
+                leaseTokens = { "semantic-query-test" },
+            )
+        val searchResult = search.search("European revenue")
+        assertEquals(OcrSemanticSearchStatus.READY, searchResult.status)
+        assertEquals(snapshot.snapshotId, searchResult.snapshotId)
+        assertEquals(1, searchResult.hits.size)
+        assertEquals(AssetId, searchResult.hits.single().assetId)
+        assertTrue(searchResult.hits.single().matchedLineOrdinals.isNotEmpty())
+        assertNull(storage.vectorIndexDao.queryLease("semantic-query-test"))
+
         storage.catalogDao.recordAccessObservation("Full", AccessRevision + 1, now + 1)
         assertTrue(
             storage.vectorIndexDao.currentSemanticEvidence(
@@ -311,6 +328,20 @@ class OcrSemanticChannelExecutorInstrumentedTest {
             encodedTexts += text
             return ByteArray(Dimension) { index -> ((text.length + index) % 127 + 1).toByte() }
         }
+    }
+
+    private class FixedQuerySession(
+        contract: SemanticQueryContract,
+    ) : SemanticQuerySession {
+        override val embeddingSpaceHash: String = contract.embeddingSpaceHash
+        override val dimension: Int = contract.dimension
+
+        override fun encodeQuery(text: String): ByteArray {
+            check(text == "European revenue")
+            return ByteArray(dimension) { 1 }
+        }
+
+        override fun close() = Unit
     }
 
     private class SequentialIds : IndexIdFactory {

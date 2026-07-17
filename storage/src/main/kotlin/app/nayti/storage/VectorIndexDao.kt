@@ -198,6 +198,12 @@ interface VectorIndexDao {
     @Query("DELETE FROM query_snapshot_lease WHERE leaseToken = :leaseToken")
     suspend fun releaseQueryLease(leaseToken: String): Int
 
+    @Query(
+        "UPDATE query_snapshot_lease SET expiresAtMillis = :expiresAtMillis " +
+            "WHERE leaseToken = :leaseToken AND expiresAtMillis > :nowMillis",
+    )
+    suspend fun renewQueryLeaseRow(leaseToken: String, nowMillis: Long, expiresAtMillis: Long): Int
+
     @Query("DELETE FROM query_snapshot_lease WHERE expiresAtMillis <= :nowMillis")
     suspend fun expireQueryLeases(nowMillis: Long): Int
 
@@ -467,6 +473,42 @@ interface VectorIndexDao {
         check(access.accessScope != "None" && access.processAccessRevision == lease.accessRevision)
         replaceQueryLease(lease)
         check(queryLease(lease.leaseToken) == lease)
+    }
+
+    @Transaction
+    suspend fun acquireCurrentSnapshotLease(
+        leaseToken: String,
+        nowMillis: Long,
+        expiresAtMillis: Long,
+    ): QuerySnapshotLeaseEntity? {
+        require(identifier(leaseToken))
+        require(expiresAtMillis in (nowMillis + 1)..Math.addExact(nowMillis, MaximumQueryLeaseMillis))
+        val snapshotId = activeSnapshotId() ?: return null
+        val access = accessObservation() ?: return null
+        if (access.accessScope == "None" || access.processAccessRevision <= 0) return null
+        return QuerySnapshotLeaseEntity(
+            leaseToken = leaseToken,
+            snapshotId = snapshotId,
+            accessRevision = access.processAccessRevision,
+            createdAtMillis = nowMillis,
+            expiresAtMillis = expiresAtMillis,
+        ).also { lease -> acquireActiveSnapshotLease(lease, nowMillis) }
+    }
+
+    @Transaction
+    suspend fun renewCurrentSnapshotLease(
+        leaseToken: String,
+        nowMillis: Long,
+        expiresAtMillis: Long,
+    ): Boolean {
+        require(identifier(leaseToken))
+        require(expiresAtMillis in (nowMillis + 1)..Math.addExact(nowMillis, MaximumQueryLeaseMillis))
+        val lease = queryLease(leaseToken) ?: return false
+        if (lease.expiresAtMillis <= nowMillis) return false
+        val access = accessObservation() ?: return false
+        if (access.accessScope == "None" || access.processAccessRevision != lease.accessRevision) return false
+        check(renewQueryLeaseRow(leaseToken, nowMillis, expiresAtMillis) == 1)
+        return true
     }
 
     @Transaction

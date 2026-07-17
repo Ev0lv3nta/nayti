@@ -1,0 +1,50 @@
+package app.nayti.storage
+
+import android.content.Context
+import androidx.room3.Database
+import androidx.room3.Room
+import androidx.room3.RoomDatabase
+import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import kotlinx.coroutines.Dispatchers
+
+@Database(
+    entities = [
+        CatalogAssetEntity::class,
+        CatalogVolumeEntity::class,
+        CatalogInventoryRunEntity::class,
+        CatalogAccessObservationEntity::class,
+        CatalogWatermarkEntity::class,
+    ],
+    version = StorageContract.InitialSchemaVersion,
+    exportSchema = true,
+)
+abstract class NaytiDatabase : RoomDatabase() {
+    abstract fun catalogDao(): CatalogDao
+
+    companion object {
+        fun open(context: Context): NaytiDatabase =
+            Room.databaseBuilder(
+                context.applicationContext,
+                NaytiDatabase::class.java,
+                StorageContract.DatabaseFileName,
+            ).setDriver(BundledSQLiteDriver())
+                .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
+                .setMultipleConnectionPool(maxNumOfReaders = 4, maxNumOfWriters = 1)
+                .setQueryCoroutineContext(Dispatchers.IO)
+                .build()
+    }
+}
+
+class CatalogStorage private constructor(
+    private val database: NaytiDatabase,
+) : AutoCloseable {
+    val catalogDao: CatalogDao = database.catalogDao()
+
+    override fun close() {
+        database.close()
+    }
+
+    companion object {
+        fun open(context: Context): CatalogStorage = CatalogStorage(NaytiDatabase.open(context))
+    }
+}

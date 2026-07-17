@@ -208,15 +208,25 @@ class OcrSemanticSearch(
                         ),
                     ) { "Semantic query snapshot lease expired or lost access" }
                 }
+                val eligibleRecordIds =
+                    vectors.currentEligibleSemanticRecordIds(
+                        manifestRevision = manifestRevision,
+                        segmentSha256 = artifact.sha256,
+                        semanticPipelineVersion = generation.pipelineVersion,
+                        componentHash = generation.componentHash,
+                        maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
+                    )
+                if (eligibleRecordIds.isEmpty()) return@forEachIndexed
                 val file = safeArtifactPath(artifact.relativePath)
                 NativeVectorIndex.exactTopK(
                     path = file.toString(),
                     expectedLength = artifact.byteLength,
                     expectedSha256 = artifact.sha256.hexToBytes(),
                     query = queryVector,
-                    k = minOf(MaximumNativeCandidates, artifact.recordCount),
+                    k = minOf(MaximumNativeCandidates, eligibleRecordIds.size),
                     channel = VectorSegmentChannel.OCR_SEMANTIC,
                     embeddingSpaceHash = generation.embeddingSpaceHash.hexToBytes(),
+                    eligibleRecordIds = eligibleRecordIds.toLongArray(),
                 ).forEach { hit ->
                     candidates.retain(
                         NativeCandidate(

@@ -3,6 +3,7 @@
 #include "exact_search.hpp"
 #include "mapped_segment.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -56,6 +57,14 @@ bool decode_channel(jint code, nayti::search::Channel *channel) {
   default:
     return false;
   }
+}
+
+bool eligible_record(const nayti::search::RecordMetadata &record,
+                     void *context) {
+  const auto *record_ids =
+      static_cast<const std::vector<std::uint64_t> *>(context);
+  return std::binary_search(record_ids->begin(), record_ids->end(),
+                            record.record_id);
 }
 
 std::uint32_t next_random(std::uint32_t *state) {
@@ -130,9 +139,10 @@ extern "C" JNIEXPORT jlongArray JNICALL
 Java_app_nayti_search_engine_NativeVectorIndex_exactTopKPacked(
     JNIEnv *environment, jobject, jstring path, jlong expected_length,
     jbyteArray expected_sha256, jbyteArray query, jint k, jint channel_code,
-    jbyteArray embedding_space_hash) {
+    jbyteArray embedding_space_hash, jlongArray eligible_record_ids) {
   if (expected_length <= 0 || query == nullptr || k <= 0 ||
-      static_cast<std::size_t>(k) > nayti::search::kMaxTopK) {
+      static_cast<std::size_t>(k) > nayti::search::kMaxTopK ||
+      eligible_record_ids == nullptr) {
     return nullptr;
   }
   const jsize query_length = environment->GetArrayLength(query);
@@ -162,6 +172,28 @@ Java_app_nayti_search_engine_NativeVectorIndex_exactTopKPacked(
     native_query[index] = static_cast<std::int8_t>(java_query[index]);
   }
 
+  const jsize eligible_count = environment->GetArrayLength(eligible_record_ids);
+  if (eligible_count <= 0 || k > eligible_count ||
+      static_cast<std::size_t>(eligible_count) > nayti::search::kMaxRecordCount) {
+    return nullptr;
+  }
+  std::vector<jlong> java_eligible(static_cast<std::size_t>(eligible_count));
+  environment->GetLongArrayRegion(eligible_record_ids, 0, eligible_count,
+                                  java_eligible.data());
+  if (environment->ExceptionCheck()) {
+    return nullptr;
+  }
+  std::vector<std::uint64_t> native_eligible;
+  native_eligible.reserve(java_eligible.size());
+  for (const auto record_id : java_eligible) {
+    if (record_id <= 0 ||
+        (!native_eligible.empty() &&
+         static_cast<std::uint64_t>(record_id) <= native_eligible.back())) {
+      return nullptr;
+    }
+    native_eligible.push_back(static_cast<std::uint64_t>(record_id));
+  }
+
   auto mapped = nayti::search::map_segment(
       native_path, static_cast<std::uint64_t>(expected_length), segment_hash);
   if (!mapped) {
@@ -171,7 +203,8 @@ Java_app_nayti_search_engine_NativeVectorIndex_exactTopKPacked(
                                           static_cast<std::size_t>(k), channel,
                                           embedding_hash);
   if (scanner.status() != nayti::search::ScanError::kNone ||
-      scanner.scan(mapped.mapped->segment()) !=
+      scanner.scan(mapped.mapped->segment(), eligible_record,
+                   &native_eligible) !=
           nayti::search::ScanError::kNone) {
     return nullptr;
   }

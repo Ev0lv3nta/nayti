@@ -12,7 +12,8 @@ namespace nayti::search {
 
 inline constexpr std::size_t kMaxTopK = 512;
 
-using EligibilityFilter = bool (*)(std::uint64_t asset_id, void *context);
+using EligibilityFilter = bool (*)(const RecordMetadata &record,
+                                   void *context);
 
 struct SearchHit {
   std::uint64_t record_id;

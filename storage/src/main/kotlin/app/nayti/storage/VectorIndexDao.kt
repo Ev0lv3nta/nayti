@@ -124,6 +124,51 @@ interface VectorIndexDao {
         maximumPublicationEpoch: Long,
     ): List<SemanticVectorEvidence>
 
+    @Query(
+        "SELECT vectorRecord.recordId FROM vector_segment_record AS vectorRecord " +
+            "INNER JOIN vector_manifest_segment AS manifestSegment " +
+            "ON manifestSegment.segmentSha256 = vectorRecord.segmentSha256 " +
+            "INNER JOIN ocr_semantic_chunk AS chunk ON chunk.chunkId = vectorRecord.semanticChunkId " +
+            "INNER JOIN ocr_document AS document ON document.assetId = chunk.assetId " +
+            "INNER JOIN catalog_asset AS asset ON asset.assetId = chunk.assetId " +
+            "INNER JOIN index_channel_work AS semanticWork " +
+            "ON semanticWork.assetId = chunk.assetId AND semanticWork.channel = 'OCR_SEMANTIC' " +
+            "INNER JOIN index_channel_work AS ocrWork " +
+            "ON ocrWork.assetId = chunk.assetId AND ocrWork.channel = 'OCR' " +
+            "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
+            "WHERE manifestSegment.manifestRevision = :manifestRevision " +
+            "AND vectorRecord.segmentSha256 = :segmentSha256 " +
+            "AND vectorRecord.assetId = chunk.assetId " +
+            "AND vectorRecord.sourceFingerprint = chunk.sourceFingerprint " +
+            "AND vectorRecord.chunkOrdinal = chunk.ordinal " +
+            "AND chunk.ocrPublicationToken = document.publicationToken " +
+            "AND chunk.sourceFingerprint = document.sourceFingerprint " +
+            "AND asset.availability = 'AVAILABLE' " +
+            "AND asset.sourceFingerprint = document.sourceFingerprint " +
+            "AND semanticWork.state = 'DONE' " +
+            "AND semanticWork.sourceFingerprint = document.sourceFingerprint " +
+            "AND semanticWork.accessRevision = access.processAccessRevision " +
+            "AND semanticWork.pipelineVersion = :semanticPipelineVersion " +
+            "AND semanticWork.componentHash = :componentHash " +
+            "AND ocrWork.state = 'DONE' " +
+            "AND ocrWork.sourceFingerprint = document.sourceFingerprint " +
+            "AND ocrWork.accessRevision = document.accessRevision " +
+            "AND ocrWork.pipelineVersion = document.pipelineVersion " +
+            "AND ocrWork.componentHash = document.componentHash " +
+            "AND document.accessRevision = access.processAccessRevision " +
+            "AND document.componentHash = :componentHash " +
+            "AND document.publicationEpoch <= :maximumPublicationEpoch " +
+            "AND access.accessScope != 'None' " +
+            "ORDER BY vectorRecord.recordId",
+    )
+    suspend fun semanticEligibleRecordIds(
+        manifestRevision: String,
+        segmentSha256: String,
+        semanticPipelineVersion: String,
+        componentHash: String,
+        maximumPublicationEpoch: Long,
+    ): List<Long>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertManifest(manifest: VectorManifestEntity)
 
@@ -540,6 +585,31 @@ interface VectorIndexDao {
                     row.chunkOrdinal >= 0 &&
                     row.publicationEpoch in 0..maximumPublicationEpoch
             })
+        }
+    }
+
+    @Transaction
+    suspend fun currentEligibleSemanticRecordIds(
+        manifestRevision: String,
+        segmentSha256: String,
+        semanticPipelineVersion: String,
+        componentHash: String,
+        maximumPublicationEpoch: Long,
+    ): List<Long> {
+        require(identifier(manifestRevision) && sha256(segmentSha256))
+        require(contractValue(semanticPipelineVersion) && sha256(componentHash))
+        require(maximumPublicationEpoch >= 0)
+        val manifest = checkNotNull(manifest(manifestRevision))
+        check(manifest.channel == IndexChannel.OCR_SEMANTIC)
+        return semanticEligibleRecordIds(
+            manifestRevision = manifestRevision,
+            segmentSha256 = segmentSha256,
+            semanticPipelineVersion = semanticPipelineVersion,
+            componentHash = componentHash,
+            maximumPublicationEpoch = maximumPublicationEpoch,
+        ).also { recordIds ->
+            check(recordIds.size <= MaximumSegmentRecords)
+            check(recordIds.all { it > 0 } && recordIds.zipWithNext().all { (left, right) -> left < right })
         }
     }
 

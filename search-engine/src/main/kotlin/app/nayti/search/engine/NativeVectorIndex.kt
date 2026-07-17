@@ -30,6 +30,7 @@ object NativeVectorIndex {
         k: Int,
         channel: VectorSegmentChannel,
         embeddingSpaceHash: ByteArray,
+        eligibleRecordIds: LongArray,
     ): List<NativeVectorSearchHit> {
         require(path.isNotBlank())
         require(expectedLength > 0)
@@ -37,6 +38,14 @@ object NativeVectorIndex {
         require(query.size in 1..VectorSegmentV1Writer.MaximumDimension)
         require(k in 1..MaximumTopK)
         require(embeddingSpaceHash.size == Sha256ByteCount && embeddingSpaceHash.any { it != 0.toByte() })
+        require(eligibleRecordIds.isNotEmpty() && eligibleRecordIds.size <= VectorSegmentV1Writer.MaximumRecordCount)
+        require(k <= eligibleRecordIds.size)
+        require(
+            eligibleRecordIds.all { it > 0 } &&
+                (1 until eligibleRecordIds.size).all { index ->
+                    eligibleRecordIds[index - 1] < eligibleRecordIds[index]
+                },
+        )
 
         val packed = checkNotNull(
             exactTopKPacked(
@@ -47,6 +56,7 @@ object NativeVectorIndex {
                 k = k,
                 channelCode = channel.code.toInt(),
                 embeddingSpaceHash = embeddingSpaceHash,
+                eligibleRecordIds = eligibleRecordIds,
             ),
         ) { "Native exact top-K scan rejected the segment or query contract" }
         check(packed.size % PackedHitFieldCount == 0)
@@ -84,5 +94,6 @@ object NativeVectorIndex {
         k: Int,
         channelCode: Int,
         embeddingSpaceHash: ByteArray,
+        eligibleRecordIds: LongArray,
     ): LongArray?
 }

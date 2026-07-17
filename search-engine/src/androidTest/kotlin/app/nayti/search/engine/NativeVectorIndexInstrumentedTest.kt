@@ -65,12 +65,13 @@ class NativeVectorIndexInstrumentedTest {
                 k = 2,
                 channel = VectorSegmentChannel.OCR_SEMANTIC,
                 embeddingSpaceHash = embeddingHash,
+                eligibleRecordIds = longArrayOf(101, 103),
             )
 
             assertEquals(
                 listOf(
-                    NativeVectorSearchHit(recordId = 102, assetId = 42, ordinal = 0, score = 6),
                     NativeVectorSearchHit(recordId = 103, assetId = 43, ordinal = 0, score = 6),
+                    NativeVectorSearchHit(recordId = 101, assetId = 41, ordinal = 0, score = 4),
                 ),
                 hits,
             )
@@ -84,6 +85,7 @@ class NativeVectorIndexInstrumentedTest {
                         k = 2,
                         channel = VectorSegmentChannel.OCR_SEMANTIC,
                         embeddingSpaceHash = ByteArray(32) { 0x6b },
+                        eligibleRecordIds = longArrayOf(101, 102, 103),
                     )
                 }.isFailure,
             )

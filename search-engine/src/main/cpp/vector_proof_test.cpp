@@ -215,10 +215,10 @@ void test_golden_and_corruption() {
                "trailing byte is rejected");
 }
 
-bool keep_odd_assets(std::uint64_t asset_id, void *context) {
+bool keep_odd_records(const RecordMetadata &record, void *context) {
   auto *calls = static_cast<std::size_t *>(context);
   ++*calls;
-  return asset_id % 2U == 1U;
+  return record.record_id % 2U == 1U;
 }
 
 bool better(const SearchHit &left, const SearchHit &right) {
@@ -241,7 +241,7 @@ void test_top_k_contract() {
       query, 2, parsed.segment->channel(),
       parsed.segment->embedding_space_hash());
   std::size_t filter_calls = 0;
-  expect(scanner.scan(*parsed.segment, keep_odd_assets, &filter_calls) ==
+  expect(scanner.scan(*parsed.segment, keep_odd_records, &filter_calls) ==
              nayti::search::ScanError::kNone,
          "eligible segment scans");
   const auto results = scanner.results();

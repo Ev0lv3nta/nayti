@@ -23,6 +23,10 @@ import kotlinx.coroutines.Dispatchers
         IndexChannelPublicationEntity::class,
         IndexPublicationClockEntity::class,
         IndexErrorLedgerEntity::class,
+        OcrDocumentEntity::class,
+        OcrRegionEntity::class,
+        OcrLexicalFtsEntity::class,
+        OcrTrigramFtsEntity::class,
         VectorGenerationEntity::class,
         VectorSegmentArtifactEntity::class,
         VectorSegmentRecordEntity::class,
@@ -41,6 +45,7 @@ abstract class NaytiDatabase : RoomDatabase() {
     abstract fun catalogDao(): CatalogDao
     abstract fun modelPackDao(): ModelPackDao
     abstract fun indexStateDao(): IndexStateDao
+    abstract fun ocrDao(): OcrDao
     abstract fun vectorIndexDao(): VectorIndexDao
 
     companion object {
@@ -63,6 +68,7 @@ class CatalogStorage private constructor(
     val catalogDao: CatalogDao = database.catalogDao()
     val modelPackDao: ModelPackDao = database.modelPackDao()
     val indexStateDao: IndexStateDao = database.indexStateDao()
+    val ocrDao: OcrDao = database.ocrDao()
     val vectorIndexDao: VectorIndexDao = database.vectorIndexDao()
 
     override fun close() {

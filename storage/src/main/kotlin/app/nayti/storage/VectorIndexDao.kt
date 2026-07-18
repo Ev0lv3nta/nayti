@@ -370,6 +370,19 @@ interface VectorIndexDao {
     @Query("SELECT * FROM vector_publication WHERE state = 'STAGED' ORDER BY createdAtMillis")
     suspend fun stagedPublications(): List<VectorPublicationEntity>
 
+    @Query(
+        "SELECT publication.* FROM vector_publication AS publication " +
+            "INNER JOIN vector_manifest AS manifest ON manifest.revision = publication.manifestRevision " +
+            "WHERE publication.snapshotId = :snapshotId AND publication.channel = :channel " +
+            "AND publication.state = 'DONE' " +
+            "ORDER BY manifest.segmentCount DESC, publication.createdAtMillis DESC, publication.publicationToken DESC " +
+            "LIMIT 1",
+    )
+    suspend fun latestCompletedPublication(
+        snapshotId: String,
+        channel: String,
+    ): VectorPublicationEntity?
+
     @Upsert
     suspend fun replaceQueryLease(lease: QuerySnapshotLeaseEntity)
 

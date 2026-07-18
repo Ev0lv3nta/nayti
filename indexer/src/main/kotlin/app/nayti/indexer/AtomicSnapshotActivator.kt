@@ -27,18 +27,57 @@ fun interface ActivationCandidateVerifier {
     )
 }
 
+interface CandidateActivationGateway {
+    suspend fun candidate(candidateId: String): ActivationCandidateEntity?
+
+    suspend fun plan(candidateId: String): List<ActivationCandidateChannelEntity>
+
+    suspend fun activePointer(): ActiveSnapshotPointerEntity?
+
+    suspend fun reconcileCatalogWatermark(
+        candidateId: String,
+        expectedWatermark: Long,
+        nextWatermark: Long,
+    ): ActivationCandidateEntity
+
+    suspend fun register(
+        candidateId: String,
+        snapshotId: String,
+        pack: ModelPackEntity,
+        targetChannels: List<ActivationSnapshotChannelEntity>? = null,
+    ): ActivationCandidateEntity
+
+    suspend fun markReady(
+        candidateId: String,
+        snapshot: ActivationSnapshotEntity,
+        channels: List<ActivationSnapshotChannelEntity>? = null,
+    ): ActivationSnapshotEntity
+
+    suspend fun activate(candidateId: String): ActiveSnapshotPointerEntity
+
+    suspend fun reject(candidateId: String, failureCode: String): Boolean
+}
+
 /** Coordinates validated shadow snapshots without ever mutating the currently query-active index. */
 class AtomicSnapshotActivator(
     private val vectors: VectorIndexDao,
     private val verifier: ActivationCandidateVerifier,
     private val clock: () -> Long = System::currentTimeMillis,
     private val boundaryObserver: (ActivationBoundary) -> Unit = {},
-) {
-    suspend fun register(
+) : CandidateActivationGateway {
+    override suspend fun candidate(candidateId: String): ActivationCandidateEntity? =
+        vectors.activationCandidate(candidateId)
+
+    override suspend fun plan(candidateId: String): List<ActivationCandidateChannelEntity> =
+        vectors.activationCandidateChannels(candidateId)
+
+    override suspend fun activePointer(): ActiveSnapshotPointerEntity? = vectors.activePointer()
+
+    override suspend fun register(
         candidateId: String,
         snapshotId: String,
         pack: ModelPackEntity,
-        targetChannels: List<ActivationSnapshotChannelEntity>? = null,
+        targetChannels: List<ActivationSnapshotChannelEntity>?,
     ): ActivationCandidateEntity {
         val now = clock()
         val access = checkNotNull(vectors.accessObservation())
@@ -95,10 +134,10 @@ class AtomicSnapshotActivator(
         return candidate
     }
 
-    suspend fun markReady(
+    override suspend fun markReady(
         candidateId: String,
         snapshot: ActivationSnapshotEntity,
-        channels: List<ActivationSnapshotChannelEntity>? = null,
+        channels: List<ActivationSnapshotChannelEntity>?,
     ): ActivationSnapshotEntity {
         val candidate = checkNotNull(vectors.activationCandidate(candidateId))
         val preparedChannels =
@@ -120,7 +159,7 @@ class AtomicSnapshotActivator(
         return ready
     }
 
-    suspend fun reconcileCatalogWatermark(
+    override suspend fun reconcileCatalogWatermark(
         candidateId: String,
         expectedWatermark: Long,
         nextWatermark: Long,
@@ -136,7 +175,7 @@ class AtomicSnapshotActivator(
         return reconciled
     }
 
-    suspend fun activate(candidateId: String): ActiveSnapshotPointerEntity {
+    override suspend fun activate(candidateId: String): ActiveSnapshotPointerEntity {
         boundaryObserver(ActivationBoundary.BEFORE_POINTER_COMMIT)
         val pointer = vectors.activateReadyCandidate(candidateId, clock())
         boundaryObserver(ActivationBoundary.AFTER_POINTER_COMMIT)
@@ -149,7 +188,7 @@ class AtomicSnapshotActivator(
         return pointer
     }
 
-    suspend fun reject(candidateId: String, failureCode: String): Boolean =
+    override suspend fun reject(candidateId: String, failureCode: String): Boolean =
         vectors.rejectActivationCandidate(candidateId, failureCode, clock())
 
     private companion object {

@@ -48,6 +48,8 @@ object OcrExecutionHost {
     const val UserForegroundService = "USER_FGS"
 }
 
+class IndexExecutionGate(internal val mutex: Mutex = Mutex())
+
 class OcrIndexingRuntime(
     private val storage: CatalogStorage,
     private val packResolver: InstalledOcrPackResolver,
@@ -59,13 +61,14 @@ class OcrIndexingRuntime(
     private val resourceGovernor: IndexResourceGovernor =
         IndexResourceGovernor { IndexResourceDecision(canContinue = true) },
     private val neuralLane: NeuralExecutionLane = NeuralExecutionLane(),
+    executionGate: IndexExecutionGate = IndexExecutionGate(),
 ) {
     private val running = AtomicBoolean(false)
     private val continueExecution = AtomicBoolean(false)
     private val activeHostType = AtomicReference<String?>(null)
     private val currentOperationId = AtomicReference<String?>(null)
     private val currentPack = AtomicReference<ModelPackEntity?>(null)
-    private val executionMutex = Mutex()
+    private val executionMutex = executionGate.mutex
     private val mutableState = MutableStateFlow(EmptyState)
 
     val state: StateFlow<OcrIndexingState> = mutableState.asStateFlow()

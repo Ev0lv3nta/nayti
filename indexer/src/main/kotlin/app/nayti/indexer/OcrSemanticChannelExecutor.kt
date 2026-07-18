@@ -7,6 +7,7 @@ import app.nayti.storage.IndexChannel
 import app.nayti.storage.IndexStateDao
 import app.nayti.storage.IndexWorkState
 import app.nayti.storage.OcrSemanticDao
+import app.nayti.storage.VectorIndexDao
 import java.lang.Long.parseUnsignedLong
 
 interface SemanticEmbeddingEngine {
@@ -38,6 +39,28 @@ class VectorStoreSemanticPublisher(
     override suspend fun publish(request: VectorPublicationRequest): SemanticVectorPublicationResult =
         try {
             store.publish(request)
+            SemanticVectorPublicationResult.PUBLISHED
+        } catch (_: VectorPublicationLeaseRejectedException) {
+            SemanticVectorPublicationResult.LEASE_REJECTED
+        }
+}
+
+class ShadowVectorStoreSemanticPublisher(
+    private val store: VectorPublicationStore,
+    private val vectors: VectorIndexDao,
+    private val candidateSnapshotId: String,
+) : SemanticVectorPublisher {
+    override suspend fun publish(request: VectorPublicationRequest): SemanticVectorPublicationResult =
+        try {
+            val parent = vectors.latestCompletedPublication(candidateSnapshotId, IndexChannel.OCR_SEMANTIC)
+            store.publishShadow(
+                request =
+                    request.copy(
+                        manifestRevision = "candidate-semantic-${request.publicationToken}",
+                        snapshotId = candidateSnapshotId,
+                    ),
+                parentManifestRevision = parent?.manifestRevision,
+            )
             SemanticVectorPublicationResult.PUBLISHED
         } catch (_: VectorPublicationLeaseRejectedException) {
             SemanticVectorPublicationResult.LEASE_REJECTED

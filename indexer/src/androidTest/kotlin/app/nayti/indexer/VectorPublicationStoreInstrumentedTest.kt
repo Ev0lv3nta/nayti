@@ -597,13 +597,14 @@ class VectorPublicationStoreInstrumentedTest {
                 ComponentHash,
             ).size,
         )
-        val firstShadowManifest =
-            store().publishShadow(
+        val shadowPublisher =
+            ShadowVectorStoreVisualPublisher(store(), storage.vectorIndexDao, candidate.snapshotId)
+        assertEquals(
+            VisualVectorPublicationResult.PUBLISHED,
+            shadowPublisher.publish(
                 request(107, assetId, shadowLease).copy(
                     publicationToken = "publication-shadow",
                     generationId = shadowGeneration.generationId,
-                    manifestRevision = "manifest-shadow",
-                    snapshotId = candidate.snapshotId,
                     records =
                         listOf(
                             PublishedVectorRecord(
@@ -616,21 +617,24 @@ class VectorPublicationStoreInstrumentedTest {
                             ),
                         ),
                 ),
-                parentManifestRevision = null,
-            )
+            ),
+        )
+        val firstShadowManifest =
+            checkNotNull(
+                storage.vectorIndexDao.latestCompletedPublication(candidate.snapshotId, IndexChannel.VISUAL),
+            ).let { publication -> checkNotNull(storage.vectorIndexDao.manifest(publication.manifestRevision)) }
         val deltaShadowLease =
             stageRunningWork(
                 assetId = deltaAssetId,
                 leaseToken = "shadow-visual-delta",
                 componentHash = ShadowComponentHash,
             )
-        val shadowManifest =
-            store().publishShadow(
+        assertEquals(
+            VisualVectorPublicationResult.PUBLISHED,
+            shadowPublisher.publish(
                 request(108, deltaAssetId, deltaShadowLease).copy(
                     publicationToken = "publication-shadow-delta",
                     generationId = shadowGeneration.generationId,
-                    manifestRevision = "manifest-shadow-delta",
-                    snapshotId = candidate.snapshotId,
                     records =
                         listOf(
                             PublishedVectorRecord(
@@ -643,8 +647,13 @@ class VectorPublicationStoreInstrumentedTest {
                             ),
                         ),
                 ),
-                parentManifestRevision = firstShadowManifest.revision,
-            )
+            ),
+        )
+        val shadowManifest =
+            checkNotNull(
+                storage.vectorIndexDao.latestCompletedPublication(candidate.snapshotId, IndexChannel.VISUAL),
+            ).let { publication -> checkNotNull(storage.vectorIndexDao.manifest(publication.manifestRevision)) }
+        assertEquals(firstShadowManifest.revision, shadowManifest.parentRevision)
         val reconciled =
             activator().reconcileCatalogWatermark(
                 candidateId = candidate.candidateId,

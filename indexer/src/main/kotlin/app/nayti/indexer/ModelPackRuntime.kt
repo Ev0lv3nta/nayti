@@ -39,7 +39,11 @@ class ModelPackRuntime(
     val state: StateFlow<ModelPackRuntimeState> = mutableState.asStateFlow()
 
     fun start() {
-        scope.launch { refresh() }
+        refresh()
+    }
+
+    fun refresh() {
+        scope.launch { refreshState() }
     }
 
     fun install(source: ModelPackSource) {
@@ -78,7 +82,7 @@ class ModelPackRuntime(
         }
     }
 
-    private suspend fun refresh() {
+    private suspend fun refreshState() {
         val active = activePack()
         val newest = newestInstalled()
         val installed = active ?: newest

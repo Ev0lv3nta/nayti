@@ -8,6 +8,7 @@ import app.nayti.search.engine.fusion.MultimodalVisualCandidate
 import app.nayti.search.engine.fusion.StrictMultimodalFusion
 import app.nayti.search.engine.fusion.TextFusionReason
 import app.nayti.storage.QuerySnapshotLeaseEntity
+import app.nayti.storage.IndexChannel
 import app.nayti.storage.VectorIndexDao
 import java.util.UUID
 
@@ -38,6 +39,8 @@ data class UnifiedSearchResult(
     val intent: MultimodalQueryIntent,
     val snapshotId: String?,
     val accessRevision: Long?,
+    val semanticGenerationId: String?,
+    val visualGenerationId: String?,
     val semanticStatus: OcrSemanticSearchStatus,
     val visualStatus: VisualTextSearchStatus?,
     val hits: List<UnifiedSearchHit>,
@@ -124,7 +127,16 @@ class UnifiedSearch(
             throw QueryConsistencyChangedException()
         }
 
-        return fuse(intent, lease.snapshotId, lease.accessRevision, textResult, visualResult, limit)
+        return fuse(
+            intent = intent,
+            snapshotId = lease.snapshotId,
+            accessRevision = lease.accessRevision,
+            semanticGenerationId = vectors.snapshotChannel(lease.snapshotId, IndexChannel.OCR_SEMANTIC)?.generationId,
+            visualGenerationId = vectors.snapshotChannel(lease.snapshotId, IndexChannel.VISUAL)?.generationId,
+            textResult = textResult,
+            visualResult = visualResult,
+            limit = limit,
+        )
     }
 
     private suspend fun searchWithoutSnapshot(
@@ -140,13 +152,15 @@ class UnifiedSearch(
         val visualResult = if (usesVisualRetriever) visual.search(query, MaximumRetrieverCandidates) else null
         val after = captureState()
         if (before != after) throw QueryConsistencyChangedException()
-        return fuse(intent, before.snapshotId, before.accessRevision, textResult, visualResult, limit)
+        return fuse(intent, before.snapshotId, before.accessRevision, null, null, textResult, visualResult, limit)
     }
 
     private fun fuse(
         intent: MultimodalQueryIntent,
         snapshotId: String?,
         accessRevision: Long?,
+        semanticGenerationId: String?,
+        visualGenerationId: String?,
         textResult: OcrHybridSearchResult,
         visualResult: VisualTextSearchResult?,
         limit: Int,
@@ -170,6 +184,8 @@ class UnifiedSearch(
             intent = intent,
             snapshotId = snapshotId,
             accessRevision = accessRevision,
+            semanticGenerationId = semanticGenerationId,
+            visualGenerationId = visualGenerationId,
             semanticStatus = textResult.semanticStatus,
             visualStatus = visualResult?.status,
             hits =

@@ -164,18 +164,21 @@ class OcrSemanticSearch(
                 manifestRevision = null,
                 lexicalPublicationEpoch = snapshot.lexicalPublicationEpoch,
                 accessRevision = lease.accessRevision,
-                componentHash = snapshot.packManifestSha256,
+                componentHash = null,
                 hits = emptyList(),
             )
+        val component = checkNotNull(vectors.snapshotChannel(snapshot.snapshotId, IndexChannel.OCR_SEMANTIC))
         val manifest = checkNotNull(vectors.manifest(manifestRevision))
         val generation = checkNotNull(vectors.generation(manifest.generationId))
         check(
             manifest.channel == IndexChannel.OCR_SEMANTIC &&
                 generation.channel == IndexChannel.OCR_SEMANTIC &&
                 generation.generationId == manifest.generationId &&
-                generation.packId == snapshot.packId &&
-                generation.packVersion == snapshot.packVersion &&
-                generation.componentHash == snapshot.packManifestSha256 &&
+                generation.generationId == component.generationId &&
+                generation.pipelineVersion == component.pipelineVersion &&
+                generation.componentHash == component.componentHash &&
+                generation.embeddingSpaceHash == component.embeddingSpaceHash &&
+                manifest.revision == component.manifestRevision &&
                 generation.state in setOf(VectorGenerationState.BUILDING, VectorGenerationState.SEALED),
         )
 
@@ -260,7 +263,7 @@ class OcrSemanticSearch(
                 manifestRevision,
                 snapshot.lexicalPublicationEpoch,
                 lease.accessRevision,
-                snapshot.packManifestSha256,
+                component.componentHash,
                 emptyList(),
             )
         }
@@ -294,7 +297,7 @@ class OcrSemanticSearch(
                 manifestRevision,
                 snapshot.lexicalPublicationEpoch,
                 lease.accessRevision,
-                snapshot.packManifestSha256,
+                component.componentHash,
                 emptyList(),
             )
         }
@@ -322,7 +325,7 @@ class OcrSemanticSearch(
             manifestRevision,
             snapshot.lexicalPublicationEpoch,
             lease.accessRevision,
-            snapshot.packManifestSha256,
+            component.componentHash,
             hits,
         )
     }

@@ -166,6 +166,26 @@ data class ActivationCandidateEntity(
 )
 
 @Entity(
+    tableName = "activation_snapshot_channel",
+    primaryKeys = ["snapshotId", "channel"],
+    indices = [
+        Index(value = ["manifestRevision"]),
+        Index(value = ["generationId"]),
+        Index(value = ["inheritedFromSnapshotId"]),
+    ],
+)
+data class ActivationSnapshotChannelEntity(
+    val snapshotId: String,
+    val channel: String,
+    val pipelineVersion: String,
+    val componentHash: String,
+    val embeddingSpaceHash: String?,
+    val generationId: String?,
+    val manifestRevision: String?,
+    val inheritedFromSnapshotId: String?,
+)
+
+@Entity(
     tableName = "query_snapshot_lease",
     primaryKeys = ["leaseToken"],
     indices = [Index(value = ["snapshotId", "expiresAtMillis"])],

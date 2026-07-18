@@ -151,7 +151,7 @@ object CatalogRuntimeModule {
     @Provides
     @Singleton
     fun providePerceptualHashSearch(storage: CatalogStorage): PerceptualHashSearch =
-        PerceptualHashSearch(storage.perceptualHashDao)
+        PerceptualHashSearch(storage.perceptualHashDao, storage.vectorIndexDao)
 
     @Provides
     @Singleton

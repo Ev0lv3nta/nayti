@@ -9,6 +9,7 @@ import app.nayti.storage.ActivationCandidateState
 import app.nayti.storage.CatalogAssetEntity
 import app.nayti.storage.CatalogAvailability
 import app.nayti.storage.CatalogStorage
+import app.nayti.storage.CatalogWatermarkEntity
 import app.nayti.storage.IndexChannel
 import app.nayti.storage.IndexChannelWorkEntity
 import app.nayti.storage.IndexWorkState
@@ -164,6 +165,7 @@ class VectorPublicationStoreInstrumentedTest {
                 createdAtMillis = now,
             )
         activator.markReady(candidate.candidateId, child)
+        assertFalse(VectorSnapshotGarbageCollector(root, storage.vectorIndexDao).collect(child.snapshotId, now))
         storage.vectorIndexDao.acquireActiveSnapshotLease(
             QuerySnapshotLeaseEntity(
                 leaseToken = "parent-query",
@@ -174,12 +176,32 @@ class VectorPublicationStoreInstrumentedTest {
             ),
             now,
         )
+        storage.vectorIndexDao.acquireActiveSnapshotLease(
+            QuerySnapshotLeaseEntity(
+                leaseToken = "parent-query-2",
+                snapshotId = parent.snapshotId,
+                accessRevision = AccessRevision,
+                createdAtMillis = now,
+                expiresAtMillis = now + 60_000,
+            ),
+            now,
+        )
 
         val activated = activator.activate(candidate.candidateId)
+        val newQuery =
+            checkNotNull(
+                storage.vectorIndexDao.acquireCurrentSnapshotLease(
+                    leaseToken = "child-query",
+                    nowMillis = now,
+                    expiresAtMillis = now + 60_000,
+                ),
+            )
 
         assertEquals(child.snapshotId, activated.snapshotId)
         assertEquals(parent.snapshotId, activated.rollbackSnapshotId)
         assertEquals(parent.snapshotId, storage.vectorIndexDao.queryLease("parent-query")?.snapshotId)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.queryLease("parent-query-2")?.snapshotId)
+        assertEquals(child.snapshotId, newQuery.snapshotId)
         assertFalse(VectorSnapshotGarbageCollector(root, storage.vectorIndexDao).collect(parent.snapshotId, now))
         assertEquals(ActivationCandidateState.ACTIVE, storage.vectorIndexDao.activationCandidate(candidate.candidateId)?.state)
 
@@ -216,6 +238,155 @@ class VectorPublicationStoreInstrumentedTest {
             ActivationCandidateState.READY_TO_ACTIVATE,
             storage.vectorIndexDao.activationCandidate(candidate.candidateId)?.state,
         )
+    }
+
+    @Test
+    fun catalogDeltaAfterCapturedCutoverRequiresReconciliationBeforeActivation() = runBlocking {
+        storage.catalogDao.replaceWatermark(CatalogWatermarkEntity(catalogRevision = 1, lastSuccessfulInventoryRunId = null, updatedAtMillis = now))
+        val assetId = insertAsset(1)
+        val parent = store().publish(request(105, assetId, stageRunningWork(assetId, "activation-cutover")))
+        now += 100
+        val activator = activator()
+        val candidate = activator.register("candidate-105", "candidate-snapshot-105", pack())
+        activator.markReady(
+            candidate.candidateId,
+            parent.copy(
+                snapshotId = candidate.snapshotId,
+                parentSnapshotId = parent.snapshotId,
+                capturedAccessRevision = AccessRevision,
+                catalogWatermark = candidate.capturedCatalogWatermark,
+                createdAtMillis = now,
+            ),
+        )
+        storage.catalogDao.replaceWatermark(
+            CatalogWatermarkEntity(catalogRevision = 2, lastSuccessfulInventoryRunId = null, updatedAtMillis = now + 1),
+        )
+
+        val failure = runCatching { activator.activate(candidate.candidateId) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(ActivationCandidateState.READY_TO_ACTIVATE, storage.vectorIndexDao.activationCandidate(candidate.candidateId)?.state)
+    }
+
+    @Test
+    fun activationFailpointsExposeEitherParentOrFullyCommittedChildAfterRestart() = runBlocking {
+        val assetId = insertAsset(1)
+        val parent = store().publish(request(103, assetId, stageRunningWork(assetId, "activation-failpoint")))
+        now += 100
+        val candidate = activator().register("candidate-103", "candidate-snapshot-103", pack())
+        val child =
+            parent.copy(
+                snapshotId = candidate.snapshotId,
+                parentSnapshotId = parent.snapshotId,
+                capturedAccessRevision = AccessRevision,
+                catalogWatermark = candidate.capturedCatalogWatermark,
+                createdAtMillis = now,
+            )
+        activator().markReady(candidate.candidateId, child)
+        val beforeCommit =
+            AtomicSnapshotActivator(
+                vectors = storage.vectorIndexDao,
+                verifier = ActivationCandidateVerifier { _, _ -> },
+                clock = { now },
+                boundaryObserver = { boundary ->
+                    if (boundary == ActivationBoundary.BEFORE_POINTER_COMMIT) throw SimulatedActivationDeath(boundary)
+                },
+            )
+
+        assertTrue(runCatching { beforeCommit.activate(candidate.candidateId) }.exceptionOrNull() is SimulatedActivationDeath)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(ActivationCandidateState.READY_TO_ACTIVATE, storage.vectorIndexDao.activationCandidate(candidate.candidateId)?.state)
+
+        val afterCommit =
+            AtomicSnapshotActivator(
+                vectors = storage.vectorIndexDao,
+                verifier = ActivationCandidateVerifier { _, _ -> },
+                clock = { now },
+                boundaryObserver = { boundary ->
+                    if (boundary == ActivationBoundary.AFTER_POINTER_COMMIT) throw SimulatedActivationDeath(boundary)
+                },
+            )
+        assertTrue(runCatching { afterCommit.activate(candidate.candidateId) }.exceptionOrNull() is SimulatedActivationDeath)
+        reopenStorage()
+        assertEquals(child.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(ActivationCandidateState.ACTIVE, storage.vectorIndexDao.activationCandidate(candidate.candidateId)?.state)
+
+        val recovery =
+            VectorIndexRecovery(root, storage.vectorIndexDao).recover(
+                nowMillis = now + 1,
+                orphanGraceMillis = 0,
+                deepVerifySegments = true,
+            )
+        assertEquals(child.snapshotId, recovery.activeAfter)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activePointer()?.rollbackSnapshotId)
+    }
+
+    @Test
+    fun futureSnapshotFormatAndChangedPackCannotReuseIncompatibleGeneration() = runBlocking {
+        val assetId = insertAsset(1)
+        val parent = store().publish(request(104, assetId, stageRunningWork(assetId, "activation-contract")))
+        now += 100
+        val future = activator().register("candidate-future", "candidate-snapshot-future", pack())
+        val futureFailure =
+            runCatching {
+                activator().markReady(
+                    future.candidateId,
+                    parent.copy(
+                        snapshotId = future.snapshotId,
+                        parentSnapshotId = parent.snapshotId,
+                        capturedAccessRevision = AccessRevision,
+                        catalogWatermark = future.capturedCatalogWatermark,
+                        createdAtMillis = now,
+                        formatVersion = 2,
+                    ),
+                )
+            }.exceptionOrNull()
+        assertTrue(futureFailure is IllegalStateException)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+
+        assertTrue(activator().reject(future.candidateId, "UNSUPPORTED_SNAPSHOT_FORMAT"))
+        val changedPack =
+            pack().copy(
+                packVersion = "0.1.0-alpha.2",
+                manifestSha256 = "e".repeat(64),
+                relativeDirectory = "model-packs/test-v2",
+                installedAtMillis = now,
+            )
+        storage.modelPackDao.registerInstalledCandidate(changedPack)
+        val changed = activator().register("candidate-changed", "candidate-snapshot-changed", changedPack)
+        val changedSnapshot =
+            parent.copy(
+                snapshotId = changed.snapshotId,
+                parentSnapshotId = parent.snapshotId,
+                packVersion = changedPack.packVersion,
+                packManifestSha256 = changedPack.manifestSha256,
+                capturedAccessRevision = AccessRevision,
+                catalogWatermark = changed.capturedCatalogWatermark,
+                createdAtMillis = now,
+            )
+        val implicitInheritanceFailure =
+            runCatching { activator().markReady(changed.candidateId, changedSnapshot) }.exceptionOrNull()
+        assertTrue(implicitInheritanceFailure is IllegalStateException)
+        val incompatibleChannels =
+            storage.vectorIndexDao.snapshotChannels(parent.snapshotId).map { component ->
+                component.copy(
+                    snapshotId = changed.snapshotId,
+                    componentHash =
+                        if (component.channel == IndexChannel.VISUAL) changedPack.manifestSha256 else component.componentHash,
+                    inheritedFromSnapshotId = null,
+                )
+            }
+        val inheritedGenerationFailure =
+            runCatching {
+                activator().markReady(
+                    changed.candidateId,
+                    changedSnapshot,
+                    incompatibleChannels,
+                )
+            }.exceptionOrNull()
+        assertTrue(inheritedGenerationFailure is IllegalStateException)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
     }
 
     @Test
@@ -692,8 +863,11 @@ class VectorPublicationStoreInstrumentedTest {
     private fun activator() =
         AtomicSnapshotActivator(
             vectors = storage.vectorIndexDao,
-            verifier = ActivationCandidateVerifier { snapshot ->
-                check(snapshot.semanticManifestRevision != null || snapshot.visualManifestRevision != null)
+            verifier = ActivationCandidateVerifier { snapshot, channels ->
+                check(
+                    VectorSnapshotIntegrityVerifier(root, storage.vectorIndexDao)
+                        .verify(snapshot, deepVerifySegments = true, candidateChannels = channels),
+                )
             },
             clock = { now },
         )
@@ -833,6 +1007,7 @@ class VectorPublicationStoreInstrumentedTest {
         )
 
     private class SimulatedProcessDeath(val boundary: VectorPublicationBoundary) : RuntimeException()
+    private class SimulatedActivationDeath(val boundary: ActivationBoundary) : RuntimeException()
     private class SimulatedGcDeath : RuntimeException()
     private class SimulatedCompactionDeath : RuntimeException()
 

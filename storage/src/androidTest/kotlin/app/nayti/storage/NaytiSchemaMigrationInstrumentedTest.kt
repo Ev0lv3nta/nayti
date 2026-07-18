@@ -9,6 +9,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,6 +27,16 @@ class NaytiSchemaMigrationInstrumentedTest {
             driver = BundledSQLiteDriver(),
             databaseClass = NaytiDatabase::class,
         )
+
+    @Before
+    fun deletePreviousDatabase() {
+        instrumentation.targetContext.deleteDatabase(DatabaseName)
+    }
+
+    @After
+    fun deleteTestDatabase() {
+        instrumentation.targetContext.deleteDatabase(DatabaseName)
+    }
 
     @Test
     fun migration1ToCurrentPreservesVectorRowsAndCreatesSemanticMetadata() = runBlocking {
@@ -49,6 +61,8 @@ class NaytiSchemaMigrationInstrumentedTest {
                 StorageMigrations.From1To2,
                 StorageMigrations.From2To3,
                 StorageMigrations.From3To4,
+                StorageMigrations.From4To5,
+                StorageMigrations.From5To6,
             ),
         ).use { connection ->
             connection.prepare(
@@ -103,6 +117,70 @@ class NaytiSchemaMigrationInstrumentedTest {
                 assertEquals(11L, statement.getLong(1))
                 assertFalse(statement.step())
             }
+            connection.prepare("PRAGMA table_info(`activation_snapshot`)").use { statement ->
+                val columns = mutableSetOf<String>()
+                while (statement.step()) columns += statement.getText(1)
+                assertTrue("formatVersion" in columns)
+                assertTrue("capturedAccessRevision" in columns)
+            }
+            connection.prepare("SELECT COUNT(*) FROM activation_candidate").use { statement ->
+                assertTrue(statement.step())
+                assertEquals(0L, statement.getLong(0))
+            }
+            connection.prepare("SELECT COUNT(*) FROM activation_snapshot_channel").use { statement ->
+                assertTrue(statement.step())
+                assertEquals(0L, statement.getLong(0))
+            }
+        }
+    }
+
+    @Test
+    fun migration5To6BackfillsPerChannelSnapshotContracts() = runBlocking {
+        migration.createDatabase(5).use { connection ->
+            connection.execSQL(
+                "INSERT INTO vector_generation " +
+                    "(generationId, channel, packId, packVersion, pipelineVersion, componentHash, " +
+                    "embeddingSpaceHash, dimension, state, createdAtMillis, sealedAtMillis) VALUES " +
+                    "('semantic-v1', 'OCR_SEMANTIC', 'nayti-offline-search', '0.1.0-alpha.1', " +
+                    "'semantic-v1', '$SegmentSha', '$EmbeddingSha', 384, 'SEALED', 1, 2), " +
+                    "('visual-v1', 'VISUAL', 'nayti-offline-search', '0.1.0-alpha.1', " +
+                    "'visual-v1', '$ChunkSha', '$SetSha', 768, 'SEALED', 1, 2)",
+            )
+            connection.execSQL(
+                "INSERT INTO vector_manifest " +
+                    "(revision, generationId, parentRevision, channel, relativePath, byteLength, sha256, " +
+                    "segmentCount, recordCount, createdAtMillis) VALUES " +
+                    "('semantic-manifest', 'semantic-v1', NULL, 'OCR_SEMANTIC', 'manifests/semantic', 1, " +
+                    "'$SegmentSha', 1, 1, 2), " +
+                    "('visual-manifest', 'visual-v1', NULL, 'VISUAL', 'manifests/visual', 1, " +
+                    "'$ChunkSha', 1, 1, 2)",
+            )
+            connection.execSQL(
+                "INSERT INTO activation_snapshot " +
+                    "(snapshotId, parentSnapshotId, packId, packVersion, packManifestSha256, " +
+                    "engineContractVersion, rankingConfigVersion, lexicalPublicationEpoch, " +
+                    "pHashPublicationEpoch, semanticManifestRevision, visualManifestRevision, " +
+                    "catalogWatermark, createdAtMillis, formatVersion, capturedAccessRevision) VALUES " +
+                    "('snapshot-v5', NULL, 'nayti-offline-search', '0.1.0-alpha.1', '$PackSha', 1, " +
+                    "'ranking-v1', 7, 8, 'semantic-manifest', 'visual-manifest', 9, 10, 1, 11)",
+            )
+        }
+
+        migration.runMigrationsAndValidate(6, listOf(StorageMigrations.From5To6)).use { connection ->
+            connection.prepare(
+                "SELECT channel, pipelineVersion, componentHash, generationId, manifestRevision " +
+                    "FROM activation_snapshot_channel WHERE snapshotId = 'snapshot-v5' ORDER BY channel",
+            ).use { statement ->
+                val rows = mutableListOf<List<String?>>()
+                while (statement.step()) {
+                    rows += (0..4).map { index -> if (statement.isNull(index)) null else statement.getText(index) }
+                }
+                assertEquals(listOf("OCR", "OCR_SEMANTIC", "PHASH", "VISUAL"), rows.map { it[0] })
+                assertEquals(SegmentSha, rows.single { it[0] == "OCR_SEMANTIC" }[2])
+                assertEquals("semantic-manifest", rows.single { it[0] == "OCR_SEMANTIC" }[4])
+                assertEquals(ChunkSha, rows.single { it[0] == "VISUAL" }[2])
+                assertEquals(PackSha, rows.single { it[0] == "OCR" }[2])
+            }
         }
     }
 
@@ -112,5 +190,6 @@ class NaytiSchemaMigrationInstrumentedTest {
         const val EmbeddingSha = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
         const val ChunkSha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
         const val SetSha = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        const val PackSha = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
     }
 }

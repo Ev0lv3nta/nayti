@@ -25,8 +25,10 @@ class VectorSnapshotGarbageCollector(
     suspend fun collect(snapshotId: String, nowMillis: Long): Boolean {
         if (dao.snapshot(snapshotId) == null) return true
         val activeId = dao.activeSnapshotId()
-        if (snapshotId == activeId || snapshotId == activeId?.let { dao.snapshot(it)?.parentSnapshotId }) return false
+        val rollbackId = dao.activePointer()?.rollbackSnapshotId ?: activeId?.let { dao.snapshot(it)?.parentSnapshotId }
+        if (snapshotId == activeId || snapshotId == rollbackId) return false
         if (dao.liveQueryLeaseCount(snapshotId, nowMillis) != 0) return false
+        if (dao.activationRootCount(snapshotId) != 0) return false
         val intents = dao.prepareSnapshotCollection(snapshotId, nowMillis)
         boundaryObserver(VectorGcBoundary.AFTER_DELETE_INTENTS)
         intents.forEachIndexed { index, intent ->

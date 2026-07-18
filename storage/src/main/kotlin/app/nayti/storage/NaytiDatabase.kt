@@ -41,6 +41,7 @@ import kotlinx.coroutines.Dispatchers
         VectorPublicationEntity::class,
         ArtifactDeleteIntentEntity::class,
         ActivationCandidateEntity::class,
+        ActivationSnapshotChannelEntity::class,
         PerceptualHashEntity::class,
     ],
     version = StorageContract.CurrentSchemaVersion,

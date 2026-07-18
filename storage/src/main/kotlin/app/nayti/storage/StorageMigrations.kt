@@ -153,5 +153,69 @@ object StorageMigrations {
             }
         }
 
-    val All: Array<Migration> = arrayOf(From1To2, From2To3, From3To4, From4To5)
+    val From5To6: Migration =
+        object : Migration(5, 6) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `activation_snapshot_channel` (" +
+                        "`snapshotId` TEXT NOT NULL, `channel` TEXT NOT NULL, `pipelineVersion` TEXT NOT NULL, " +
+                        "`componentHash` TEXT NOT NULL, `embeddingSpaceHash` TEXT, `generationId` TEXT, " +
+                        "`manifestRevision` TEXT, `inheritedFromSnapshotId` TEXT, " +
+                        "PRIMARY KEY(`snapshotId`, `channel`))",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activation_snapshot_channel_manifestRevision` " +
+                        "ON `activation_snapshot_channel` (`manifestRevision`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activation_snapshot_channel_generationId` " +
+                        "ON `activation_snapshot_channel` (`generationId`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activation_snapshot_channel_inheritedFromSnapshotId` " +
+                        "ON `activation_snapshot_channel` (`inheritedFromSnapshotId`)",
+                )
+                connection.execSQL(
+                    "INSERT INTO activation_snapshot_channel " +
+                        "(snapshotId, channel, pipelineVersion, componentHash, embeddingSpaceHash, " +
+                        "generationId, manifestRevision, inheritedFromSnapshotId) " +
+                        "SELECT snapshotId, 'OCR', 'ocr-v1', packManifestSha256, NULL, NULL, NULL, NULL " +
+                        "FROM activation_snapshot",
+                )
+                connection.execSQL(
+                    "INSERT INTO activation_snapshot_channel " +
+                        "(snapshotId, channel, pipelineVersion, componentHash, embeddingSpaceHash, " +
+                        "generationId, manifestRevision, inheritedFromSnapshotId) " +
+                        "SELECT snapshotId, 'PHASH', 'phash-v1', " +
+                        "'b88379e5ff4d030a0193e528514079b18d5c0619d4500357381d0b4ec82b656a', " +
+                        "NULL, NULL, NULL, NULL FROM activation_snapshot",
+                )
+                connection.execSQL(
+                    "INSERT INTO activation_snapshot_channel " +
+                        "(snapshotId, channel, pipelineVersion, componentHash, embeddingSpaceHash, " +
+                        "generationId, manifestRevision, inheritedFromSnapshotId) " +
+                        "SELECT snapshot.snapshotId, generation.channel, generation.pipelineVersion, " +
+                        "generation.componentHash, generation.embeddingSpaceHash, generation.generationId, " +
+                        "manifest.revision, NULL FROM activation_snapshot AS snapshot " +
+                        "INNER JOIN vector_manifest AS manifest " +
+                        "ON manifest.revision = snapshot.semanticManifestRevision " +
+                        "INNER JOIN vector_generation AS generation " +
+                        "ON generation.generationId = manifest.generationId",
+                )
+                connection.execSQL(
+                    "INSERT INTO activation_snapshot_channel " +
+                        "(snapshotId, channel, pipelineVersion, componentHash, embeddingSpaceHash, " +
+                        "generationId, manifestRevision, inheritedFromSnapshotId) " +
+                        "SELECT snapshot.snapshotId, generation.channel, generation.pipelineVersion, " +
+                        "generation.componentHash, generation.embeddingSpaceHash, generation.generationId, " +
+                        "manifest.revision, NULL FROM activation_snapshot AS snapshot " +
+                        "INNER JOIN vector_manifest AS manifest " +
+                        "ON manifest.revision = snapshot.visualManifestRevision " +
+                        "INNER JOIN vector_generation AS generation " +
+                        "ON generation.generationId = manifest.generationId",
+                )
+            }
+        }
+
+    val All: Array<Migration> = arrayOf(From1To2, From2To3, From3To4, From4To5, From5To6)
 }

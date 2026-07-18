@@ -8,6 +8,7 @@ import app.nayti.search.engine.fusion.TextLexicalEvidence
 import app.nayti.search.engine.fusion.TextSemanticCandidate
 import app.nayti.search.engine.lexical.LexicalIntent
 import app.nayti.storage.OcrDao
+import app.nayti.storage.IndexChannel
 import app.nayti.storage.QuerySnapshotLeaseEntity
 import app.nayti.storage.VectorIndexDao
 
@@ -63,11 +64,12 @@ class OcrHybridSearch(
     ): OcrHybridSearchResult {
         require(limit in 1..MaximumResultLimit)
         val snapshot = checkNotNull(vectors.snapshot(lease.snapshotId))
+        val ocrComponent = checkNotNull(vectors.snapshotChannel(snapshot.snapshotId, IndexChannel.OCR))
         val lexicalResult =
             lexical.searchAtEpoch(
                 query = query,
                 pipelineVersion = pipelineVersion,
-                componentHash = snapshot.packManifestSha256,
+                componentHash = ocrComponent.componentHash,
                 maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
                 limit = MaximumRetrieverCandidates,
             )
@@ -78,10 +80,11 @@ class OcrHybridSearch(
                 null
             }
         if (semanticResult?.status == OcrSemanticSearchStatus.READY) {
+            val semanticComponent = checkNotNull(vectors.snapshotChannel(snapshot.snapshotId, IndexChannel.OCR_SEMANTIC))
             check(semanticResult.snapshotId == snapshot.snapshotId)
             check(semanticResult.accessRevision == lease.accessRevision)
             check(semanticResult.lexicalPublicationEpoch == snapshot.lexicalPublicationEpoch)
-            check(semanticResult.componentHash == snapshot.packManifestSha256)
+            check(semanticResult.componentHash == semanticComponent.componentHash)
         }
         return fuse(lexicalResult, semanticResult, limit)
     }
@@ -93,6 +96,9 @@ class OcrHybridSearch(
         limit: Int,
     ): OcrHybridSearchResult {
         val activeSnapshot = vectors.activeSnapshotId()?.let { snapshotId -> vectors.snapshot(snapshotId) }
+        val activeOcrComponent = activeSnapshot?.let { snapshot ->
+            vectors.snapshotChannel(snapshot.snapshotId, IndexChannel.OCR)?.componentHash
+        }
         var lexicalResult =
             if (activeSnapshot == null) {
                 lexical.search(query, pipelineVersion, fallbackComponentHash, MaximumRetrieverCandidates)
@@ -100,7 +106,7 @@ class OcrHybridSearch(
                 lexical.searchAtEpoch(
                     query = query,
                     pipelineVersion = pipelineVersion,
-                    componentHash = activeSnapshot.packManifestSha256,
+                    componentHash = activeOcrComponent ?: activeSnapshot.packManifestSha256,
                     maximumPublicationEpoch = activeSnapshot.lexicalPublicationEpoch,
                     limit = MaximumRetrieverCandidates,
                 )
@@ -113,16 +119,12 @@ class OcrHybridSearch(
             }
         if (semanticResult?.status == OcrSemanticSearchStatus.READY) {
             val semanticEpoch = checkNotNull(semanticResult.lexicalPublicationEpoch)
-            val semanticComponent = checkNotNull(semanticResult.componentHash)
-            if (
-                lexicalResult.capturedPublicationEpoch != semanticEpoch ||
-                activeSnapshot?.packManifestSha256 != semanticComponent
-            ) {
+            if (lexicalResult.capturedPublicationEpoch != semanticEpoch) {
                 lexicalResult =
                     lexical.searchAtEpoch(
                         query = query,
                         pipelineVersion = pipelineVersion,
-                        componentHash = semanticComponent,
+                        componentHash = activeOcrComponent ?: activeSnapshot?.packManifestSha256 ?: fallbackComponentHash,
                         maximumPublicationEpoch = semanticEpoch,
                         limit = MaximumRetrieverCandidates,
                     )

@@ -3,6 +3,7 @@ package app.nayti.indexer
 import app.nayti.storage.ActivationCandidateEntity
 import app.nayti.storage.ActivationCandidateState
 import app.nayti.storage.ActivationSnapshotEntity
+import app.nayti.storage.ActivationSnapshotChannelEntity
 import app.nayti.storage.ActiveSnapshotPointerEntity
 import app.nayti.storage.ModelPackEntity
 import app.nayti.storage.VectorIndexDao
@@ -16,7 +17,10 @@ enum class ActivationBoundary {
 }
 
 fun interface ActivationCandidateVerifier {
-    suspend fun verify(snapshot: ActivationSnapshotEntity)
+    suspend fun verify(
+        snapshot: ActivationSnapshotEntity,
+        channels: List<ActivationSnapshotChannelEntity>,
+    )
 }
 
 /** Coordinates validated shadow snapshots without ever mutating the currently query-active index. */
@@ -54,9 +58,27 @@ class AtomicSnapshotActivator(
         return candidate
     }
 
-    suspend fun markReady(candidateId: String, snapshot: ActivationSnapshotEntity): ActivationSnapshotEntity {
-        verifier.verify(snapshot)
-        val ready = vectors.markActivationCandidateReady(candidateId, snapshot, clock())
+    suspend fun markReady(
+        candidateId: String,
+        snapshot: ActivationSnapshotEntity,
+        channels: List<ActivationSnapshotChannelEntity>? = null,
+    ): ActivationSnapshotEntity {
+        val candidate = checkNotNull(vectors.activationCandidate(candidateId))
+        val preparedChannels =
+            channels ?: candidate.parentSnapshotId?.let { parentId ->
+                val parent = checkNotNull(vectors.snapshot(parentId))
+                check(parent.packManifestSha256 == snapshot.packManifestSha256) {
+                    "A different pack requires explicit per-channel activation contracts"
+                }
+                vectors.snapshotChannels(parentId).map { component ->
+                    component.copy(
+                        snapshotId = snapshot.snapshotId,
+                        inheritedFromSnapshotId = parentId,
+                    )
+                }
+            }.orEmpty()
+        verifier.verify(snapshot, preparedChannels)
+        val ready = vectors.markActivationCandidateReady(candidateId, snapshot, preparedChannels, clock())
         boundaryObserver(ActivationBoundary.AFTER_CANDIDATE_READY)
         return ready
     }

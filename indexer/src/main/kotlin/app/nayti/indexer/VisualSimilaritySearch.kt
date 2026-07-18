@@ -204,15 +204,18 @@ class VisualSimilaritySearch(
         snapshot: ActivationSnapshotEntity,
         manifestRevision: String,
     ): LeasedVisualIndex {
+        val component = checkNotNull(vectors.snapshotChannel(snapshot.snapshotId, IndexChannel.VISUAL))
         val manifest = checkNotNull(vectors.manifest(manifestRevision))
         val generation = checkNotNull(vectors.generation(manifest.generationId))
         check(
             manifest.channel == IndexChannel.VISUAL &&
                 generation.channel == IndexChannel.VISUAL &&
                 generation.generationId == manifest.generationId &&
-                generation.packId == snapshot.packId &&
-                generation.packVersion == snapshot.packVersion &&
-                generation.componentHash == snapshot.packManifestSha256 &&
+                generation.generationId == component.generationId &&
+                generation.pipelineVersion == component.pipelineVersion &&
+                generation.componentHash == component.componentHash &&
+                generation.embeddingSpaceHash == component.embeddingSpaceHash &&
+                manifest.revision == component.manifestRevision &&
                 generation.state in setOf(VectorGenerationState.BUILDING, VectorGenerationState.SEALED),
         )
         val entries = vectors.manifestSegments(manifestRevision)

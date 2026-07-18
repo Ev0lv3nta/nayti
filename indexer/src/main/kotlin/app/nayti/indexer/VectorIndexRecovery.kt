@@ -1,12 +1,8 @@
 package app.nayti.indexer
 
-import app.nayti.search.engine.NativeVectorIndex
 import app.nayti.storage.ActivationSnapshotEntity
 import app.nayti.storage.VectorIndexDao
-import app.nayti.storage.VectorManifestEntity
 import java.io.File
-import java.io.FileInputStream
-import java.security.MessageDigest
 
 data class VectorRecoveryReport(
     val activeBefore: String?,
@@ -23,6 +19,7 @@ class VectorIndexRecovery(
     private val dao: VectorIndexDao,
 ) {
     private val root = rootDirectory.canonicalFile
+    private val verifier = VectorSnapshotIntegrityVerifier(root, dao)
 
     suspend fun recover(
         nowMillis: Long,
@@ -38,7 +35,7 @@ class VectorIndexRecovery(
         }
         val expiredLeases = dao.expireQueryLeases(nowMillis)
         val deletedTemps = deleteTemps()
-        val activeAfter = recoverActive(activeBefore, deepVerifySegments)
+        val activeAfter = recoverActive(activeBefore, nowMillis, deepVerifySegments)
         val deletedOrphans = deleteOrphans(nowMillis, orphanGraceMillis)
         return VectorRecoveryReport(
             activeBefore = activeBefore,
@@ -51,8 +48,13 @@ class VectorIndexRecovery(
         )
     }
 
-    private suspend fun recoverActive(activeBefore: String?, deepVerifySegments: Boolean): String? {
+    private suspend fun recoverActive(
+        activeBefore: String?,
+        nowMillis: Long,
+        deepVerifySegments: Boolean,
+    ): String? {
         var candidateId = activeBefore
+        val explicitRollback = dao.activePointer()?.rollbackSnapshotId
         val visited = mutableSetOf<String>()
         while (candidateId != null) {
             if (!visited.add(candidateId)) {
@@ -65,48 +67,29 @@ class VectorIndexRecovery(
                 break
             }
             if (dao.deleteIntentCount(candidateId) != 0) {
-                candidateId = candidate.parentSnapshotId
+                candidateId = nextRecoveryCandidate(candidateId, activeBefore, explicitRollback, candidate)
                 continue
             }
-            if (validateSnapshot(candidate, deepVerifySegments)) break
-            candidateId = candidate.parentSnapshotId
+            if (verifier.verify(candidate, deepVerifySegments)) break
+            candidateId = nextRecoveryCandidate(candidateId, activeBefore, explicitRollback, candidate)
         }
         if (candidateId != activeBefore) {
-            if (!dao.replaceActiveAfterRecovery(activeBefore, candidateId)) return dao.activeSnapshotId()
+            if (!dao.replaceActiveAfterRecovery(activeBefore, candidateId, nowMillis)) return dao.activeSnapshotId()
         }
         return candidateId
     }
 
-    private suspend fun validateSnapshot(snapshot: ActivationSnapshotEntity, deepVerifySegments: Boolean): Boolean {
-        val revisions = listOfNotNull(snapshot.semanticManifestRevision, snapshot.visualManifestRevision)
-        if (revisions.isEmpty()) return false
-        return revisions.all { revision ->
-            val manifest = dao.manifest(revision) ?: return@all false
-            validateManifest(manifest, deepVerifySegments)
+    private fun nextRecoveryCandidate(
+        currentId: String,
+        activeBefore: String?,
+        explicitRollback: String?,
+        current: ActivationSnapshotEntity,
+    ): String? =
+        if (currentId == activeBefore && explicitRollback != null && explicitRollback != currentId) {
+            explicitRollback
+        } else {
+            current.parentSnapshotId
         }
-    }
-
-    private suspend fun validateManifest(manifest: VectorManifestEntity, deepVerifySegments: Boolean): Boolean {
-        val manifestFile = resolveRelative(manifest.relativePath) ?: return false
-        if (!validateFile(manifestFile, manifest.byteLength, manifest.sha256, verifyHash = true)) return false
-        val entries = dao.manifestSegments(manifest.revision)
-        if (entries.size != manifest.segmentCount) return false
-        return entries.all { entry ->
-            val artifact = dao.segment(entry.segmentSha256) ?: return@all false
-            val file = resolveRelative(artifact.relativePath) ?: return@all false
-            if (!validateFile(file, artifact.byteLength, artifact.sha256, verifyHash = deepVerifySegments)) {
-                return@all false
-            }
-            if (!deepVerifySegments) return@all true
-            runCatching {
-                NativeVectorIndex.mappedRecordCount(
-                    path = file.absolutePath,
-                    expectedLength = artifact.byteLength,
-                    expectedSha256 = decodeSha256(artifact.sha256),
-                ) == artifact.recordCount
-            }.getOrDefault(false)
-        }
-    }
 
     private fun deleteTemps(): Int {
         val staging = root.resolve("staging")
@@ -140,29 +123,5 @@ class VectorIndexRecovery(
         return count
     }
 
-    private fun validateFile(file: File, length: Long, sha256: String, verifyHash: Boolean): Boolean =
-        file.isFile && file.length() == length && (!verifyHash || sha256Hex(file) == sha256)
-
-    private fun resolveRelative(path: String): File? {
-        val resolved = runCatching { root.resolve(path).canonicalFile }.getOrNull() ?: return null
-        return resolved.takeIf { it.toPath().startsWith(root.toPath()) }
-    }
-
     private fun relativePath(file: File): String = file.relativeTo(root).invariantSeparatorsPath
-
-    private fun sha256Hex(file: File): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        FileInputStream(file).use { input ->
-            val buffer = ByteArray(256 * 1024)
-            while (true) {
-                val read = input.read(buffer)
-                if (read < 0) break
-                digest.update(buffer, 0, read)
-            }
-        }
-        return digest.digest().joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
-    }
-
-    private fun decodeSha256(value: String): ByteArray =
-        ByteArray(32) { index -> value.substring(index * 2, index * 2 + 2).toInt(16).toByte() }
 }

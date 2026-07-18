@@ -248,8 +248,19 @@ interface VectorIndexDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertSnapshot(snapshot: ActivationSnapshotEntity)
 
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertSnapshotChannels(channels: List<ActivationSnapshotChannelEntity>)
+
     @Query("SELECT * FROM activation_snapshot WHERE snapshotId = :snapshotId")
     suspend fun snapshot(snapshotId: String): ActivationSnapshotEntity?
+
+    @Query("SELECT * FROM activation_snapshot_channel WHERE snapshotId = :snapshotId ORDER BY channel")
+    suspend fun snapshotChannels(snapshotId: String): List<ActivationSnapshotChannelEntity>
+
+    @Query(
+        "SELECT * FROM activation_snapshot_channel WHERE snapshotId = :snapshotId AND channel = :channel",
+    )
+    suspend fun snapshotChannel(snapshotId: String, channel: String): ActivationSnapshotChannelEntity?
 
     @Query("SELECT * FROM activation_snapshot ORDER BY createdAtMillis, snapshotId")
     suspend fun snapshots(): List<ActivationSnapshotEntity>
@@ -277,6 +288,12 @@ interface VectorIndexDao {
 
     @Query("SELECT * FROM activation_candidate ORDER BY createdAtMillis, candidateId")
     suspend fun activationCandidates(): List<ActivationCandidateEntity>
+
+    @Query(
+        "SELECT COUNT(*) FROM activation_candidate WHERE snapshotId = :snapshotId " +
+            "AND state IN ('BUILDING_SHADOW', 'READY_TO_ACTIVATE', 'ACTIVE')",
+    )
+    suspend fun activationRootCount(snapshotId: String): Int
 
     @Query(
         "UPDATE activation_candidate SET state = :newState, updatedAtMillis = :nowMillis, " +
@@ -399,6 +416,9 @@ interface VectorIndexDao {
 
     @Query("DELETE FROM activation_snapshot WHERE snapshotId = :snapshotId")
     suspend fun deleteSnapshot(snapshotId: String): Int
+
+    @Query("DELETE FROM activation_snapshot_channel WHERE snapshotId = :snapshotId")
+    suspend fun deleteSnapshotChannels(snapshotId: String): Int
 
     @Transaction
     suspend fun createGeneration(generation: VectorGenerationEntity) {
@@ -526,6 +546,7 @@ interface VectorIndexDao {
         insertManifestSegments(manifestEntries)
         validateSnapshot(snapshot, generation, manifest)
         insertSnapshot(snapshot)
+        insertSnapshotChannels(buildPublishedSnapshotChannels(snapshot, generation, manifest))
         advanceActivePointer(snapshot.snapshotId, nowMillis)
         check(completePublicationWork(publicationToken, nowMillis) == work.size)
         check(completePublicationRow(publicationToken, nowMillis) == 1)
@@ -576,6 +597,7 @@ interface VectorIndexDao {
         insertManifestSegments(manifestEntries)
         validateSnapshot(candidateSnapshot, generation, manifest)
         insertSnapshot(candidateSnapshot)
+        insertSnapshotChannels(buildPublishedSnapshotChannels(candidateSnapshot, generation, manifest))
         advanceActivePointer(candidateSnapshot.snapshotId, nowMillis)
         return candidateSnapshot
     }
@@ -620,14 +642,16 @@ interface VectorIndexDao {
     suspend fun markActivationCandidateReady(
         candidateId: String,
         snapshot: ActivationSnapshotEntity,
+        channels: List<ActivationSnapshotChannelEntity>,
         nowMillis: Long,
     ): ActivationSnapshotEntity {
         val candidate = checkNotNull(activationCandidate(candidateId))
         check(candidate.state == ActivationCandidateState.BUILDING_SHADOW)
         check(activeSnapshotId() == candidate.parentSnapshotId)
         require(snapshot.createdAtMillis in candidate.createdAtMillis..nowMillis)
-        validateActivationCandidateSnapshot(candidate, snapshot)
+        validateActivationCandidateSnapshot(candidate, snapshot, channels)
         insertSnapshot(snapshot)
+        insertSnapshotChannels(channels)
         check(
             transitionActivationCandidateRow(
                 candidateId = candidateId,
@@ -650,7 +674,7 @@ interface VectorIndexDao {
         check(access.accessScope != "None" && access.processAccessRevision == candidate.capturedAccessRevision)
         check((catalogWatermark()?.catalogRevision ?: 0) == candidate.capturedCatalogWatermark)
         val snapshot = checkNotNull(snapshot(candidate.snapshotId))
-        validateActivationCandidateSnapshot(candidate, snapshot)
+        validateActivationCandidateSnapshot(candidate, snapshot, snapshotChannels(snapshot.snapshotId))
         check(deleteIntentCount(snapshot.snapshotId) == 0)
         val activated =
             ActiveSnapshotPointerEntity(
@@ -887,19 +911,38 @@ interface VectorIndexDao {
     }
 
     @Transaction
-    suspend fun replaceActiveAfterRecovery(expectedActiveSnapshotId: String?, recoveredSnapshotId: String?): Boolean {
+    suspend fun replaceActiveAfterRecovery(
+        expectedActiveSnapshotId: String?,
+        recoveredSnapshotId: String?,
+        nowMillis: Long,
+    ): Boolean {
         if (activeSnapshotId() != expectedActiveSnapshotId) return false
         if (recoveredSnapshotId != null) {
             check(snapshot(recoveredSnapshotId) != null)
             if (deleteIntentCount(recoveredSnapshotId) != 0) return false
         }
         val current = activePointer()
+        val activeCandidate = expectedActiveSnapshotId?.let { activationCandidateBySnapshot(it) }
+        if (
+            expectedActiveSnapshotId != recoveredSnapshotId &&
+            activeCandidate?.state == ActivationCandidateState.ACTIVE
+        ) {
+            check(
+                transitionActivationCandidateRow(
+                    candidateId = activeCandidate.candidateId,
+                    expectedState = ActivationCandidateState.ACTIVE,
+                    newState = ActivationCandidateState.ROLLED_BACK,
+                    nowMillis = nowMillis,
+                    failureCode = "STARTUP_AUDIT_FAILED",
+                ) == 1,
+            )
+        }
         replaceActivePointer(
             ActiveSnapshotPointerEntity(
                 snapshotId = recoveredSnapshotId,
                 rollbackSnapshotId = recoveredSnapshotId?.let { snapshot(it)?.parentSnapshotId },
                 activationSequence = Math.addExact(current?.activationSequence ?: 0, 1),
-                updatedAtMillis = current?.updatedAtMillis ?: 0,
+                updatedAtMillis = nowMillis,
             ),
         )
         return true
@@ -914,6 +957,7 @@ interface VectorIndexDao {
         val rollbackId = activePointer()?.rollbackSnapshotId ?: activeId?.let { snapshot(it)?.parentSnapshotId }
         check(snapshotId != rollbackId)
         check(liveQueryLeaseCount(snapshotId, nowMillis) == 0)
+        check(activationRootCount(snapshotId) == 0)
         val revisions = listOfNotNull(candidate.semanticManifestRevision, candidate.visualManifestRevision).distinct()
         val intents = mutableListOf<ArtifactDeleteIntentEntity>()
         revisions.forEach { revision ->
@@ -956,7 +1000,9 @@ interface VectorIndexDao {
         check(snapshotId != activeId)
         val rollbackId = activePointer()?.rollbackSnapshotId ?: activeId?.let { snapshot(it)?.parentSnapshotId }
         check(snapshotId != rollbackId)
+        check(activationRootCount(snapshotId) == 0)
         val revisions = listOfNotNull(candidate.semanticManifestRevision, candidate.visualManifestRevision).distinct()
+        deleteSnapshotChannels(snapshotId)
         check(deleteSnapshot(snapshotId) == 1)
         revisions.forEach { revision ->
             if (otherSnapshotManifestReferenceCount(revision, snapshotId) == 0) {
@@ -1036,6 +1082,7 @@ interface VectorIndexDao {
     private suspend fun validateActivationCandidateSnapshot(
         candidate: ActivationCandidateEntity,
         snapshot: ActivationSnapshotEntity,
+        channels: List<ActivationSnapshotChannelEntity>,
     ) {
         require(snapshot.formatVersion == ActivationSnapshotFormat.Current)
         require(identifier(snapshot.snapshotId) && snapshot.snapshotId == candidate.snapshotId)
@@ -1048,16 +1095,118 @@ interface VectorIndexDao {
         require(snapshot.capturedAccessRevision == candidate.capturedAccessRevision)
         require(snapshot.createdAtMillis >= candidate.createdAtMillis)
         check(modelPack(snapshot.packId, snapshot.packVersion)?.manifestSha256 == snapshot.packManifestSha256)
-        listOfNotNull(snapshot.semanticManifestRevision, snapshot.visualManifestRevision).forEach { revision ->
-            val manifest = checkNotNull(manifest(revision))
-            val generation = checkNotNull(generation(manifest.generationId))
-            check(manifest.channel == generation.channel)
-            check(generation.packId == snapshot.packId && generation.packVersion == snapshot.packVersion)
-            check(generation.componentHash == snapshot.packManifestSha256)
-            check(generation.state in setOf(VectorGenerationState.BUILDING, VectorGenerationState.SEALED))
-            check(manifestSegments(revision).size == manifest.segmentCount)
-        }
+        require(channels.isNotEmpty() && channels.map { it.channel }.distinct().size == channels.size)
+        val expectedChannels =
+            buildSet {
+                add(IndexChannel.OCR)
+                add(IndexChannel.PHASH)
+                if (snapshot.semanticManifestRevision != null) add(IndexChannel.OCR_SEMANTIC)
+                if (snapshot.visualManifestRevision != null) add(IndexChannel.VISUAL)
+            }
+        require(channels.map(ActivationSnapshotChannelEntity::channel).toSet() == expectedChannels)
+        require(channels.all { component ->
+            component.snapshotId == snapshot.snapshotId &&
+                component.channel in IndexChannel.all &&
+                contractValue(component.pipelineVersion) &&
+                sha256(component.componentHash) &&
+                (component.embeddingSpaceHash == null || sha256(component.embeddingSpaceHash)) &&
+                (component.generationId == null || identifier(component.generationId)) &&
+                (component.manifestRevision == null || identifier(component.manifestRevision)) &&
+                (component.inheritedFromSnapshotId == null || identifier(component.inheritedFromSnapshotId))
+        })
+        channels.forEach { component -> validateActivationComponent(snapshot, component) }
         check(snapshot.semanticManifestRevision != null || snapshot.visualManifestRevision != null)
+    }
+
+    private suspend fun validateActivationComponent(
+        snapshot: ActivationSnapshotEntity,
+        component: ActivationSnapshotChannelEntity,
+    ) {
+        if (component.inheritedFromSnapshotId != null) {
+            check(component.inheritedFromSnapshotId == snapshot.parentSnapshotId)
+            val parent = checkNotNull(snapshotChannel(component.inheritedFromSnapshotId, component.channel))
+            check(
+                parent.pipelineVersion == component.pipelineVersion &&
+                    parent.componentHash == component.componentHash &&
+                    parent.embeddingSpaceHash == component.embeddingSpaceHash &&
+                    parent.generationId == component.generationId &&
+                    parent.manifestRevision == component.manifestRevision,
+            )
+        }
+        if (component.channel !in setOf(IndexChannel.OCR_SEMANTIC, IndexChannel.VISUAL)) {
+            check(
+                component.embeddingSpaceHash == null &&
+                    component.generationId == null &&
+                    component.manifestRevision == null,
+            )
+            return
+        }
+        val expectedRevision =
+            if (component.channel == IndexChannel.VISUAL) snapshot.visualManifestRevision else snapshot.semanticManifestRevision
+        check(component.manifestRevision == expectedRevision)
+        val manifest = checkNotNull(component.manifestRevision?.let { manifest(it) })
+        val generation = checkNotNull(generation(manifest.generationId))
+        check(component.generationId == generation.generationId)
+        check(manifest.channel == component.channel && generation.channel == component.channel)
+        check(generation.pipelineVersion == component.pipelineVersion)
+        check(generation.componentHash == component.componentHash)
+        check(generation.embeddingSpaceHash == component.embeddingSpaceHash)
+        check(generation.state in setOf(VectorGenerationState.BUILDING, VectorGenerationState.SEALED))
+        check(manifestSegments(manifest.revision).size == manifest.segmentCount)
+    }
+
+    private suspend fun buildPublishedSnapshotChannels(
+        snapshot: ActivationSnapshotEntity,
+        generation: VectorGenerationEntity,
+        manifest: VectorManifestEntity,
+    ): List<ActivationSnapshotChannelEntity> {
+        val parentChannels = snapshot.parentSnapshotId?.let { snapshotChannels(it) }.orEmpty()
+        val channels = parentChannels.associateBy(ActivationSnapshotChannelEntity::channel).toMutableMap()
+        if (IndexChannel.OCR !in channels) {
+            channels[IndexChannel.OCR] =
+                ActivationSnapshotChannelEntity(
+                    snapshotId = snapshot.snapshotId,
+                    channel = IndexChannel.OCR,
+                    pipelineVersion = "ocr-v1",
+                    componentHash = snapshot.packManifestSha256,
+                    embeddingSpaceHash = null,
+                    generationId = null,
+                    manifestRevision = null,
+                    inheritedFromSnapshotId = null,
+                )
+        }
+        if (IndexChannel.PHASH !in channels) {
+            channels[IndexChannel.PHASH] =
+                ActivationSnapshotChannelEntity(
+                    snapshotId = snapshot.snapshotId,
+                    channel = IndexChannel.PHASH,
+                    pipelineVersion = "phash-v1",
+                    componentHash = PerceptualHashComponentHash,
+                    embeddingSpaceHash = null,
+                    generationId = null,
+                    manifestRevision = null,
+                    inheritedFromSnapshotId = null,
+                )
+        }
+        parentChannels.forEach { parent ->
+            channels[parent.channel] =
+                parent.copy(
+                    snapshotId = snapshot.snapshotId,
+                    inheritedFromSnapshotId = snapshot.parentSnapshotId,
+                )
+        }
+        channels[generation.channel] =
+            ActivationSnapshotChannelEntity(
+                snapshotId = snapshot.snapshotId,
+                channel = generation.channel,
+                pipelineVersion = generation.pipelineVersion,
+                componentHash = generation.componentHash,
+                embeddingSpaceHash = generation.embeddingSpaceHash,
+                generationId = generation.generationId,
+                manifestRevision = manifest.revision,
+                inheritedFromSnapshotId = null,
+            )
+        return channels.values.sortedBy(ActivationSnapshotChannelEntity::channel)
     }
 
     private suspend fun advanceActivePointer(snapshotId: String, nowMillis: Long) {
@@ -1135,6 +1284,8 @@ interface VectorIndexDao {
         private val ContractValue = Regex("[A-Za-z0-9][A-Za-z0-9._:+/-]*")
         private val Sha256 = Regex("[0-9a-f]{64}")
         private val ArtifactPath = Regex("[A-Za-z0-9][A-Za-z0-9._/-]*")
+        private const val PerceptualHashComponentHash =
+            "b88379e5ff4d030a0193e528514079b18d5c0619d4500357381d0b4ec82b656a"
         const val MaximumVectorDimension = 4096
         const val MaximumSegmentRecords = 256
         const val MaximumManifestSegments = 65_536

@@ -157,6 +157,53 @@ class OcrPublicationInstrumentedTest {
     }
 
     @Test
+    fun garbageCollectionRemovesOnlySupersededUnrootedPublication() = runBlocking {
+        val assetId = insertAsset(SourceFingerprint)
+        val firstClaim = claimOcr(assetId)
+        val first = document(assetId, "Old unrooted text", "old unrooted text", "old unroot text", "")
+        val firstRegions = listOf(region("Old unrooted text", "old unrooted text"))
+        checkNotNull(
+            ocr.commitOcrPublication(
+                checkNotNull(firstClaim.leaseToken),
+                "ocr-gc-old",
+                OcrPublicationCodec.identity(first, firstRegions),
+                first,
+                firstRegions,
+                20,
+            ),
+        )
+        val currentWork = checkNotNull(index.work(assetId, IndexChannel.OCR))
+        index.replaceWork(
+            currentWork.copy(
+                state = IndexWorkState.RUNNING,
+                attempt = currentWork.attempt + 1,
+                leaseToken = "ocr-gc-new-lease",
+                leaseExpiresAtMillis = 1_000,
+                publicationToken = null,
+                updatedAtMillis = 21,
+            ),
+        )
+        val current = document(assetId, "Current protected text", "current protected text", "current protect text", "")
+        val currentRegions = listOf(region("Current protected text", "current protected text"))
+        checkNotNull(
+            ocr.commitOcrPublication(
+                "ocr-gc-new-lease",
+                "ocr-gc-current",
+                OcrPublicationCodec.identity(current, currentRegions),
+                current,
+                currentRegions,
+                22,
+            ),
+        )
+
+        assertEquals(1, ocr.collectGarbage())
+        assertNull(ocr.documentByPublicationEpoch(1))
+        assertTrue(ocr.regionsByPublicationEpoch(1).isEmpty())
+        assertEquals("Current protected text", ocr.documentByPublicationEpoch(2)?.displayText)
+        assertEquals(0, ocr.collectGarbage())
+    }
+
+    @Test
     fun staleSourceIsImmediatelyIneligibleAndRejectedReplacementPreservesOldEvidence() = runBlocking {
         val assetId = insertAsset(SourceFingerprint)
         val firstClaim = claimOcr(assetId)

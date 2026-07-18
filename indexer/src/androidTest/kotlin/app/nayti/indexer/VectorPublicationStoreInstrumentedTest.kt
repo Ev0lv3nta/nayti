@@ -282,6 +282,7 @@ class VectorPublicationStoreInstrumentedTest {
 
         val candidateOcrEpoch = publishOcr(assetId, "ocr-candidate", ShadowComponentHash, "candidate receipt")
         assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(0, storage.ocrDao.collectGarbage())
         assertEquals(
             listOf(assetId),
             storage.ocrDao.candidateSnapshotAt(
@@ -309,6 +310,7 @@ class VectorPublicationStoreInstrumentedTest {
         activator.activate(candidate.candidateId)
 
         assertEquals(child.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(0, storage.ocrDao.collectGarbage())
         assertEquals(
             listOf(assetId),
             storage.ocrDao.candidateSnapshotAt(

@@ -11,6 +11,9 @@ interface OcrDao {
     @Query("SELECT * FROM ocr_document WHERE assetId = :assetId ORDER BY publicationEpoch DESC LIMIT 1")
     suspend fun document(assetId: Long): OcrDocumentEntity?
 
+    @Query("SELECT * FROM ocr_document WHERE publicationEpoch = :publicationEpoch")
+    suspend fun documentByPublicationEpoch(publicationEpoch: Long): OcrDocumentEntity?
+
     @Query("SELECT * FROM ocr_region WHERE publicationEpoch = :publicationEpoch ORDER BY ordinal")
     suspend fun regionsByPublicationEpoch(publicationEpoch: Long): List<OcrRegionEntity>
 
@@ -169,6 +172,66 @@ interface OcrDao {
     )
     suspend fun regionsForPublications(publicationEpochs: List<Long>): List<OcrRegionEntity>
 
+    @Query(
+        "SELECT document.publicationEpoch FROM ocr_document AS document " +
+            "WHERE NOT EXISTS (SELECT 1 FROM index_channel_publication AS publicationRow " +
+            "WHERE publicationRow.channel = 'OCR' " +
+            "AND publicationRow.publicationToken = document.publicationToken) " +
+            "AND NOT EXISTS (SELECT 1 FROM activation_candidate AS candidateRow " +
+            "INNER JOIN activation_candidate_channel AS planRow " +
+            "ON planRow.candidateId = candidateRow.candidateId " +
+            "WHERE candidateRow.state IN ('BUILDING_SHADOW', 'READY_TO_ACTIVATE') " +
+            "AND planRow.channel = 'OCR' AND planRow.action = 'REBUILD_SHADOW' " +
+            "AND planRow.pipelineVersion = document.pipelineVersion " +
+            "AND planRow.componentHash = document.componentHash " +
+            "AND candidateRow.capturedAccessRevision = document.accessRevision) " +
+            "AND NOT EXISTS (SELECT 1 FROM activation_snapshot AS snapshotRow " +
+            "INNER JOIN activation_snapshot_channel AS channelRow " +
+            "ON channelRow.snapshotId = snapshotRow.snapshotId " +
+            "WHERE channelRow.channel = 'OCR' " +
+            "AND channelRow.pipelineVersion = document.pipelineVersion " +
+            "AND channelRow.componentHash = document.componentHash " +
+            "AND snapshotRow.capturedAccessRevision = document.accessRevision " +
+            "AND snapshotRow.lexicalPublicationEpoch >= document.publicationEpoch " +
+            "AND NOT EXISTS (SELECT 1 FROM ocr_document AS newer " +
+            "WHERE newer.assetId = document.assetId " +
+            "AND newer.sourceFingerprint = document.sourceFingerprint " +
+            "AND newer.accessRevision = document.accessRevision " +
+            "AND newer.pipelineVersion = document.pipelineVersion " +
+            "AND newer.componentHash = document.componentHash " +
+            "AND newer.publicationEpoch > document.publicationEpoch " +
+            "AND newer.publicationEpoch <= snapshotRow.lexicalPublicationEpoch)) " +
+            "AND NOT EXISTS (SELECT 1 FROM ocr_semantic_chunk AS chunk " +
+            "INNER JOIN vector_segment_record AS record ON record.semanticChunkId = chunk.chunkId " +
+            "WHERE chunk.ocrPublicationToken = document.publicationToken) " +
+            "ORDER BY document.publicationEpoch LIMIT :limit",
+    )
+    suspend fun collectablePublicationEpochs(limit: Int): List<Long>
+
+    @Query(
+        "DELETE FROM ocr_semantic_chunk_line WHERE chunkId IN " +
+            "(SELECT chunkId FROM ocr_semantic_chunk WHERE ocrPublicationToken = :publicationToken)",
+    )
+    suspend fun deleteSemanticChunkLines(publicationToken: String): Int
+
+    @Query("DELETE FROM ocr_semantic_chunk WHERE ocrPublicationToken = :publicationToken")
+    suspend fun deleteSemanticChunks(publicationToken: String): Int
+
+    @Query("DELETE FROM ocr_semantic_chunk_set WHERE ocrPublicationToken = :publicationToken")
+    suspend fun deleteSemanticChunkSets(publicationToken: String): Int
+
+    @Query("DELETE FROM ocr_lexical_fts WHERE rowid = :publicationEpoch")
+    suspend fun deleteLexicalPublication(publicationEpoch: Long): Int
+
+    @Query("DELETE FROM ocr_trigram_fts WHERE rowid = :publicationEpoch")
+    suspend fun deleteTrigramPublication(publicationEpoch: Long): Int
+
+    @Query("DELETE FROM ocr_region WHERE publicationEpoch = :publicationEpoch")
+    suspend fun deleteRegionPublication(publicationEpoch: Long): Int
+
+    @Query("DELETE FROM ocr_document WHERE publicationEpoch = :publicationEpoch")
+    suspend fun deleteDocumentPublication(publicationEpoch: Long): Int
+
     @Transaction
     suspend fun commitOcrPublication(
         leaseToken: String,
@@ -253,6 +316,23 @@ interface OcrDao {
         )
         replacePublicationClock(IndexPublicationClockEntity(lastEpoch = epoch))
         return publication
+    }
+
+    @Transaction
+    suspend fun collectGarbage(limit: Int = MaximumGarbageCollectionBatch): Int {
+        require(limit in 1..MaximumGarbageCollectionBatch)
+        val epochs = collectablePublicationEpochs(limit)
+        epochs.forEach { epoch ->
+            val document = checkNotNull(documentByPublicationEpoch(epoch))
+            deleteSemanticChunkLines(document.publicationToken)
+            deleteSemanticChunks(document.publicationToken)
+            deleteSemanticChunkSets(document.publicationToken)
+            check(deleteLexicalPublication(epoch) == 1)
+            check(deleteTrigramPublication(epoch) == 1)
+            deleteRegionPublication(epoch)
+            check(deleteDocumentPublication(epoch) == 1)
+        }
+        return epochs.size
     }
 
     @Transaction
@@ -428,5 +508,6 @@ interface OcrDao {
         private val Sha256 = Regex("[0-9a-f]{64}")
         const val MaximumMatchCharacters = 1_024
         const val MaximumCandidates = 256
+        const val MaximumGarbageCollectionBatch = 256
     }
 }

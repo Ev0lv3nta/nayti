@@ -14,6 +14,7 @@ class ModelPackActivationRuntime(
     private val coordinator: CandidateActivationCoordinator,
     private val continueExecution: AtomicBoolean,
     executionGate: IndexExecutionGate,
+    private val rollbackAction: suspend () -> ActiveSnapshotPointerEntity? = { null },
 ) {
     private val executionMutex = executionGate.mutex
     private val running = AtomicBoolean(false)
@@ -22,6 +23,11 @@ class ModelPackActivationRuntime(
 
     fun requestStop() {
         continueExecution.set(false)
+    }
+
+    suspend fun rollback(): ActiveSnapshotPointerEntity? = executionMutex.withLock {
+        requestStop()
+        rollbackAction()
     }
 
     suspend fun runForeground(pack: ModelPackEntity): ActiveSnapshotPointerEntity? = executionMutex.withLock {

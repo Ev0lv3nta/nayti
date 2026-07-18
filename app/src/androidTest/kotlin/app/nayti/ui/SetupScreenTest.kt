@@ -4,6 +4,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.nayti.R
@@ -72,6 +75,31 @@ class SetupScreenTest {
 
         composeRule.onNodeWithText(context.getString(R.string.setup_skip)).performClick()
         composeRule.runOnIdle { assertTrue(completed) }
+    }
+
+    @Test
+    fun primaryActionsRemainVisibleAtTwoHundredPercentFontScale() {
+        composeRule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(density.density, fontScale = 2f),
+            ) {
+                NaytiTheme {
+                    SetupScreen(
+                        catalog = catalogWithoutAccess(),
+                        modelPack = missingModelPack(),
+                        indexing = idleIndexing(),
+                        onImportModelPack = {},
+                        onRequestAccess = {},
+                        onStartIndexing = {},
+                        onComplete = {},
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithText(context.getString(R.string.setup_skip)).assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.setup_action_pack)).assertIsDisplayed()
     }
 
     private fun catalogWithoutAccess() = CatalogRuntimeState(

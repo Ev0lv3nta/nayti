@@ -11,14 +11,18 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -42,6 +46,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -73,6 +79,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -111,6 +118,7 @@ private enum class RootDestination(
 }
 
 private const val ViewerRoute = "viewer/{assetId}"
+private val NavigationRailBreakpoint = 700.dp
 
 @Composable
 fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
@@ -121,6 +129,7 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
     val similar by viewModel.similar.collectAsStateWithLifecycle()
     val duplicates by viewModel.duplicates.collectAsStateWithLifecycle()
     val viewerProbe by viewModel.viewerProbe.collectAsStateWithLifecycle()
+    val onboardingCompleted by viewModel.onboardingCompleted.collectAsStateWithLifecycle()
     val permissionLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
             viewModel.onPermissionResult()
@@ -133,35 +142,49 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) viewModel.startIndexing()
         }
-    NaytiAppContent(
-        catalog = catalog,
-        modelPack = modelPack,
-        indexing = indexing,
-        search = search,
-        similar = similar,
-        duplicates = duplicates,
-        viewerProbe = viewerProbe,
-        onRequestAccess = {
-            permissionLauncher.launch(
-                MediaPermissionEvaluator.requestPermissions(Build.VERSION.SDK_INT),
-            )
-        },
-        onRefresh = { viewModel.refresh(forceFull = true) },
-        onImportModelPack = { modelPackLauncher.launch(arrayOf("application/octet-stream")) },
-        onSearch = viewModel::search,
-        onFindSimilar = viewModel::findSimilar,
-        onFindDuplicates = viewModel::findDuplicates,
-        onStartIndexing = {
-            if (!viewModel.startIndexing() && Build.VERSION.SDK_INT >= 33) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        },
-        onPauseIndexing = viewModel::pauseIndexing,
-        onStopIndexing = viewModel::stopIndexingForNow,
-        onCancelIndexing = viewModel::cancelIndexing,
-        onProbe = viewModel::probe,
-        onClearProbe = viewModel::clearProbe,
-    )
+    val requestAccess = {
+        permissionLauncher.launch(
+            MediaPermissionEvaluator.requestPermissions(Build.VERSION.SDK_INT),
+        )
+    }
+    val startIndexing = {
+        if (!viewModel.startIndexing() && Build.VERSION.SDK_INT >= 33) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    if (!onboardingCompleted) {
+        SetupScreen(
+            catalog = catalog,
+            modelPack = modelPack,
+            indexing = indexing,
+            onImportModelPack = { modelPackLauncher.launch(arrayOf("application/octet-stream")) },
+            onRequestAccess = requestAccess,
+            onStartIndexing = startIndexing,
+            onComplete = viewModel::completeOnboarding,
+        )
+    } else {
+        NaytiAppContent(
+            catalog = catalog,
+            modelPack = modelPack,
+            indexing = indexing,
+            search = search,
+            similar = similar,
+            duplicates = duplicates,
+            viewerProbe = viewerProbe,
+            onRequestAccess = requestAccess,
+            onRefresh = { viewModel.refresh(forceFull = true) },
+            onImportModelPack = { modelPackLauncher.launch(arrayOf("application/octet-stream")) },
+            onSearch = viewModel::search,
+            onFindSimilar = viewModel::findSimilar,
+            onFindDuplicates = viewModel::findDuplicates,
+            onStartIndexing = startIndexing,
+            onPauseIndexing = viewModel::pauseIndexing,
+            onStopIndexing = viewModel::stopIndexingForNow,
+            onCancelIndexing = viewModel::cancelIndexing,
+            onProbe = viewModel::probe,
+            onClearProbe = viewModel::clearProbe,
+        )
+    }
 }
 
 @Composable
@@ -189,41 +212,158 @@ private fun NaytiAppContent(
     val navController = rememberNavController()
     val currentEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentEntry?.destination?.route
-    val showBottomBar = RootDestination.entries.any { it.route == currentRoute }
+    val showRootNavigation = RootDestination.entries.any { it.route == currentRoute }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            if (showBottomBar) {
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                    RootDestination.entries.forEach { destination ->
-                        NavigationBarItem(
-                            selected = currentRoute == destination.route,
-                            onClick = {
-                                navController.navigate(destination.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = { Icon(destination.icon, contentDescription = null) },
-                            label = { Text(stringResource(destination.title)) },
-                            colors = NavigationBarItemDefaults.colors(
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                            ),
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val useNavigationRail = maxWidth >= NavigationRailBreakpoint
+        if (useNavigationRail && showRootNavigation) {
+            Row(
+                modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+            ) {
+                RootNavigationRail(
+                    currentRoute = currentRoute,
+                    onNavigate = navController::navigateToRoot,
+                )
+                RootNavHost(
+                    navController = navController,
+                    catalog = catalog,
+                    modelPack = modelPack,
+                    indexing = indexing,
+                    search = search,
+                    similar = similar,
+                    duplicates = duplicates,
+                    viewerProbe = viewerProbe,
+                    onRequestAccess = onRequestAccess,
+                    onRefresh = onRefresh,
+                    onImportModelPack = onImportModelPack,
+                    onSearch = onSearch,
+                    onFindSimilar = onFindSimilar,
+                    onFindDuplicates = onFindDuplicates,
+                    onStartIndexing = onStartIndexing,
+                    onPauseIndexing = onPauseIndexing,
+                    onStopIndexing = onStopIndexing,
+                    onCancelIndexing = onCancelIndexing,
+                    onProbe = onProbe,
+                    onClearProbe = onClearProbe,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        } else {
+            Scaffold(
+                containerColor = MaterialTheme.colorScheme.background,
+                bottomBar = {
+                    if (showRootNavigation) {
+                        RootNavigationBar(
+                            currentRoute = currentRoute,
+                            onNavigate = navController::navigateToRoot,
                         )
                     }
-                }
+                },
+            ) { innerPadding ->
+                RootNavHost(
+                    navController = navController,
+                    catalog = catalog,
+                    modelPack = modelPack,
+                    indexing = indexing,
+                    search = search,
+                    similar = similar,
+                    duplicates = duplicates,
+                    viewerProbe = viewerProbe,
+                    onRequestAccess = onRequestAccess,
+                    onRefresh = onRefresh,
+                    onImportModelPack = onImportModelPack,
+                    onSearch = onSearch,
+                    onFindSimilar = onFindSimilar,
+                    onFindDuplicates = onFindDuplicates,
+                    onStartIndexing = onStartIndexing,
+                    onPauseIndexing = onPauseIndexing,
+                    onStopIndexing = onStopIndexing,
+                    onCancelIndexing = onCancelIndexing,
+                    onProbe = onProbe,
+                    onClearProbe = onClearProbe,
+                    modifier = Modifier.padding(innerPadding),
+                )
             }
-        },
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = RootDestination.Search.route,
-            modifier = Modifier.padding(innerPadding),
-        ) {
+        }
+    }
+}
+
+@Composable
+private fun RootNavigationBar(
+    currentRoute: String?,
+    onNavigate: (String) -> Unit,
+) {
+    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+        RootDestination.entries.forEach { destination ->
+            NavigationBarItem(
+                selected = currentRoute == destination.route,
+                onClick = { onNavigate(destination.route) },
+                icon = { Icon(destination.icon, contentDescription = null) },
+                label = { Text(stringResource(destination.title)) },
+                colors = NavigationBarItemDefaults.colors(
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RootNavigationRail(
+    currentRoute: String?,
+    onNavigate: (String) -> Unit,
+) {
+    NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
+        RootDestination.entries.forEach { destination ->
+            NavigationRailItem(
+                selected = currentRoute == destination.route,
+                onClick = { onNavigate(destination.route) },
+                icon = { Icon(destination.icon, contentDescription = null) },
+                label = { Text(stringResource(destination.title)) },
+            )
+        }
+    }
+}
+
+private fun NavHostController.navigateToRoot(route: String) {
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) {
+            saveState = true
+        }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
+
+@Composable
+private fun RootNavHost(
+    navController: NavHostController,
+    catalog: CatalogRuntimeState,
+    modelPack: ModelPackRuntimeState,
+    indexing: OcrIndexingState,
+    search: SearchUiState,
+    similar: SimilarUiState,
+    duplicates: DuplicateUiState,
+    viewerProbe: ViewerProbeState,
+    onRequestAccess: () -> Unit,
+    onRefresh: () -> Unit,
+    onImportModelPack: () -> Unit,
+    onSearch: (String) -> Unit,
+    onFindSimilar: (Long) -> Unit,
+    onFindDuplicates: (Long) -> Unit,
+    onStartIndexing: () -> Unit,
+    onPauseIndexing: () -> Unit,
+    onStopIndexing: () -> Unit,
+    onCancelIndexing: () -> Unit,
+    onProbe: (Long) -> Unit,
+    onClearProbe: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    NavHost(
+        navController = navController,
+        startDestination = RootDestination.Search.route,
+        modifier = modifier,
+    ) {
             composable(RootDestination.Search.route) {
                 SearchScreen(
                     catalog = catalog,
@@ -280,7 +420,6 @@ private fun NaytiAppContent(
                 )
             }
         }
-    }
 }
 
 @Composable

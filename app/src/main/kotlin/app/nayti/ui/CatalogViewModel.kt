@@ -121,11 +121,13 @@ class CatalogViewModel @Inject constructor(
     private val perceptualHashes: PerceptualHashSearch,
     private val indexingService: IndexingServiceController,
     private val storage: CatalogStorage,
+    private val onboardingStore: OnboardingStore,
     @param:ApplicationContext private val context: Context,
 ) : ViewModel() {
     val catalog: StateFlow<CatalogRuntimeState> = runtime.state
     val modelPack: StateFlow<ModelPackRuntimeState> = modelPacks.state
     val indexing: StateFlow<OcrIndexingState> = ocrIndexing.state
+    val onboardingCompleted: StateFlow<Boolean> = onboardingStore.completed
 
     private val mutableViewerProbe = MutableStateFlow<ViewerProbeState>(ViewerProbeState.Idle)
     val viewerProbe: StateFlow<ViewerProbeState> = mutableViewerProbe.asStateFlow()
@@ -155,6 +157,8 @@ class CatalogViewModel @Inject constructor(
     fun onPermissionResult() {
         runtime.onPermissionResult()
     }
+
+    fun completeOnboarding() = onboardingStore.complete()
 
     fun probe(assetId: Long) {
         val accessPin = catalog.value.access

@@ -163,6 +163,12 @@ interface VectorIndexDao {
             "AND chunk.ocrPublicationToken = document.publicationToken " +
             "AND chunk.sourceFingerprint = document.sourceFingerprint " +
             "AND asset.availability = 'AVAILABLE' " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(asset.dateTakenMillis, " +
+            "asset.dateModifiedSeconds * 1000) >= :takenFromMillis) " +
+            "AND (:takenBeforeMillis IS NULL OR COALESCE(asset.dateTakenMillis, " +
+            "asset.dateModifiedSeconds * 1000) < :takenBeforeMillis) " +
+            "AND (:bucketId IS NULL OR asset.bucketId = :bucketId) " +
+            "AND (:mimeType IS NULL OR asset.mimeType = :mimeType) " +
             "AND asset.sourceFingerprint = document.sourceFingerprint " +
             "AND generation.pipelineVersion = :semanticPipelineVersion " +
             "AND generation.componentHash = :componentHash " +
@@ -181,6 +187,10 @@ interface VectorIndexDao {
         ocrPipelineVersion: String,
         ocrComponentHash: String,
         maximumPublicationEpoch: Long,
+        takenFromMillis: Long?,
+        takenBeforeMillis: Long?,
+        bucketId: Long?,
+        mimeType: String?,
     ): List<Long>
 
     @Query(
@@ -226,6 +236,12 @@ interface VectorIndexDao {
             "AND vectorRecord.recordId = vectorRecord.assetId " +
             "AND vectorRecord.chunkOrdinal = 0 AND vectorRecord.semanticChunkId IS NULL " +
             "AND asset.availability = 'AVAILABLE' " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(asset.dateTakenMillis, " +
+            "asset.dateModifiedSeconds * 1000) >= :takenFromMillis) " +
+            "AND (:takenBeforeMillis IS NULL OR COALESCE(asset.dateTakenMillis, " +
+            "asset.dateModifiedSeconds * 1000) < :takenBeforeMillis) " +
+            "AND (:bucketId IS NULL OR asset.bucketId = :bucketId) " +
+            "AND (:mimeType IS NULL OR asset.mimeType = :mimeType) " +
             "AND asset.sourceFingerprint = vectorRecord.sourceFingerprint " +
             "AND vectorRecord.accessRevision = access.processAccessRevision " +
             "AND generation.pipelineVersion = :visualPipelineVersion " +
@@ -238,6 +254,10 @@ interface VectorIndexDao {
         segmentSha256: String,
         visualPipelineVersion: String,
         componentHash: String,
+        takenFromMillis: Long?,
+        takenBeforeMillis: Long?,
+        bucketId: Long?,
+        mimeType: String?,
     ): List<Long>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
@@ -310,6 +330,12 @@ interface VectorIndexDao {
             "AND state IN ('BUILDING_SHADOW', 'READY_TO_ACTIVATE', 'ACTIVE')",
     )
     suspend fun activationRootCount(snapshotId: String): Int
+
+    @Query(
+        "SELECT COUNT(*) FROM activation_candidate " +
+            "WHERE state IN ('BUILDING_SHADOW', 'READY_TO_ACTIVATE')",
+    )
+    suspend fun unfinishedActivationCandidateCount(): Int
 
     @Query(
         "UPDATE activation_candidate SET state = :newState, updatedAtMillis = :nowMillis, " +
@@ -723,6 +749,135 @@ interface VectorIndexDao {
     }
 
     @Transaction
+    suspend fun commitQuarantinePrune(
+        expectedActiveSnapshotId: String,
+        sanitizedSnapshot: ActivationSnapshotEntity,
+        channels: List<ActivationSnapshotChannelEntity>,
+        vectorChannels: List<QuarantineVectorChannelCommit>,
+        nowMillis: Long,
+    ): ActivationSnapshotEntity {
+        require(
+            identifier(sanitizedSnapshot.snapshotId) &&
+                sanitizedSnapshot.snapshotId != expectedActiveSnapshotId &&
+                sanitizedSnapshot.createdAtMillis in 0..nowMillis &&
+                sanitizedSnapshot.formatVersion == ActivationSnapshotFormat.Current,
+        )
+        check(snapshot(sanitizedSnapshot.snapshotId) == null)
+        check(activeSnapshotId() == expectedActiveSnapshotId)
+        check(unfinishedActivationCandidateCount() == 0)
+        val active = checkNotNull(snapshot(expectedActiveSnapshotId))
+        require(
+            sanitizedSnapshot.parentSnapshotId == null &&
+                sanitizedSnapshot.packId == active.packId &&
+                sanitizedSnapshot.packVersion == active.packVersion &&
+                sanitizedSnapshot.packManifestSha256 == active.packManifestSha256 &&
+                sanitizedSnapshot.engineContractVersion == active.engineContractVersion &&
+                sanitizedSnapshot.rankingConfigVersion == active.rankingConfigVersion &&
+                sanitizedSnapshot.lexicalPublicationEpoch == active.lexicalPublicationEpoch &&
+                sanitizedSnapshot.pHashPublicationEpoch == active.pHashPublicationEpoch &&
+                sanitizedSnapshot.catalogWatermark == active.catalogWatermark &&
+                sanitizedSnapshot.capturedAccessRevision == active.capturedAccessRevision,
+        )
+        require(vectorChannels.map { it.manifest.channel }.distinct().size == vectorChannels.size)
+        require(vectorChannels.all { it.manifest.channel in setOf(IndexChannel.OCR_SEMANTIC, IndexChannel.VISUAL) })
+        val activeChannels = snapshotChannels(expectedActiveSnapshotId).associateBy { it.channel }
+        vectorChannels.forEach { channel ->
+            val generation = checkNotNull(generation(channel.generationId))
+            val source = checkNotNull(activeChannels[channel.manifest.channel])
+            check(
+                generation.generationId == channel.manifest.generationId &&
+                    generation.channel == channel.manifest.channel &&
+                    generation.packId == sanitizedSnapshot.packId &&
+                    generation.packVersion == sanitizedSnapshot.packVersion &&
+                    generation.state in setOf(VectorGenerationState.BUILDING, VectorGenerationState.SEALED) &&
+                    source.pipelineVersion == generation.pipelineVersion &&
+                    source.componentHash == generation.componentHash &&
+                    source.embeddingSpaceHash == generation.embeddingSpaceHash &&
+                    source.generationId == generation.generationId,
+            )
+            check(channel.manifest.parentRevision == null)
+            val recordsBySegment = channel.records.groupBy(VectorSegmentRecordEntity::segmentSha256)
+            channel.segments.forEach { segment ->
+                val records = recordsBySegment[segment.sha256].orEmpty()
+                validateSegment(generation, segment, records)
+                validateSemanticRecordReferences(generation, records)
+                insertSegmentIfAbsent(segment)
+                check(segment(segment.sha256) == segment)
+                insertSegmentRecordsIfAbsent(records)
+                check(segmentRecords(segment.sha256) == records.sortedBy(VectorSegmentRecordEntity::ordinal))
+            }
+            check(recordsBySegment.keys == channel.segments.map { it.sha256 }.toSet())
+            validateManifest(generation, channel.manifest, channel.manifestEntries)
+            insertManifest(channel.manifest)
+            insertManifestSegments(channel.manifestEntries)
+        }
+        check(
+            sanitizedSnapshot.semanticManifestRevision ==
+                vectorChannels.singleOrNull { it.manifest.channel == IndexChannel.OCR_SEMANTIC }?.manifest?.revision,
+        )
+        check(
+            sanitizedSnapshot.visualManifestRevision ==
+                vectorChannels.singleOrNull { it.manifest.channel == IndexChannel.VISUAL }?.manifest?.revision,
+        )
+        val expectedChannelNames =
+            buildSet {
+                add(IndexChannel.OCR)
+                add(IndexChannel.PHASH)
+                if (sanitizedSnapshot.semanticManifestRevision != null) add(IndexChannel.OCR_SEMANTIC)
+                if (sanitizedSnapshot.visualManifestRevision != null) add(IndexChannel.VISUAL)
+            }
+        require(channels.map { it.channel }.distinct().size == channels.size)
+        require(channels.map { it.channel }.toSet() == expectedChannelNames)
+        require(channels.all { it.snapshotId == sanitizedSnapshot.snapshotId && it.inheritedFromSnapshotId == null })
+        channels.filter { it.channel in setOf(IndexChannel.OCR_SEMANTIC, IndexChannel.VISUAL) }.forEach { channel ->
+            val committed = vectorChannels.single { it.manifest.channel == channel.channel }
+            val generation = checkNotNull(generation(committed.generationId))
+            check(
+                channel.pipelineVersion == generation.pipelineVersion &&
+                    channel.componentHash == generation.componentHash &&
+                    channel.embeddingSpaceHash == generation.embeddingSpaceHash &&
+                    channel.generationId == generation.generationId &&
+                    channel.manifestRevision == committed.manifest.revision,
+            )
+        }
+        channels.filter { it.channel in setOf(IndexChannel.OCR, IndexChannel.PHASH) }.forEach { channel ->
+            val source = checkNotNull(activeChannels[channel.channel])
+            check(
+                channel.pipelineVersion == source.pipelineVersion &&
+                    channel.componentHash == source.componentHash &&
+                    channel.embeddingSpaceHash == null &&
+                    channel.generationId == null &&
+                    channel.manifestRevision == null,
+            )
+        }
+        insertSnapshot(sanitizedSnapshot)
+        insertSnapshotChannels(channels)
+        activationCandidates()
+            .filter { candidate -> candidate.state == ActivationCandidateState.ACTIVE }
+            .forEach { candidate ->
+                check(
+                    transitionActivationCandidateRow(
+                        candidateId = candidate.candidateId,
+                        expectedState = ActivationCandidateState.ACTIVE,
+                        newState = ActivationCandidateState.ROLLED_BACK,
+                        nowMillis = nowMillis,
+                        failureCode = "QUARANTINE_PURGE",
+                    ) == 1,
+                )
+            }
+        val pointer = activePointer()
+        replaceActivePointer(
+            ActiveSnapshotPointerEntity(
+                snapshotId = sanitizedSnapshot.snapshotId,
+                rollbackSnapshotId = null,
+                activationSequence = Math.addExact(pointer?.activationSequence ?: 0, 1),
+                updatedAtMillis = nowMillis,
+            ),
+        )
+        return sanitizedSnapshot
+    }
+
+    @Transaction
     suspend fun sealGeneration(generationId: String, expectedActiveManifestRevision: String, nowMillis: Long) {
         val generation = checkNotNull(generation(generationId))
         check(generation.state == VectorGenerationState.BUILDING)
@@ -1014,6 +1169,10 @@ interface VectorIndexDao {
         maximumPublicationEpoch: Long,
         ocrPipelineVersion: String = "ocr-v1",
         ocrComponentHash: String = componentHash,
+        takenFromMillis: Long? = null,
+        takenBeforeMillis: Long? = null,
+        bucketId: Long? = null,
+        mimeType: String? = null,
     ): List<Long> {
         require(identifier(manifestRevision) && sha256(segmentSha256))
         require(
@@ -1023,6 +1182,7 @@ interface VectorIndexDao {
                 sha256(ocrComponentHash),
         )
         require(maximumPublicationEpoch >= 0)
+        validateSearchFilters(takenFromMillis, takenBeforeMillis, bucketId, mimeType)
         val manifest = checkNotNull(manifest(manifestRevision))
         check(manifest.channel == IndexChannel.OCR_SEMANTIC)
         return semanticEligibleRecordIds(
@@ -1033,6 +1193,10 @@ interface VectorIndexDao {
             ocrPipelineVersion = ocrPipelineVersion,
             ocrComponentHash = ocrComponentHash,
             maximumPublicationEpoch = maximumPublicationEpoch,
+            takenFromMillis = takenFromMillis,
+            takenBeforeMillis = takenBeforeMillis,
+            bucketId = bucketId,
+            mimeType = mimeType,
         ).also { recordIds ->
             check(recordIds.size <= MaximumSegmentRecords)
             check(recordIds.all { it > 0 } && recordIds.zipWithNext().all { (left, right) -> left < right })
@@ -1073,9 +1237,14 @@ interface VectorIndexDao {
         segmentSha256: String,
         visualPipelineVersion: String,
         componentHash: String,
+        takenFromMillis: Long? = null,
+        takenBeforeMillis: Long? = null,
+        bucketId: Long? = null,
+        mimeType: String? = null,
     ): List<Long> {
         require(identifier(manifestRevision) && sha256(segmentSha256))
         require(contractValue(visualPipelineVersion) && sha256(componentHash))
+        validateSearchFilters(takenFromMillis, takenBeforeMillis, bucketId, mimeType)
         val manifest = checkNotNull(manifest(manifestRevision))
         check(manifest.channel == IndexChannel.VISUAL)
         return visualEligibleRecordIds(
@@ -1083,10 +1252,27 @@ interface VectorIndexDao {
             segmentSha256 = segmentSha256,
             visualPipelineVersion = visualPipelineVersion,
             componentHash = componentHash,
+            takenFromMillis = takenFromMillis,
+            takenBeforeMillis = takenBeforeMillis,
+            bucketId = bucketId,
+            mimeType = mimeType,
         ).also { recordIds ->
             check(recordIds.size <= MaximumSegmentRecords)
             check(recordIds.all { it > 0 } && recordIds.zipWithNext().all { (left, right) -> left < right })
         }
+    }
+
+    private fun validateSearchFilters(
+        takenFromMillis: Long?,
+        takenBeforeMillis: Long?,
+        bucketId: Long?,
+        mimeType: String?,
+    ) {
+        require(takenFromMillis == null || takenFromMillis >= 0)
+        require(takenBeforeMillis == null || takenBeforeMillis >= 0)
+        require(takenFromMillis == null || takenBeforeMillis == null || takenFromMillis < takenBeforeMillis)
+        require(bucketId == null || bucketId >= 0)
+        require(mimeType == null || MimeType.matches(mimeType))
     }
 
     @Transaction
@@ -1525,6 +1711,7 @@ interface VectorIndexDao {
         private val ContractValue = Regex("[A-Za-z0-9][A-Za-z0-9._:+/-]*")
         private val Sha256 = Regex("[0-9a-f]{64}")
         private val ArtifactPath = Regex("[A-Za-z0-9][A-Za-z0-9._/-]*")
+        private val MimeType = Regex("[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*")
         private const val PerceptualHashComponentHash =
             "b88379e5ff4d030a0193e528514079b18d5c0619d4500357381d0b4ec82b656a"
         const val MaximumVectorDimension = 4096

@@ -31,6 +31,10 @@ PROTECTED_EXPORTED_COMPONENTS = {
     "androidx.work.impl.background.systemjob.SystemJobService": "android.permission.BIND_JOB_SERVICE",
     "androidx.work.impl.diagnostics.DiagnosticsReceiver": "android.permission.DUMP",
 }
+EXPECTED_BACKUP_RULES = {
+    "dataExtractionRules": "@xml/data_extraction_rules",
+    "fullBackupContent": "@xml/backup_rules",
+}
 
 
 def fail(message: str) -> None:
@@ -83,8 +87,17 @@ def main() -> None:
         fail("application element is missing")
     if attr(application, "allowBackup") != "false":
         fail("android:allowBackup must remain false")
+    for name, expected in EXPECTED_BACKUP_RULES.items():
+        if attr(application, name) != expected:
+            fail(f"android:{name} must remain {expected}")
     if attr(application, "usesCleartextTraffic") == "true":
         fail("cleartext network traffic must not be enabled")
+    if attr(application, "networkSecurityConfig") is not None:
+        fail("an offline app must not install a network security configuration")
+    if attr(application, "requestLegacyExternalStorage") == "true":
+        fail("legacy broad storage access must not be requested")
+    if not package_name.endswith(".debug") and attr(application, "debuggable") == "true":
+        fail("release application must not be debuggable")
 
     exported_components: set[str] = set()
     for tag in ("activity", "activity-alias", "service", "receiver", "provider"):

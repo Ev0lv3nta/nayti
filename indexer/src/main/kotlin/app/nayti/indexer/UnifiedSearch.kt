@@ -60,6 +60,7 @@ class UnifiedSearch(
         pipelineVersion: String,
         fallbackComponentHash: String,
         limit: Int = DefaultLimit,
+        filter: SearchFilter = SearchFilter.None,
     ): UnifiedSearchResult {
         require(limit in 1..MaximumResultLimit)
         val plan = planner.plan(query)
@@ -81,6 +82,7 @@ class UnifiedSearch(
                         limit,
                         plan.intent,
                         plan.usesVisualRetriever,
+                        filter,
                     )
                 } catch (failure: QueryConsistencyChangedException) {
                     consistencyFailure = failure
@@ -88,7 +90,15 @@ class UnifiedSearch(
                 }
             }
             try {
-                return searchLeased(query, pipelineVersion, limit, plan.intent, plan.usesVisualRetriever, lease)
+                return searchLeased(
+                    query,
+                    pipelineVersion,
+                    limit,
+                    plan.intent,
+                    plan.usesVisualRetriever,
+                    lease,
+                    filter,
+                )
             } catch (failure: QueryConsistencyChangedException) {
                 consistencyFailure = failure
             } finally {
@@ -105,6 +115,7 @@ class UnifiedSearch(
         intent: MultimodalQueryIntent,
         usesVisualRetriever: Boolean,
         lease: QuerySnapshotLeaseEntity,
+        filter: SearchFilter,
     ): UnifiedSearchResult {
         val textResult =
             text.searchLeased(
@@ -112,10 +123,11 @@ class UnifiedSearch(
                 pipelineVersion = pipelineVersion,
                 limit = MaximumRetrieverCandidates,
                 lease = lease,
+                filter = filter,
             )
         val visualResult =
             if (usesVisualRetriever) {
-                visual.searchLeased(query, MaximumRetrieverCandidates, lease)
+                visual.searchLeased(query, MaximumRetrieverCandidates, lease, filter)
             } else {
                 null
             }
@@ -146,10 +158,13 @@ class UnifiedSearch(
         limit: Int,
         intent: MultimodalQueryIntent,
         usesVisualRetriever: Boolean,
+        filter: SearchFilter,
     ): UnifiedSearchResult {
         val before = captureState()
-        val textResult = text.search(query, pipelineVersion, fallbackComponentHash, MaximumRetrieverCandidates)
-        val visualResult = if (usesVisualRetriever) visual.search(query, MaximumRetrieverCandidates) else null
+        val textResult =
+            text.search(query, pipelineVersion, fallbackComponentHash, MaximumRetrieverCandidates, filter)
+        val visualResult =
+            if (usesVisualRetriever) visual.search(query, MaximumRetrieverCandidates, filter) else null
         val after = captureState()
         if (before != after) throw QueryConsistencyChangedException()
         return fuse(intent, before.snapshotId, before.accessRevision, null, null, textResult, visualResult, limit)

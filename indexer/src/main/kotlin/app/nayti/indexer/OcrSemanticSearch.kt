@@ -122,6 +122,7 @@ class OcrSemanticSearch(
     suspend fun search(
         query: String,
         limit: Int = DefaultLimit,
+        filter: SearchFilter = SearchFilter.None,
     ): OcrSemanticSearchResult {
         val normalizedQuery = query.trim()
         require(normalizedQuery.isNotEmpty() && normalizedQuery.length <= MaximumQueryCharacters)
@@ -143,7 +144,7 @@ class OcrSemanticSearch(
             )
         return try {
             withContext(Dispatchers.Default) {
-                searchLeased(normalizedQuery, limit, lease)
+                searchLeased(normalizedQuery, limit, lease, filter)
             }
         } finally {
             vectors.releaseQueryLease(lease.leaseToken)
@@ -154,6 +155,7 @@ class OcrSemanticSearch(
         query: String,
         limit: Int,
         lease: QuerySnapshotLeaseEntity,
+        filter: SearchFilter = SearchFilter.None,
     ): OcrSemanticSearchResult {
         val snapshot = checkNotNull(vectors.snapshot(lease.snapshotId))
         check(snapshot.engineContractVersion == NativeVectorIndex.contractVersion())
@@ -235,6 +237,10 @@ class OcrSemanticSearch(
                         maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
                         ocrPipelineVersion = ocrComponent.pipelineVersion,
                         ocrComponentHash = ocrComponent.componentHash,
+                        takenFromMillis = filter.takenFromMillis,
+                        takenBeforeMillis = filter.takenBeforeMillis,
+                        bucketId = filter.bucketId,
+                        mimeType = filter.mimeType,
                     )
                 if (eligibleRecordIds.isEmpty()) return@forEachIndexed
                 val file = safeArtifactPath(artifact.relativePath)

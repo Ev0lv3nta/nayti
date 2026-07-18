@@ -51,6 +51,7 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
             isDebuggable = false
+            versionNameSuffix = "-alpha-local"
         }
     }
 
@@ -60,6 +61,8 @@ android {
             "/META-INF/DEPENDENCIES",
         )
     }
+
+    sourceSets.getByName("main").assets.directories.add(rootProject.file("third_party").path)
 
     testOptions {
         unitTests.isIncludeAndroidResources = true

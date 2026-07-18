@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -46,6 +48,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -111,6 +116,7 @@ import app.nayti.indexer.OcrSemanticSearchStatus
 import app.nayti.indexer.PerceptualHashSearchStatus
 import app.nayti.indexer.SearchCapability
 import app.nayti.indexer.SearchCapabilityCoverage
+import app.nayti.indexer.SearchFilter
 import app.nayti.indexer.UnifiedSearchReason
 import app.nayti.indexer.VisualSimilaritySearchStatus
 import app.nayti.indexer.VisualTextSearchStatus
@@ -121,6 +127,7 @@ import app.nayti.platform.media.MediaPermissionEvaluator
 import app.nayti.platform.media.MediaPermissionSnapshot
 import app.nayti.storage.OcrRegionEntity
 import app.nayti.storage.IndexOperationState
+import app.nayti.storage.SearchFilterFacets
 import app.nayti.ui.theme.NaytiSpacing
 import app.nayti.ui.theme.NaytiTheme
 
@@ -137,12 +144,22 @@ private enum class RootDestination(
 private const val ViewerRoute = "viewer/{assetId}"
 private val NavigationRailBreakpoint = 700.dp
 
+private enum class SearchDateFilter(
+    @param:StringRes val label: Int,
+    val lookbackMillis: Long?,
+) {
+    Any(R.string.search_date_any, null),
+    Month(R.string.search_date_month, 30L * 24 * 60 * 60 * 1_000),
+    Year(R.string.search_date_year, 365L * 24 * 60 * 60 * 1_000),
+}
+
 @Composable
 fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
     val catalog by viewModel.catalog.collectAsStateWithLifecycle()
     val modelPack by viewModel.modelPack.collectAsStateWithLifecycle()
     val indexing by viewModel.indexing.collectAsStateWithLifecycle()
     val search by viewModel.search.collectAsStateWithLifecycle()
+    val searchFilterFacets by viewModel.searchFilterFacets.collectAsStateWithLifecycle()
     val similar by viewModel.similar.collectAsStateWithLifecycle()
     val duplicates by viewModel.duplicates.collectAsStateWithLifecycle()
     val viewerProbe by viewModel.viewerProbe.collectAsStateWithLifecycle()
@@ -193,6 +210,7 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
             modelPack = modelPack,
             indexing = indexing,
             search = search,
+            searchFilterFacets = searchFilterFacets,
             similar = similar,
             duplicates = duplicates,
             viewerProbe = viewerProbe,
@@ -228,6 +246,7 @@ private fun NaytiAppContent(
     modelPack: ModelPackRuntimeState,
     indexing: OcrIndexingState,
     search: SearchUiState,
+    searchFilterFacets: SearchFilterFacets,
     similar: SimilarUiState,
     duplicates: DuplicateUiState,
     viewerProbe: ViewerProbeState,
@@ -239,7 +258,7 @@ private fun NaytiAppContent(
     onRequestAccess: () -> Unit,
     onRefresh: () -> Unit,
     onImportModelPack: () -> Unit,
-    onSearch: (String) -> Unit,
+    onSearch: (String, SearchFilter) -> Unit,
     onFindSimilar: (Long) -> Unit,
     onFindDuplicates: (Long) -> Unit,
     onStartIndexing: () -> Unit,
@@ -275,6 +294,7 @@ private fun NaytiAppContent(
                     modelPack = modelPack,
                     indexing = indexing,
                     search = search,
+                    searchFilterFacets = searchFilterFacets,
                     similar = similar,
                     duplicates = duplicates,
                     viewerProbe = viewerProbe,
@@ -321,6 +341,7 @@ private fun NaytiAppContent(
                     modelPack = modelPack,
                     indexing = indexing,
                     search = search,
+                    searchFilterFacets = searchFilterFacets,
                     similar = similar,
                     duplicates = duplicates,
                     viewerProbe = viewerProbe,
@@ -407,6 +428,7 @@ private fun RootNavHost(
     modelPack: ModelPackRuntimeState,
     indexing: OcrIndexingState,
     search: SearchUiState,
+    searchFilterFacets: SearchFilterFacets,
     similar: SimilarUiState,
     duplicates: DuplicateUiState,
     viewerProbe: ViewerProbeState,
@@ -418,7 +440,7 @@ private fun RootNavHost(
     onRequestAccess: () -> Unit,
     onRefresh: () -> Unit,
     onImportModelPack: () -> Unit,
-    onSearch: (String) -> Unit,
+    onSearch: (String, SearchFilter) -> Unit,
     onFindSimilar: (Long) -> Unit,
     onFindDuplicates: (Long) -> Unit,
     onStartIndexing: () -> Unit,
@@ -444,6 +466,7 @@ private fun RootNavHost(
                     catalog = catalog,
                     modelPack = modelPack,
                     search = search,
+                    searchFilterFacets = searchFilterFacets,
                     onLoadThumbnail = onLoadThumbnail,
                     onSearch = onSearch,
                     onOpenAsset = { assetId -> navController.navigate("viewer/$assetId") },
@@ -545,11 +568,19 @@ private fun SearchScreen(
     catalog: CatalogRuntimeState,
     modelPack: ModelPackRuntimeState,
     search: SearchUiState,
+    searchFilterFacets: SearchFilterFacets,
     onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
-    onSearch: (String) -> Unit,
+    onSearch: (String, SearchFilter) -> Unit,
     onOpenAsset: (Long) -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
+    var dateFilter by rememberSaveable { mutableStateOf(SearchDateFilter.Any) }
+    var bucketId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var mimeType by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(searchFilterFacets) {
+        if (bucketId != null && searchFilterFacets.albums.none { it.bucketId == bucketId }) bucketId = null
+        if (mimeType != null && searchFilterFacets.mimeTypes.none { it.mimeType == mimeType }) mimeType = null
+    }
     val canSearch =
         catalog.access.permission.scope != MediaAccessScope.None &&
             modelPack.installed != null &&
@@ -599,8 +630,34 @@ private fun SearchScreen(
             )
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
+            SearchFilterControls(
+                facets = searchFilterFacets,
+                dateFilter = dateFilter,
+                bucketId = bucketId,
+                mimeType = mimeType,
+                onDateFilter = { dateFilter = it },
+                onBucket = { bucketId = it },
+                onMimeType = { mimeType = it },
+                onReset = {
+                    dateFilter = SearchDateFilter.Any
+                    bucketId = null
+                    mimeType = null
+                },
+            )
+        }
+        item(span = { GridItemSpan(maxLineSpan) }) {
             Button(
-                onClick = { onSearch(query) },
+                onClick = {
+                    val now = System.currentTimeMillis()
+                    onSearch(
+                        query,
+                        SearchFilter(
+                            takenFromMillis = dateFilter.lookbackMillis?.let { lookback -> now - lookback },
+                            bucketId = bucketId,
+                            mimeType = mimeType,
+                        ),
+                    )
+                },
                 enabled = canSearch && query.isNotBlank() && search !is SearchUiState.Searching,
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -685,6 +742,107 @@ private fun SearchScreen(
         }
     }
 }
+
+@Composable
+private fun SearchFilterControls(
+    facets: SearchFilterFacets,
+    dateFilter: SearchDateFilter,
+    bucketId: Long?,
+    mimeType: String?,
+    onDateFilter: (SearchDateFilter) -> Unit,
+    onBucket: (Long?) -> Unit,
+    onMimeType: (String?) -> Unit,
+    onReset: () -> Unit,
+) {
+    var albumsExpanded by rememberSaveable { mutableStateOf(false) }
+    var typesExpanded by rememberSaveable { mutableStateOf(false) }
+    val selectedAlbum = facets.albums.firstOrNull { it.bucketId == bucketId }
+    val hasFilter = dateFilter != SearchDateFilter.Any || bucketId != null || mimeType != null
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = stringResource(R.string.search_filters_title),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (hasFilter) {
+                TextButton(onClick = onReset) { Text(stringResource(R.string.search_filters_reset)) }
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SearchDateFilter.entries.forEach { option ->
+                FilterChip(
+                    selected = dateFilter == option,
+                    onClick = { onDateFilter(option) },
+                    label = { Text(stringResource(option.label)) },
+                )
+            }
+            Box {
+                OutlinedButton(onClick = { albumsExpanded = true }) {
+                    Text(selectedAlbum?.displayName ?: stringResource(R.string.search_album_all))
+                }
+                DropdownMenu(
+                    expanded = albumsExpanded,
+                    onDismissRequest = { albumsExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.search_album_all)) },
+                        onClick = {
+                            onBucket(null)
+                            albumsExpanded = false
+                        },
+                    )
+                    facets.albums.forEach { album ->
+                        DropdownMenuItem(
+                            text = { Text("${album.displayName} · ${album.assetCount}") },
+                            onClick = {
+                                onBucket(album.bucketId)
+                                albumsExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
+            Box {
+                OutlinedButton(onClick = { typesExpanded = true }) {
+                    Text(mimeType?.toDisplayMimeType() ?: stringResource(R.string.search_type_all))
+                }
+                DropdownMenu(
+                    expanded = typesExpanded,
+                    onDismissRequest = { typesExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.search_type_all)) },
+                        onClick = {
+                            onMimeType(null)
+                            typesExpanded = false
+                        },
+                    )
+                    facets.mimeTypes.forEach { type ->
+                        DropdownMenuItem(
+                            text = { Text("${type.mimeType.toDisplayMimeType()} · ${type.assetCount}") },
+                            onClick = {
+                                onMimeType(type.mimeType)
+                                typesExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun String.toDisplayMimeType(): String =
+    substringAfter('/').uppercase().replace("JPEG", "JPG")
 
 @Composable
 private fun SearchResultCard(
@@ -1750,6 +1908,7 @@ private fun NaytiPreview() {
                     errorCode = null,
                 ),
             search = SearchUiState.Idle,
+            searchFilterFacets = SearchFilterFacets(emptyList(), emptyList()),
             similar = SimilarUiState.Idle,
             duplicates = DuplicateUiState.Idle,
             viewerProbe = ViewerProbeState.Idle,
@@ -1761,7 +1920,7 @@ private fun NaytiPreview() {
             onRequestAccess = {},
             onRefresh = {},
             onImportModelPack = {},
-            onSearch = {},
+            onSearch = { _, _ -> },
             onFindSimilar = {},
             onFindDuplicates = {},
             onStartIndexing = {},

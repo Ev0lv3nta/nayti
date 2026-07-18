@@ -93,6 +93,7 @@ class VisualSimilaritySearch(
 
     internal suspend fun searchEncoded(
         limit: Int = DefaultLimit,
+        filter: SearchFilter = SearchFilter.None,
         encoder: suspend (VisualQueryContract) -> ByteArray,
     ): EncodedVisualSearchResult {
         require(limit in 1..MaximumResultLimit)
@@ -111,7 +112,7 @@ class VisualSimilaritySearch(
             )
         return try {
             withContext(Dispatchers.Default) {
-                searchEncodedLeased(limit, lease, encoder)
+                searchEncodedLeased(limit, lease, filter, encoder)
             }
         } finally {
             vectors.releaseQueryLease(lease.leaseToken)
@@ -159,13 +160,14 @@ class VisualSimilaritySearch(
                 lease.accessRevision,
             )
         check(sourceVector.size == index.generation.dimension)
-        val hits = scan(index, sourceVector, sourceAssetId, limit, lease, leaseExpiresAt)
+        val hits = scan(index, sourceVector, sourceAssetId, limit, lease, leaseExpiresAt, SearchFilter.None)
         return ready(sourceAssetId, snapshot.snapshotId, manifestRevision, lease.accessRevision, hits)
     }
 
     internal suspend fun searchEncodedLeased(
         limit: Int,
         lease: QuerySnapshotLeaseEntity,
+        filter: SearchFilter = SearchFilter.None,
         encoder: suspend (VisualQueryContract) -> ByteArray,
     ): EncodedVisualSearchResult {
         val snapshot = checkNotNull(vectors.snapshot(lease.snapshotId))
@@ -190,7 +192,7 @@ class VisualSimilaritySearch(
                 ),
             )
         check(queryVector.size == index.generation.dimension)
-        val hits = scan(index, queryVector, null, limit, lease, lease.expiresAtMillis)
+        val hits = scan(index, queryVector, null, limit, lease, lease.expiresAtMillis, filter)
         return EncodedVisualSearchResult(
             VisualSimilaritySearchStatus.READY,
             snapshot.snapshotId,
@@ -241,6 +243,7 @@ class VisualSimilaritySearch(
         limit: Int,
         lease: QuerySnapshotLeaseEntity,
         initialLeaseExpiresAt: Long,
+        filter: SearchFilter,
     ): List<VisualSimilarityHit> {
         var leaseExpiresAt = initialLeaseExpiresAt
         val candidates = PriorityQueue(MaximumNativeCandidates, CandidateOrder.reversed())
@@ -252,6 +255,10 @@ class VisualSimilaritySearch(
                     segmentSha256 = artifact.sha256,
                     visualPipelineVersion = index.generation.pipelineVersion,
                     componentHash = index.generation.componentHash,
+                    takenFromMillis = filter.takenFromMillis,
+                    takenBeforeMillis = filter.takenBeforeMillis,
+                    bucketId = filter.bucketId,
+                    mimeType = filter.mimeType,
                 ).filterNot { recordId -> recordId == excludedAssetId }
             if (eligible.isEmpty()) return@forEachIndexed
             NativeVectorIndex.exactTopK(

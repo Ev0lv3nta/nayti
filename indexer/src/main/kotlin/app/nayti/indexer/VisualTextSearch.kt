@@ -84,11 +84,12 @@ class VisualTextSearch(
     suspend fun search(
         query: String,
         limit: Int = VisualSimilaritySearch.DefaultLimit,
+        filter: SearchFilter = SearchFilter.None,
     ): VisualTextSearchResult {
         val normalizedQuery = query.trim()
         require(normalizedQuery.isNotEmpty() && normalizedQuery.length <= MaximumQueryCharacters)
         val result =
-            similarity.searchEncoded(limit) { contract ->
+            similarity.searchEncoded(limit, filter) { contract ->
                 sessions.open(contract).use { session ->
                     check(
                         session.embeddingSpaceHash == contract.embeddingSpaceHash &&
@@ -106,11 +107,12 @@ class VisualTextSearch(
         query: String,
         limit: Int,
         lease: QuerySnapshotLeaseEntity,
+        filter: SearchFilter = SearchFilter.None,
     ): VisualTextSearchResult {
         val normalizedQuery = query.trim()
         require(normalizedQuery.isNotEmpty() && normalizedQuery.length <= MaximumQueryCharacters)
         val result =
-            similarity.searchEncodedLeased(limit, lease) { contract ->
+            similarity.searchEncodedLeased(limit, lease, filter) { contract ->
                 sessions.open(contract).use { session ->
                     check(
                         session.embeddingSpaceHash == contract.embeddingSpaceHash &&

@@ -150,7 +150,7 @@ internal fun DataScreen(
             )
         }
         item {
-            val hiddenCount = catalog.summary.outOfScope
+            val hiddenCount = catalog.summary.retainedQuarantine
             if (hiddenCount == 0L) {
                 SettingsCard(
                     icon = Icons.Outlined.Lock,

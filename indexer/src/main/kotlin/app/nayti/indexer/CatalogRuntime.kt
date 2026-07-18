@@ -44,6 +44,7 @@ data class CatalogSummary(
     val pending: Long,
     val trashed: Long,
     val missing: Long,
+    val retainedQuarantine: Long = 0,
 ) {
     companion object {
         val Empty = CatalogSummary(0, 0, 0, 0, 0, 0, 0)
@@ -67,6 +68,7 @@ data class CatalogRuntimeState(
     val summary: CatalogSummary,
     val recentItems: List<CatalogItem>,
     val lastErrorCode: String?,
+    val catalogRevision: Long = 0,
 )
 
 class CatalogRuntime private constructor(
@@ -218,6 +220,7 @@ class CatalogRuntime private constructor(
                     summary = result.counts.toSummary(currentAccess.permission.scope),
                     recentItems = items,
                     lastErrorCode = null,
+                    catalogRevision = storage.catalogDao.watermark()?.catalogRevision ?: 0,
                 )
         } catch (failure: SecurityException) {
             publishFailure("MEDIA_ACCESS_CHANGED")
@@ -253,6 +256,7 @@ class CatalogRuntime private constructor(
             pending = pending,
             trashed = trashed,
             missing = missing,
+            retainedQuarantine = retainedQuarantine,
         )
 
     private fun CatalogAssetEntity.toItem(): CatalogItem =

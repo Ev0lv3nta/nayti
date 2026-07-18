@@ -9,6 +9,7 @@ import app.nayti.indexing.IndexingServiceController
 import app.nayti.BuildConfig
 import app.nayti.indexer.CatalogRuntime
 import app.nayti.indexer.CatalogRuntimeState
+import app.nayti.indexer.CatalogRuntimeStatus
 import app.nayti.indexer.ModelPackActivationRuntime
 import app.nayti.indexer.ModelPackRuntime
 import app.nayti.indexer.ModelPackRuntimeState
@@ -18,6 +19,8 @@ import app.nayti.indexer.OcrIndexingState
 import app.nayti.indexer.OcrSemanticSearchStatus
 import app.nayti.indexer.PerceptualHashSearch
 import app.nayti.indexer.PerceptualHashSearchStatus
+import app.nayti.indexer.SearchFilter
+import app.nayti.indexer.QuarantineGarbageCollector
 import app.nayti.indexer.UnifiedSearch
 import app.nayti.indexer.UnifiedSearchHit
 import app.nayti.indexer.VisualSimilarityHit
@@ -31,6 +34,7 @@ import app.nayti.storage.CatalogAssetEntity
 import app.nayti.storage.CatalogStorage
 import app.nayti.storage.IndexChannel
 import app.nayti.storage.OcrRegionEntity
+import app.nayti.storage.SearchFilterFacets
 import app.nayti.search.engine.similarity.PerceptualHashMatch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -72,6 +76,7 @@ sealed interface SearchUiState {
 
     data class Ready(
         val query: String,
+        val filter: SearchFilter,
         val results: List<SearchResultItem>,
         val semanticStatus: OcrSemanticSearchStatus,
         val visualStatus: VisualTextSearchStatus?,
@@ -163,6 +168,7 @@ class CatalogViewModel @Inject constructor(
     private val storageInspector: LocalStorageInspector,
     private val diagnosticsExporter: DiagnosticsExporter,
     private val searchDataResetter: SearchDataResetter,
+    private val quarantineGarbageCollector: QuarantineGarbageCollector,
     @param:ApplicationContext private val context: Context,
 ) : ViewModel() {
     val catalog: StateFlow<CatalogRuntimeState> = runtime.state
@@ -185,6 +191,8 @@ class CatalogViewModel @Inject constructor(
     val viewerProbe: StateFlow<ViewerProbeState> = mutableViewerProbe.asStateFlow()
     private val mutableSearch = MutableStateFlow<SearchUiState>(SearchUiState.Idle)
     val search: StateFlow<SearchUiState> = mutableSearch.asStateFlow()
+    private val mutableSearchFilterFacets = MutableStateFlow(SearchFilterFacets(emptyList(), emptyList()))
+    val searchFilterFacets: StateFlow<SearchFilterFacets> = mutableSearchFilterFacets.asStateFlow()
     private val mutableSimilar = MutableStateFlow<SimilarUiState>(SimilarUiState.Idle)
     val similar: StateFlow<SimilarUiState> = mutableSimilar.asStateFlow()
     private val mutableDuplicates = MutableStateFlow<DuplicateUiState>(DuplicateUiState.Idle)
@@ -201,15 +209,46 @@ class CatalogViewModel @Inject constructor(
             }.collectLatest { (_, pack) -> ocrIndexing.refresh(pack) }
         }
         viewModelScope.launch {
-            catalog.map { state -> state.access.value }.distinctUntilChanged().collect { revision ->
-                thumbnailLoader.onAccessRevision(revision)
-            }
+            catalog
+                .map { state -> state.access.value to state.catalogRevision }
+                .distinctUntilChanged()
+                .collect { (accessRevision, catalogRevision) ->
+                    thumbnailLoader.onCatalogState(accessRevision, catalogRevision)
+                    clearDerivedUiState()
+                }
         }
         viewModelScope.launch {
             modelPack
                 .map { state -> state.installed?.packVersion to state.candidate?.packVersion }
                 .distinctUntilChanged()
                 .collect { refreshModelPackRollback() }
+        }
+        viewModelScope.launch {
+            catalog.collectLatest { state ->
+                mutableSearchFilterFacets.value =
+                    if (state.access.permission.scope == app.nayti.platform.media.MediaAccessScope.None) {
+                        SearchFilterFacets(emptyList(), emptyList())
+                    } else {
+                        storage.catalogDao.searchFilterFacets()
+                    }
+            }
+        }
+        viewModelScope.launch {
+            catalog
+                .map { state -> state.status to state.access.value }
+                .distinctUntilChanged()
+                .collectLatest { (status, _) ->
+                    if (status != CatalogRuntimeStatus.Ready) return@collectLatest
+                    try {
+                        if (quarantineGarbageCollector.runOnce().purgedAssets > 0) {
+                            runtime.refreshAccess()
+                        }
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation
+                    } catch (_: Exception) {
+                        // Privacy maintenance is retried after the next catalog reconciliation or app start.
+                    }
+                }
         }
     }
 
@@ -440,7 +479,7 @@ class CatalogViewModel @Inject constructor(
         }
     }
 
-    fun search(query: String) {
+    fun search(query: String, filter: SearchFilter = SearchFilter.None) {
         val normalizedQuery = query.trim()
         if (normalizedQuery.isEmpty()) {
             searchGeneration.incrementAndGet()
@@ -462,12 +501,14 @@ class CatalogViewModel @Inject constructor(
                             query = normalizedQuery,
                             pipelineVersion = OcrIndexingRuntime.PipelineVersion,
                             fallbackComponentHash = pack.manifestSha256,
+                            filter = filter,
                         )
                     val hydrated = searchResult.hits.mapNotNull { hit ->
                         storage.catalogDao.asset(hit.assetId)?.let { asset -> SearchResultItem(asset, hit) }
                     }
                     SearchUiState.Ready(
                         normalizedQuery,
+                        filter,
                         hydrated,
                         searchResult.semanticStatus,
                         searchResult.visualStatus,

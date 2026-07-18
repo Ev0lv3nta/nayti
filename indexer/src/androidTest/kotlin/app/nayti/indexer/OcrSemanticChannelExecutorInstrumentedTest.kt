@@ -84,6 +84,30 @@ class OcrSemanticChannelExecutorInstrumentedTest {
                 maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
             ),
         )
+        assertEquals(
+            records.map { it.recordId }.sorted(),
+            storage.vectorIndexDao.currentEligibleSemanticRecordIds(
+                manifestRevision = manifest.revision,
+                segmentSha256 = segment.sha256,
+                semanticPipelineVersion = OcrSemanticChannelExecutor.PipelineVersion,
+                componentHash = ComponentHash,
+                maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
+                takenFromMillis = 4_000,
+                takenBeforeMillis = 6_000,
+                bucketId = 200,
+                mimeType = "image/jpeg",
+            ),
+        )
+        assertTrue(
+            storage.vectorIndexDao.currentEligibleSemanticRecordIds(
+                manifestRevision = manifest.revision,
+                segmentSha256 = segment.sha256,
+                semanticPipelineVersion = OcrSemanticChannelExecutor.PipelineVersion,
+                componentHash = ComponentHash,
+                maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
+                bucketId = 201,
+            ).isEmpty(),
+        )
         assertEquals(2, engine.encodedTexts.size)
         assertEquals(1L, snapshot.lexicalPublicationEpoch)
 
@@ -111,6 +135,7 @@ class OcrSemanticChannelExecutorInstrumentedTest {
         assertEquals(1, searchResult.hits.size)
         assertEquals(AssetId, searchResult.hits.single().assetId)
         assertTrue(searchResult.hits.single().matchedLineOrdinals.isNotEmpty())
+        assertTrue(search.search("European revenue", filter = SearchFilter(bucketId = 201)).hits.isEmpty())
         assertNull(storage.vectorIndexDao.queryLease("semantic-query-test"))
         val hybrid = OcrHybridSearch(storage.ocrDao, storage.vectorIndexDao, search)
         val hybridResult =
@@ -217,6 +242,57 @@ class OcrSemanticChannelExecutorInstrumentedTest {
                 maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
             ).isEmpty(),
         )
+    }
+
+    @Test
+    fun expiredQuarantineRemovesSemanticVectorsAndChunks() = runBlocking {
+        publishOcr(listOf("Quarterly report", "Revenue rose in Europe"))
+        val coordinator = coordinator(FixedEmbeddingEngine())
+        val operation = coordinator.planOperation(request("quarantine"))
+        val window = coordinator.startExecutionWindow(operation.operationId, "TEST", 60_000)
+        assertEquals(1, coordinator.runWindow(window.windowId).published)
+        val publishedSnapshot = checkNotNull(storage.vectorIndexDao.activeSnapshotId()).let { snapshotId ->
+            checkNotNull(storage.vectorIndexDao.snapshot(snapshotId))
+        }
+        val publishedManifest = checkNotNull(publishedSnapshot.semanticManifestRevision)
+        val publishedSegment = storage.vectorIndexDao.manifestSegments(publishedManifest).single().segmentSha256
+        val semanticChunkIds =
+            storage.vectorIndexDao.segmentRecords(publishedSegment).map { record ->
+                checkNotNull(record.semanticChunkId)
+            }
+        val chunkSetId = checkNotNull(storage.ocrSemanticDao.chunk(semanticChunkIds.first())).chunkSetId
+        val quarantined = checkNotNull(storage.catalogDao.asset(AssetId))
+        now = QuarantineGarbageCollector.RetentionMillis + 20_000
+        assertEquals(
+            1,
+            storage.catalogDao.updateAsset(
+                quarantined.copy(
+                    availability = CatalogAvailability.OUT_OF_SCOPE,
+                    quarantineStartedAtMillis = 0,
+                ),
+            ),
+        )
+
+        val report =
+            QuarantineGarbageCollector(
+                storage = storage,
+                vectorRoot = vectorRoot,
+                executionGate = IndexExecutionGate(),
+                nowMillis = { now },
+            ).runOnce()
+
+        assertEquals(1, report.purgedAssets)
+        assertNull(storage.indexStateDao.work(AssetId, IndexChannel.OCR_SEMANTIC))
+        assertNull(storage.ocrSemanticDao.chunkSet(chunkSetId))
+        assertTrue(semanticChunkIds.all { chunkId -> storage.ocrSemanticDao.chunk(chunkId) == null })
+        assertNull(storage.ocrDao.document(AssetId))
+        val active = checkNotNull(storage.vectorIndexDao.activeSnapshotId()).let { snapshotId ->
+            checkNotNull(storage.vectorIndexDao.snapshot(snapshotId))
+        }
+        assertNull(active.parentSnapshotId)
+        assertNull(active.semanticManifestRevision)
+        assertEquals(1, storage.vectorIndexDao.snapshots().size)
+        assertTrue(vectorRoot.resolve("segments").listFiles().orEmpty().isEmpty())
     }
 
     @Test
@@ -384,11 +460,11 @@ class OcrSemanticChannelExecutorInstrumentedTest {
             orientationDegrees = 0,
             generationAdded = 1,
             generationModified = 1,
-            dateTakenMillis = null,
+            dateTakenMillis = 5_000,
             dateModifiedSeconds = 1,
             displayName = null,
-            bucketId = null,
-            bucketDisplayName = null,
+            bucketId = 200,
+            bucketDisplayName = "Documents",
             relativePath = null,
             sourceFingerprint = Fingerprint,
             availability = CatalogAvailability.AVAILABLE,

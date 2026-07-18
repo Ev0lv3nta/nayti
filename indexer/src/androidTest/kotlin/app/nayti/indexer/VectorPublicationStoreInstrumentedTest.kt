@@ -156,6 +156,121 @@ class VectorPublicationStoreInstrumentedTest {
     }
 
     @Test
+    fun visualEligibilityAppliesCatalogFiltersBeforeNativeScan() = runBlocking {
+        val assetId = insertAsset(1)
+        val snapshot = store().publish(request(5, assetId, stageRunningWork(assetId, "filter-lease")))
+        val manifestRevision = checkNotNull(snapshot.visualManifestRevision)
+        val segmentSha256 = storage.vectorIndexDao.manifestSegments(manifestRevision).single().segmentSha256
+        val current = checkNotNull(storage.catalogDao.asset(assetId))
+        assertEquals(
+            1,
+            storage.catalogDao.updateAsset(
+                current.copy(
+                    mimeType = "image/png",
+                    dateTakenMillis = 5_000,
+                    bucketId = 200,
+                    bucketDisplayName = "Documents",
+                ),
+            ),
+        )
+
+        assertEquals(
+            listOf(assetId),
+            storage.vectorIndexDao.currentEligibleVisualRecordIds(
+                manifestRevision = manifestRevision,
+                segmentSha256 = segmentSha256,
+                visualPipelineVersion = "visual-v1",
+                componentHash = ComponentHash,
+                takenFromMillis = 4_000,
+                takenBeforeMillis = 6_000,
+                bucketId = 200,
+                mimeType = "image/png",
+            ),
+        )
+        assertTrue(
+            storage.vectorIndexDao.currentEligibleVisualRecordIds(
+                manifestRevision = manifestRevision,
+                segmentSha256 = segmentSha256,
+                visualPipelineVersion = "visual-v1",
+                componentHash = ComponentHash,
+                mimeType = "image/jpeg",
+            ).isEmpty(),
+        )
+    }
+
+    @Test
+    fun expiredQuarantineRewritesActiveRootAndPhysicallyRemovesDerivedData() = runBlocking {
+        val expiredAssetId = insertAsset(1)
+        val expiredSnapshot =
+            store().publish(request(21, expiredAssetId, stageRunningWork(expiredAssetId, "quarantine-expired")))
+        storage.vectorIndexDao.acquireActiveSnapshotLease(
+            QuerySnapshotLeaseEntity(
+                leaseToken = "quarantine-query",
+                snapshotId = expiredSnapshot.snapshotId,
+                accessRevision = AccessRevision,
+                createdAtMillis = now,
+                expiresAtMillis = now + 60_000,
+            ),
+            now,
+        )
+        now += 100
+        storage.vectorIndexDao.createGeneration(
+            generation().copy(
+                generationId = SecondGenerationId,
+                embeddingSpaceHash = SecondEmbeddingHash,
+            ),
+        )
+        val retainedAssetId = insertAsset(2)
+        store().publish(
+            request(22, retainedAssetId, stageRunningWork(retainedAssetId, "quarantine-retained")).copy(
+                generationId = SecondGenerationId,
+            ),
+        )
+        val expired = checkNotNull(storage.catalogDao.asset(expiredAssetId))
+        assertEquals(
+            1,
+            storage.catalogDao.updateAsset(
+                expired.copy(
+                    availability = CatalogAvailability.OUT_OF_SCOPE,
+                    quarantineStartedAtMillis = now - QuarantineGarbageCollector.RetentionMillis - 1,
+                ),
+            ),
+        )
+
+        val collector =
+            QuarantineGarbageCollector(
+                storage = storage,
+                vectorRoot = root,
+                executionGate = IndexExecutionGate(),
+                nowMillis = { now },
+            )
+        val deferred = collector.runOnce()
+        assertEquals(0, deferred.purgedAssets)
+        assertTrue(deferred.deferred)
+        assertEquals(1, storage.vectorIndexDao.releaseQueryLease("quarantine-query"))
+        val report = collector.runOnce()
+
+        assertEquals(1, report.selectedAssets)
+        assertEquals(1, report.purgedAssets)
+        assertFalse(report.deferred)
+        assertNotNull(storage.catalogDao.asset(expiredAssetId)?.derivedDataPurgedAtMillis)
+        assertNull(storage.indexStateDao.work(expiredAssetId, IndexChannel.VISUAL))
+        assertEquals(0L, storage.quarantineDao.vectorRecordCount(listOf(expiredAssetId)))
+        val active = checkNotNull(storage.vectorIndexDao.activeSnapshotId()).let { id ->
+            checkNotNull(storage.vectorIndexDao.snapshot(id))
+        }
+        assertNull(active.parentSnapshotId)
+        assertNull(storage.vectorIndexDao.activePointer()?.rollbackSnapshotId)
+        assertEquals(1, storage.vectorIndexDao.snapshots().size)
+        val manifestRevision = checkNotNull(active.visualManifestRevision)
+        assertEquals(SecondGenerationId, storage.vectorIndexDao.manifest(manifestRevision)?.generationId)
+        val entries = storage.vectorIndexDao.manifestSegments(manifestRevision)
+        val retainedRecords = entries.flatMap { entry -> storage.vectorIndexDao.segmentRecords(entry.segmentSha256) }
+        assertEquals(listOf(retainedAssetId), retainedRecords.map { it.assetId })
+        assertEquals(1, root.resolve("segments").listFiles().orEmpty().size)
+    }
+
+    @Test
     fun readyCandidateActivatesAtomicallyWhileParentLeaseRemainsValidAndRollbackIsPointerOnly() = runBlocking {
         val assetId = insertAsset(1)
         val parent = store().publish(request(101, assetId, stageRunningWork(assetId, "activation-parent")))
@@ -1348,14 +1463,16 @@ class VectorPublicationStoreInstrumentedTest {
         assetId: Long,
         leaseToken: String,
         componentHash: String = ComponentHash,
-        sourceFingerprint: String = "source-$assetId",
+        sourceFingerprint: String? = null,
     ): String {
+        val stagedSourceFingerprint =
+            sourceFingerprint ?: checkNotNull(storage.catalogDao.asset(assetId)).sourceFingerprint
         storage.indexStateDao.replaceWork(
             IndexChannelWorkEntity(
                 assetId = assetId,
                 channel = IndexChannel.VISUAL,
                 state = IndexWorkState.RUNNING,
-                sourceFingerprint = sourceFingerprint,
+                sourceFingerprint = stagedSourceFingerprint,
                 accessRevision = AccessRevision,
                 pipelineVersion = "visual-v1",
                 componentHash = componentHash,

@@ -46,6 +46,13 @@
     <string name="search_title">Find what you remember</string>
     <string name="search_subtitle">Text in photos, identifiers, names, and documents — locally, without the cloud.</string>
     <string name="search_hint">For example, “coffee shop receipt”</string>
+    <string name="search_filters_title">Search within</string>
+    <string name="search_date_any">Any time</string>
+    <string name="search_date_month">30 days</string>
+    <string name="search_date_year">One year</string>
+    <string name="search_album_all">All albums</string>
+    <string name="search_type_all">All formats</string>
+    <string name="search_filters_reset">Reset</string>
     <string name="search_catalog_ready">The catalog is connected. Search covers only photos already processed.</string>
     <string name="search_waiting_access">Connect your library on the Readiness tab first.</string>
     <string name="search_waiting_model_pack">Import a signed model pack on the Data tab.</string>
@@ -172,8 +179,8 @@
     <string name="quarantine_title">Data outside current access</string>
     <string name="quarantine_empty">No hidden photos currently have preserved derived data.</string>
     <plurals name="quarantine_count">
-        <item quantity="one">%1$d photo is hidden by the current system selection. It is excluded from search; removing its derived data immediately requires resetting the full index.</item>
-        <item quantity="other">%1$d photos are hidden by the current system selection. They are excluded from search; removing their derived data immediately requires resetting the full index.</item>
+        <item quantity="one">%1$d photo is hidden by the current system selection and excluded from search. Its derived data is removed automatically after 30 days; reset the index to remove it now.</item>
+        <item quantity="other">%1$d photos are hidden by the current system selection and excluded from search. Their derived data is removed automatically after 30 days; reset the index to remove it now.</item>
     </plurals>
     <string name="quarantine_delete_now">Remove derived data now</string>
     <string name="model_pack_title">Model pack</string>

@@ -354,6 +354,15 @@ object StorageMigrations {
             }
         }
 
+    val From8To9: Migration =
+        object : Migration(8, 9) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "ALTER TABLE `catalog_asset` ADD COLUMN `derivedDataPurgedAtMillis` INTEGER",
+                )
+            }
+        }
+
     val All: Array<Migration> =
-        arrayOf(From1To2, From2To3, From3To4, From4To5, From5To6, From6To7, From7To8)
+        arrayOf(From1To2, From2To3, From3To4, From4To5, From5To6, From6To7, From7To8, From8To9)
 }

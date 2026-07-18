@@ -1,0 +1,32 @@
+{
+  "allowedLicenses": [
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "MIT"
+  ],
+  "groupRules": [
+    {"prefix": "com.google.protobuf", "license": "BSD-3-Clause"},
+    {"prefix": "androidx.", "license": "Apache-2.0"},
+    {"prefix": "com.google.", "license": "Apache-2.0"},
+    {"prefix": "jakarta.inject", "license": "Apache-2.0"},
+    {"prefix": "javax.inject", "license": "Apache-2.0"},
+    {"prefix": "org.jetbrains", "license": "Apache-2.0"},
+    {"prefix": "org.jspecify", "license": "Apache-2.0"}
+  ],
+  "localComponents": [
+    {
+      "group": "com.microsoft",
+      "name": "onnxruntime-android-reduced",
+      "version": "1.27.0-nayti.1",
+      "license": "MIT",
+      "purl": "pkg:github/microsoft/onnxruntime@v1.27.0"
+    },
+    {
+      "group": "com.microsoft",
+      "name": "onnxruntime-extensions-reduced",
+      "version": "fe4e13f46b19fb490c90b09fe280277308bd5bb7",
+      "license": "MIT",
+      "purl": "pkg:github/microsoft/onnxruntime-extensions@fe4e13f46b19fb490c90b09fe280277308bd5bb7"
+    }
+  ]
+}

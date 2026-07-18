@@ -21,6 +21,19 @@ interface CatalogDao {
     @Query("SELECT * FROM catalog_asset ORDER BY assetId")
     suspend fun allAssets(): List<CatalogAssetEntity>
 
+    @Query(
+        "SELECT bucketId AS bucketId, COALESCE(NULLIF(TRIM(bucketDisplayName), ''), 'Без названия') AS displayName, " +
+            "COUNT(*) AS assetCount FROM catalog_asset WHERE availability = 'AVAILABLE' AND bucketId IS NOT NULL " +
+            "GROUP BY bucketId, displayName ORDER BY displayName COLLATE NOCASE, bucketId",
+    )
+    suspend fun availableAlbumFacets(): List<SearchAlbumFacet>
+
+    @Query(
+        "SELECT mimeType AS mimeType, COUNT(*) AS assetCount FROM catalog_asset " +
+            "WHERE availability = 'AVAILABLE' GROUP BY mimeType ORDER BY assetCount DESC, mimeType",
+    )
+    suspend fun availableMimeFacets(): List<SearchMimeFacet>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAsset(asset: CatalogAssetEntity): Long
 
@@ -117,7 +130,9 @@ interface CatalogDao {
             "COALESCE(SUM(CASE WHEN availability = 'PENDING' THEN 1 ELSE 0 END), 0) AS pending, " +
             "COALESCE(SUM(CASE WHEN availability = 'TRASHED' THEN 1 ELSE 0 END), 0) AS trashed, " +
             "COALESCE(SUM(CASE WHEN availability = 'MISSING_UNCONFIRMED' THEN 1 ELSE 0 END), 0) AS missing, " +
-            "COALESCE(SUM(CASE WHEN availability = 'DELETED' THEN 1 ELSE 0 END), 0) AS deleted " +
+            "COALESCE(SUM(CASE WHEN availability = 'DELETED' THEN 1 ELSE 0 END), 0) AS deleted, " +
+            "COALESCE(SUM(CASE WHEN availability = 'OUT_OF_SCOPE' " +
+            "AND derivedDataPurgedAtMillis IS NULL THEN 1 ELSE 0 END), 0) AS retainedQuarantine " +
             "FROM catalog_asset",
     )
     suspend fun countsOrNull(): CatalogCounts?
@@ -177,6 +192,7 @@ interface CatalogDao {
                     missingFullObservationCount = 0,
                     quarantineStartedAtMillis = null,
                     sourceObservedAtMillis = nowMillis,
+                    derivedDataPurgedAtMillis = null,
                 )
             if (current == null) {
                 check(insertAsset(updated) > 0)
@@ -265,5 +281,12 @@ interface CatalogDao {
 
     suspend fun counts(): CatalogCounts =
         countsOrNull()
-            ?: CatalogCounts(0, 0, 0, 0, 0, 0, 0, 0)
+            ?: CatalogCounts(0, 0, 0, 0, 0, 0, 0, 0, 0)
+
+    @Transaction
+    suspend fun searchFilterFacets(): SearchFilterFacets =
+        SearchFilterFacets(
+            albums = availableAlbumFacets(),
+            mimeTypes = availableMimeFacets(),
+        )
 }

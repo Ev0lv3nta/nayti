@@ -22,6 +22,7 @@ import app.nayti.indexer.OcrSemanticSearch
 import app.nayti.indexer.PerceptualHashSearch
 import app.nayti.indexer.ProductionCandidateCanaryVerifier
 import app.nayti.indexer.ProductionCandidateShadowBuilder
+import app.nayti.indexer.QuarantineGarbageCollector
 import app.nayti.indexer.UnifiedSearch
 import app.nayti.indexer.VisualSimilaritySearch
 import app.nayti.indexer.VisualTextSearch
@@ -107,6 +108,19 @@ object CatalogRuntimeModule {
     @Provides
     @Singleton
     fun provideIndexExecutionGate(): IndexExecutionGate = IndexExecutionGate()
+
+    @Provides
+    @Singleton
+    fun provideQuarantineGarbageCollector(
+        @ApplicationContext context: Context,
+        storage: CatalogStorage,
+        executionGate: IndexExecutionGate,
+    ): QuarantineGarbageCollector =
+        QuarantineGarbageCollector(
+            storage = storage,
+            vectorRoot = context.noBackupFilesDir.resolve(StorageContract.VectorIndexDirectory),
+            executionGate = executionGate,
+        )
 
     @Provides
     @Singleton

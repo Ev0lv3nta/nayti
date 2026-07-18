@@ -57,6 +57,7 @@ abstract class NaytiDatabase : RoomDatabase() {
     abstract fun vectorIndexDao(): VectorIndexDao
     abstract fun perceptualHashDao(): PerceptualHashDao
     abstract fun searchDataResetDao(): SearchDataResetDao
+    abstract fun quarantineDao(): QuarantineDao
 
     companion object {
         fun open(context: Context): NaytiDatabase =
@@ -84,6 +85,7 @@ class CatalogStorage private constructor(
     val vectorIndexDao: VectorIndexDao = database.vectorIndexDao()
     val perceptualHashDao: PerceptualHashDao = database.perceptualHashDao()
     val searchDataResetDao: SearchDataResetDao = database.searchDataResetDao()
+    val quarantineDao: QuarantineDao = database.quarantineDao()
 
     override fun close() {
         database.close()

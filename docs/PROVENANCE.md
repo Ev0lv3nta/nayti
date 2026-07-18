@@ -14,6 +14,8 @@ Nayti создаётся как самостоятельная greenfield-код
 
 Model weights, tokenizer artifacts и собранные model packs не публикуются в Git history. Перед release для них формируются отдельные notices, checksums и provenance metadata.
 
+Минимальная ARM64-сборка ONNX Runtime публикуется отдельно от source history как проверяемый prerelease asset. CI принимает её только по зафиксированным имени, размеру и SHA-256; исходные revision, параметры сборки и MIT-лицензии описаны в [reduced-onnx-runtime.md](third-party/reduced-onnx-runtime.md).
+
 ## Проверка изменений
 
 Изменения описываются через реализуемый контракт Nayti, а не через соответствие файлу стороннего приложения. Перед release выполняются dependency/license audit, проверка binary artifacts и выборочная provenance review.

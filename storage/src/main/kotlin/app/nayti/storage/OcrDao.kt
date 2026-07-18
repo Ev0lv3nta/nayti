@@ -84,6 +84,12 @@ interface OcrDao {
             "INNER JOIN catalog_access_observation ON catalog_access_observation.singletonId = 1 " +
             "WHERE ocr_lexical_fts MATCH :matchQuery " +
             "AND catalog_asset.availability = 'AVAILABLE' " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(catalog_asset.dateTakenMillis, " +
+            "catalog_asset.dateModifiedSeconds * 1000) >= :takenFromMillis) " +
+            "AND (:takenBeforeMillis IS NULL OR COALESCE(catalog_asset.dateTakenMillis, " +
+            "catalog_asset.dateModifiedSeconds * 1000) < :takenBeforeMillis) " +
+            "AND (:bucketId IS NULL OR catalog_asset.bucketId = :bucketId) " +
+            "AND (:mimeType IS NULL OR catalog_asset.mimeType = :mimeType) " +
             "AND catalog_asset.sourceFingerprint = ocr_document.sourceFingerprint " +
             "AND ocr_document.pipelineVersion = :pipelineVersion " +
             "AND ocr_document.componentHash = :componentHash " +
@@ -104,6 +110,10 @@ interface OcrDao {
         pipelineVersion: String,
         componentHash: String,
         maximumPublicationEpoch: Long,
+        takenFromMillis: Long?,
+        takenBeforeMillis: Long?,
+        bucketId: Long?,
+        mimeType: String?,
         limit: Int,
     ): List<OcrLexicalCandidate>
 
@@ -115,6 +125,12 @@ interface OcrDao {
             "INNER JOIN catalog_access_observation ON catalog_access_observation.singletonId = 1 " +
             "WHERE ocr_trigram_fts MATCH :matchQuery " +
             "AND catalog_asset.availability = 'AVAILABLE' " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(catalog_asset.dateTakenMillis, " +
+            "catalog_asset.dateModifiedSeconds * 1000) >= :takenFromMillis) " +
+            "AND (:takenBeforeMillis IS NULL OR COALESCE(catalog_asset.dateTakenMillis, " +
+            "catalog_asset.dateModifiedSeconds * 1000) < :takenBeforeMillis) " +
+            "AND (:bucketId IS NULL OR catalog_asset.bucketId = :bucketId) " +
+            "AND (:mimeType IS NULL OR catalog_asset.mimeType = :mimeType) " +
             "AND catalog_asset.sourceFingerprint = ocr_document.sourceFingerprint " +
             "AND ocr_document.pipelineVersion = :pipelineVersion " +
             "AND ocr_document.componentHash = :componentHash " +
@@ -135,6 +151,10 @@ interface OcrDao {
         pipelineVersion: String,
         componentHash: String,
         maximumPublicationEpoch: Long,
+        takenFromMillis: Long?,
+        takenBeforeMillis: Long?,
+        bucketId: Long?,
+        mimeType: String?,
         limit: Int,
     ): List<OcrLexicalCandidate>
 
@@ -344,7 +364,17 @@ interface OcrDao {
         limit: Int,
     ): List<OcrLexicalCandidate> {
         validateSearch(matchQuery, pipelineVersion, componentHash, maximumPublicationEpoch, limit)
-        return lexicalCandidatesRow(matchQuery, pipelineVersion, componentHash, maximumPublicationEpoch, limit)
+        return lexicalCandidatesRow(
+            matchQuery,
+            pipelineVersion,
+            componentHash,
+            maximumPublicationEpoch,
+            null,
+            null,
+            null,
+            null,
+            limit,
+        )
     }
 
     @Transaction
@@ -356,7 +386,17 @@ interface OcrDao {
         limit: Int,
     ): List<OcrLexicalCandidate> {
         validateSearch(matchQuery, pipelineVersion, componentHash, maximumPublicationEpoch, limit)
-        return trigramCandidatesRow(matchQuery, pipelineVersion, componentHash, maximumPublicationEpoch, limit)
+        return trigramCandidatesRow(
+            matchQuery,
+            pipelineVersion,
+            componentHash,
+            maximumPublicationEpoch,
+            null,
+            null,
+            null,
+            null,
+            limit,
+        )
     }
 
     @Transaction
@@ -366,6 +406,10 @@ interface OcrDao {
         pipelineVersion: String,
         componentHash: String,
         limit: Int,
+        takenFromMillis: Long? = null,
+        takenBeforeMillis: Long? = null,
+        bucketId: Long? = null,
+        mimeType: String? = null,
     ): OcrCandidateSnapshot {
         val epoch = publicationClock()?.lastEpoch ?: 0
         return candidateSnapshotAt(
@@ -375,6 +419,10 @@ interface OcrDao {
             componentHash = componentHash,
             maximumPublicationEpoch = epoch,
             limit = limit,
+            takenFromMillis = takenFromMillis,
+            takenBeforeMillis = takenBeforeMillis,
+            bucketId = bucketId,
+            mimeType = mimeType,
         )
     }
 
@@ -386,6 +434,10 @@ interface OcrDao {
         componentHash: String,
         maximumPublicationEpoch: Long,
         limit: Int,
+        takenFromMillis: Long? = null,
+        takenBeforeMillis: Long? = null,
+        bucketId: Long? = null,
+        mimeType: String? = null,
     ): OcrCandidateSnapshot {
         require(lexicalMatchQuery != null || trigramMatchQuery != null)
         lexicalMatchQuery?.let { query ->
@@ -395,13 +447,34 @@ interface OcrDao {
             validateSearch(query, pipelineVersion, componentHash, maximumPublicationEpoch, limit)
         }
         require(maximumPublicationEpoch <= (publicationClock()?.lastEpoch ?: 0))
+        validateFilters(takenFromMillis, takenBeforeMillis, bucketId, mimeType)
         val lexical =
             lexicalMatchQuery?.let { query ->
-                lexicalCandidatesRow(query, pipelineVersion, componentHash, maximumPublicationEpoch, limit)
+                lexicalCandidatesRow(
+                    query,
+                    pipelineVersion,
+                    componentHash,
+                    maximumPublicationEpoch,
+                    takenFromMillis,
+                    takenBeforeMillis,
+                    bucketId,
+                    mimeType,
+                    limit,
+                )
             }.orEmpty()
         val trigram =
             trigramMatchQuery?.let { query ->
-                trigramCandidatesRow(query, pipelineVersion, componentHash, maximumPublicationEpoch, limit)
+                trigramCandidatesRow(
+                    query,
+                    pipelineVersion,
+                    componentHash,
+                    maximumPublicationEpoch,
+                    takenFromMillis,
+                    takenBeforeMillis,
+                    bucketId,
+                    mimeType,
+                    limit,
+                )
             }.orEmpty()
         val assetIds = (lexical.map(OcrLexicalCandidate::assetId) + trigram.map(OcrLexicalCandidate::assetId)).distinct()
         if (assetIds.isEmpty()) {
@@ -445,6 +518,19 @@ interface OcrDao {
         validateContract(pipelineVersion, componentHash)
         require(maximumPublicationEpoch >= 0)
         require(limit in 1..MaximumCandidates)
+    }
+
+    private fun validateFilters(
+        takenFromMillis: Long?,
+        takenBeforeMillis: Long?,
+        bucketId: Long?,
+        mimeType: String?,
+    ) {
+        require(takenFromMillis == null || takenFromMillis >= 0)
+        require(takenBeforeMillis == null || takenBeforeMillis >= 0)
+        require(takenFromMillis == null || takenBeforeMillis == null || takenFromMillis < takenBeforeMillis)
+        require(bucketId == null || bucketId >= 0)
+        require(mimeType == null || MimeType.matches(mimeType))
     }
 
     private fun validateContract(pipelineVersion: String, componentHash: String) {
@@ -506,6 +592,7 @@ interface OcrDao {
         private val PublicationToken = Regex("[A-Za-z0-9][A-Za-z0-9._:-]{0,95}")
         private val ContractValue = Regex("[A-Za-z0-9][A-Za-z0-9._:+/-]{0,127}")
         private val Sha256 = Regex("[0-9a-f]{64}")
+        private val MimeType = Regex("[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*")
         const val MaximumMatchCharacters = 1_024
         const val MaximumCandidates = 256
         const val MaximumGarbageCollectionBatch = 256

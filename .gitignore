@@ -35,6 +35,7 @@ artifacts/
 *.apk
 *.aab
 *.apks
+*.aar
 
 # Credentials and local configuration
 .env

@@ -249,6 +249,14 @@ data class ArtifactDeleteIntentEntity(
     val createdAtMillis: Long,
 )
 
+data class QuarantineVectorChannelCommit(
+    val generationId: String,
+    val segments: List<VectorSegmentArtifactEntity>,
+    val records: List<VectorSegmentRecordEntity>,
+    val manifest: VectorManifestEntity,
+    val manifestEntries: List<VectorManifestSegmentEntity>,
+)
+
 object VectorGenerationState {
     const val BUILDING = "BUILDING"
     const val SEALED = "SEALED"

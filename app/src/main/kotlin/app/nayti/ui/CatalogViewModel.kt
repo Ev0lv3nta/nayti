@@ -9,6 +9,7 @@ import app.nayti.indexing.IndexingServiceController
 import app.nayti.BuildConfig
 import app.nayti.indexer.CatalogRuntime
 import app.nayti.indexer.CatalogRuntimeState
+import app.nayti.indexer.CatalogRuntimeStatus
 import app.nayti.indexer.ModelPackActivationRuntime
 import app.nayti.indexer.ModelPackRuntime
 import app.nayti.indexer.ModelPackRuntimeState
@@ -19,6 +20,7 @@ import app.nayti.indexer.OcrSemanticSearchStatus
 import app.nayti.indexer.PerceptualHashSearch
 import app.nayti.indexer.PerceptualHashSearchStatus
 import app.nayti.indexer.SearchFilter
+import app.nayti.indexer.QuarantineGarbageCollector
 import app.nayti.indexer.UnifiedSearch
 import app.nayti.indexer.UnifiedSearchHit
 import app.nayti.indexer.VisualSimilarityHit
@@ -166,6 +168,7 @@ class CatalogViewModel @Inject constructor(
     private val storageInspector: LocalStorageInspector,
     private val diagnosticsExporter: DiagnosticsExporter,
     private val searchDataResetter: SearchDataResetter,
+    private val quarantineGarbageCollector: QuarantineGarbageCollector,
     @param:ApplicationContext private val context: Context,
 ) : ViewModel() {
     val catalog: StateFlow<CatalogRuntimeState> = runtime.state
@@ -225,6 +228,23 @@ class CatalogViewModel @Inject constructor(
                         storage.catalogDao.searchFilterFacets()
                     }
             }
+        }
+        viewModelScope.launch {
+            catalog
+                .map { state -> state.status to state.access.value }
+                .distinctUntilChanged()
+                .collectLatest { (status, _) ->
+                    if (status != CatalogRuntimeStatus.Ready) return@collectLatest
+                    try {
+                        if (quarantineGarbageCollector.runOnce().purgedAssets > 0) {
+                            runtime.refreshAccess()
+                        }
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation
+                    } catch (_: Exception) {
+                        // Privacy maintenance is retried after the next catalog reconciliation or app start.
+                    }
+                }
         }
     }
 

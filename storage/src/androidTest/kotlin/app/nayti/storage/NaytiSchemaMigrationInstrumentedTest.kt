@@ -65,6 +65,7 @@ class NaytiSchemaMigrationInstrumentedTest {
                 StorageMigrations.From5To6,
                 StorageMigrations.From6To7,
                 StorageMigrations.From7To8,
+                StorageMigrations.From8To9,
             ),
         ).use { connection ->
             connection.prepare(
@@ -134,6 +135,19 @@ class NaytiSchemaMigrationInstrumentedTest {
             connection.prepare("SELECT COUNT(*) FROM activation_snapshot_channel").use { statement ->
                 assertTrue(statement.step())
                 assertEquals(0L, statement.getLong(0))
+            }
+        }
+    }
+
+    @Test
+    fun migration8To9AddsDurableQuarantinePurgeMarker() = runBlocking {
+        migration.createDatabase(8).close()
+
+        migration.runMigrationsAndValidate(9, listOf(StorageMigrations.From8To9)).use { connection ->
+            connection.prepare("PRAGMA table_info(`catalog_asset`)").use { statement ->
+                val columns = mutableSetOf<String>()
+                while (statement.step()) columns += statement.getText(1)
+                assertTrue("derivedDataPurgedAtMillis" in columns)
             }
         }
     }

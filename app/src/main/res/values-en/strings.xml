@@ -179,8 +179,8 @@
     <string name="quarantine_title">Data outside current access</string>
     <string name="quarantine_empty">No hidden photos currently have preserved derived data.</string>
     <plurals name="quarantine_count">
-        <item quantity="one">%1$d photo is hidden by the current system selection. It is excluded from search; removing its derived data immediately requires resetting the full index.</item>
-        <item quantity="other">%1$d photos are hidden by the current system selection. They are excluded from search; removing their derived data immediately requires resetting the full index.</item>
+        <item quantity="one">%1$d photo is hidden by the current system selection and excluded from search. Its derived data is removed automatically after 30 days; reset the index to remove it now.</item>
+        <item quantity="other">%1$d photos are hidden by the current system selection and excluded from search. Their derived data is removed automatically after 30 days; reset the index to remove it now.</item>
     </plurals>
     <string name="quarantine_delete_now">Remove derived data now</string>
     <string name="model_pack_title">Model pack</string>

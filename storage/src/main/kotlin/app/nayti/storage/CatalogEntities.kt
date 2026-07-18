@@ -31,6 +31,7 @@ data class CatalogAssetEntity(
     val missingFullObservationCount: Int,
     val quarantineStartedAtMillis: Long?,
     val sourceObservedAtMillis: Long,
+    val derivedDataPurgedAtMillis: Long? = null,
 )
 
 @Entity(tableName = "catalog_volume")
@@ -107,6 +108,7 @@ data class CatalogCounts(
     val trashed: Long,
     val missing: Long,
     val deleted: Long,
+    val retainedQuarantine: Long,
 )
 
 data class SearchAlbumFacet(

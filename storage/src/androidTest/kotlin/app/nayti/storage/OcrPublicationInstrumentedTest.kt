@@ -25,6 +25,7 @@ class OcrPublicationInstrumentedTest {
     private lateinit var index: IndexStateDao
     private lateinit var ocr: OcrDao
     private lateinit var semantic: OcrSemanticDao
+    private lateinit var quarantine: QuarantineDao
 
     @Before
     fun setUp() {
@@ -105,6 +106,45 @@ class OcrPublicationInstrumentedTest {
         assertEquals(document.displayText, ocr.document(assetId)?.displayText)
         assertEquals(2, ocr.regions(assetId).size)
         assertEquals(1L, ocr.publicationClock()?.lastEpoch)
+    }
+
+    @Test
+    fun quarantineFinalizationDeletesOcrFtsAndWorkAfterVectorReferencesAreGone() = runBlocking {
+        val assetId = insertAsset(SourceFingerprint)
+        val claim = claimOcr(assetId)
+        val document = document(assetId, "Private receipt", "private receipt", "privat receipt", "")
+        val regions = listOf(region("Private receipt", "private receipt"))
+        checkNotNull(
+            ocr.commitOcrPublication(
+                checkNotNull(claim.leaseToken),
+                "ocr-private",
+                OcrPublicationCodec.identity(document, regions),
+                document,
+                regions,
+                20,
+            ),
+        )
+        val asset = checkNotNull(catalog.asset(assetId))
+        assertEquals(
+            1,
+            catalog.updateAsset(
+                asset.copy(
+                    availability = CatalogAvailability.OUT_OF_SCOPE,
+                    quarantineStartedAtMillis = 50,
+                ),
+            ),
+        )
+
+        assertEquals(listOf(assetId), quarantine.expiredAssets(cutoffMillis = 100, limit = 10).map { it.assetId })
+        assertEquals(1L, catalog.counts().retainedQuarantine)
+        assertEquals(1, quarantine.finalizePurge(listOf(assetId), cutoffMillis = 100, nowMillis = 200))
+
+        assertNull(ocr.document(assetId))
+        assertTrue(ocr.regions(assetId).isEmpty())
+        assertTrue(ocr.lexicalCandidates("private", PipelineVersion, ComponentHash, 1, 10).isEmpty())
+        assertNull(index.work(assetId, IndexChannel.OCR))
+        assertEquals(200L, catalog.asset(assetId)?.derivedDataPurgedAtMillis)
+        assertEquals(0L, catalog.counts().retainedQuarantine)
     }
 
     @Test
@@ -497,6 +537,7 @@ class OcrPublicationInstrumentedTest {
         index = database.indexStateDao()
         ocr = database.ocrDao()
         semantic = database.ocrSemanticDao()
+        quarantine = database.quarantineDao()
     }
 
     private fun reopenDatabase() {

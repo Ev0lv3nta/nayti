@@ -84,6 +84,7 @@ class CatalogDatabaseInstrumentedTest {
         val quarantined = checkNotNull(dao.asset("external_primary", 2))
         assertEquals(CatalogAvailability.OUT_OF_SCOPE, quarantined.availability)
         assertNotNull(quarantined.quarantineStartedAtMillis)
+        assertEquals(1, dao.updateAsset(quarantined.copy(derivedDataPurgedAtMillis = tick())))
 
         completeRun(
             volumeName = "external_primary",
@@ -95,6 +96,7 @@ class CatalogDatabaseInstrumentedTest {
         assertEquals(assetId, returned.assetId)
         assertEquals(CatalogAvailability.AVAILABLE, returned.availability)
         assertEquals(null, returned.quarantineStartedAtMillis)
+        assertEquals(null, returned.derivedDataPurgedAtMillis)
     }
 
     @Test

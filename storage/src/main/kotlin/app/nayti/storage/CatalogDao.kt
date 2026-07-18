@@ -130,7 +130,9 @@ interface CatalogDao {
             "COALESCE(SUM(CASE WHEN availability = 'PENDING' THEN 1 ELSE 0 END), 0) AS pending, " +
             "COALESCE(SUM(CASE WHEN availability = 'TRASHED' THEN 1 ELSE 0 END), 0) AS trashed, " +
             "COALESCE(SUM(CASE WHEN availability = 'MISSING_UNCONFIRMED' THEN 1 ELSE 0 END), 0) AS missing, " +
-            "COALESCE(SUM(CASE WHEN availability = 'DELETED' THEN 1 ELSE 0 END), 0) AS deleted " +
+            "COALESCE(SUM(CASE WHEN availability = 'DELETED' THEN 1 ELSE 0 END), 0) AS deleted, " +
+            "COALESCE(SUM(CASE WHEN availability = 'OUT_OF_SCOPE' " +
+            "AND derivedDataPurgedAtMillis IS NULL THEN 1 ELSE 0 END), 0) AS retainedQuarantine " +
             "FROM catalog_asset",
     )
     suspend fun countsOrNull(): CatalogCounts?
@@ -190,6 +192,7 @@ interface CatalogDao {
                     missingFullObservationCount = 0,
                     quarantineStartedAtMillis = null,
                     sourceObservedAtMillis = nowMillis,
+                    derivedDataPurgedAtMillis = null,
                 )
             if (current == null) {
                 check(insertAsset(updated) > 0)
@@ -278,7 +281,7 @@ interface CatalogDao {
 
     suspend fun counts(): CatalogCounts =
         countsOrNull()
-            ?: CatalogCounts(0, 0, 0, 0, 0, 0, 0, 0)
+            ?: CatalogCounts(0, 0, 0, 0, 0, 0, 0, 0, 0)
 
     @Transaction
     suspend fun searchFilterFacets(): SearchFilterFacets =

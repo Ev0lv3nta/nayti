@@ -44,6 +44,7 @@ data class CatalogSummary(
     val pending: Long,
     val trashed: Long,
     val missing: Long,
+    val retainedQuarantine: Long = 0,
 ) {
     companion object {
         val Empty = CatalogSummary(0, 0, 0, 0, 0, 0, 0)
@@ -253,6 +254,7 @@ class CatalogRuntime private constructor(
             pending = pending,
             trashed = trashed,
             missing = missing,
+            retainedQuarantine = retainedQuarantine,
         )
 
     private fun CatalogAssetEntity.toItem(): CatalogItem =

@@ -332,6 +332,12 @@ interface VectorIndexDao {
     suspend fun activationRootCount(snapshotId: String): Int
 
     @Query(
+        "SELECT COUNT(*) FROM activation_candidate " +
+            "WHERE state IN ('BUILDING_SHADOW', 'READY_TO_ACTIVATE')",
+    )
+    suspend fun unfinishedActivationCandidateCount(): Int
+
+    @Query(
         "UPDATE activation_candidate SET state = :newState, updatedAtMillis = :nowMillis, " +
             "failureCode = :failureCode WHERE candidateId = :candidateId AND state = :expectedState",
     )
@@ -740,6 +746,135 @@ interface VectorIndexDao {
         insertSnapshotChannels(buildPublishedSnapshotChannels(candidateSnapshot, generation, manifest))
         advanceActivePointer(candidateSnapshot.snapshotId, nowMillis)
         return candidateSnapshot
+    }
+
+    @Transaction
+    suspend fun commitQuarantinePrune(
+        expectedActiveSnapshotId: String,
+        sanitizedSnapshot: ActivationSnapshotEntity,
+        channels: List<ActivationSnapshotChannelEntity>,
+        vectorChannels: List<QuarantineVectorChannelCommit>,
+        nowMillis: Long,
+    ): ActivationSnapshotEntity {
+        require(
+            identifier(sanitizedSnapshot.snapshotId) &&
+                sanitizedSnapshot.snapshotId != expectedActiveSnapshotId &&
+                sanitizedSnapshot.createdAtMillis in 0..nowMillis &&
+                sanitizedSnapshot.formatVersion == ActivationSnapshotFormat.Current,
+        )
+        check(snapshot(sanitizedSnapshot.snapshotId) == null)
+        check(activeSnapshotId() == expectedActiveSnapshotId)
+        check(unfinishedActivationCandidateCount() == 0)
+        val active = checkNotNull(snapshot(expectedActiveSnapshotId))
+        require(
+            sanitizedSnapshot.parentSnapshotId == null &&
+                sanitizedSnapshot.packId == active.packId &&
+                sanitizedSnapshot.packVersion == active.packVersion &&
+                sanitizedSnapshot.packManifestSha256 == active.packManifestSha256 &&
+                sanitizedSnapshot.engineContractVersion == active.engineContractVersion &&
+                sanitizedSnapshot.rankingConfigVersion == active.rankingConfigVersion &&
+                sanitizedSnapshot.lexicalPublicationEpoch == active.lexicalPublicationEpoch &&
+                sanitizedSnapshot.pHashPublicationEpoch == active.pHashPublicationEpoch &&
+                sanitizedSnapshot.catalogWatermark == active.catalogWatermark &&
+                sanitizedSnapshot.capturedAccessRevision == active.capturedAccessRevision,
+        )
+        require(vectorChannels.map { it.manifest.channel }.distinct().size == vectorChannels.size)
+        require(vectorChannels.all { it.manifest.channel in setOf(IndexChannel.OCR_SEMANTIC, IndexChannel.VISUAL) })
+        val activeChannels = snapshotChannels(expectedActiveSnapshotId).associateBy { it.channel }
+        vectorChannels.forEach { channel ->
+            val generation = checkNotNull(generation(channel.generationId))
+            val source = checkNotNull(activeChannels[channel.manifest.channel])
+            check(
+                generation.generationId == channel.manifest.generationId &&
+                    generation.channel == channel.manifest.channel &&
+                    generation.packId == sanitizedSnapshot.packId &&
+                    generation.packVersion == sanitizedSnapshot.packVersion &&
+                    generation.state in setOf(VectorGenerationState.BUILDING, VectorGenerationState.SEALED) &&
+                    source.pipelineVersion == generation.pipelineVersion &&
+                    source.componentHash == generation.componentHash &&
+                    source.embeddingSpaceHash == generation.embeddingSpaceHash &&
+                    source.generationId == generation.generationId,
+            )
+            check(channel.manifest.parentRevision == null)
+            val recordsBySegment = channel.records.groupBy(VectorSegmentRecordEntity::segmentSha256)
+            channel.segments.forEach { segment ->
+                val records = recordsBySegment[segment.sha256].orEmpty()
+                validateSegment(generation, segment, records)
+                validateSemanticRecordReferences(generation, records)
+                insertSegmentIfAbsent(segment)
+                check(segment(segment.sha256) == segment)
+                insertSegmentRecordsIfAbsent(records)
+                check(segmentRecords(segment.sha256) == records.sortedBy(VectorSegmentRecordEntity::ordinal))
+            }
+            check(recordsBySegment.keys == channel.segments.map { it.sha256 }.toSet())
+            validateManifest(generation, channel.manifest, channel.manifestEntries)
+            insertManifest(channel.manifest)
+            insertManifestSegments(channel.manifestEntries)
+        }
+        check(
+            sanitizedSnapshot.semanticManifestRevision ==
+                vectorChannels.singleOrNull { it.manifest.channel == IndexChannel.OCR_SEMANTIC }?.manifest?.revision,
+        )
+        check(
+            sanitizedSnapshot.visualManifestRevision ==
+                vectorChannels.singleOrNull { it.manifest.channel == IndexChannel.VISUAL }?.manifest?.revision,
+        )
+        val expectedChannelNames =
+            buildSet {
+                add(IndexChannel.OCR)
+                add(IndexChannel.PHASH)
+                if (sanitizedSnapshot.semanticManifestRevision != null) add(IndexChannel.OCR_SEMANTIC)
+                if (sanitizedSnapshot.visualManifestRevision != null) add(IndexChannel.VISUAL)
+            }
+        require(channels.map { it.channel }.distinct().size == channels.size)
+        require(channels.map { it.channel }.toSet() == expectedChannelNames)
+        require(channels.all { it.snapshotId == sanitizedSnapshot.snapshotId && it.inheritedFromSnapshotId == null })
+        channels.filter { it.channel in setOf(IndexChannel.OCR_SEMANTIC, IndexChannel.VISUAL) }.forEach { channel ->
+            val committed = vectorChannels.single { it.manifest.channel == channel.channel }
+            val generation = checkNotNull(generation(committed.generationId))
+            check(
+                channel.pipelineVersion == generation.pipelineVersion &&
+                    channel.componentHash == generation.componentHash &&
+                    channel.embeddingSpaceHash == generation.embeddingSpaceHash &&
+                    channel.generationId == generation.generationId &&
+                    channel.manifestRevision == committed.manifest.revision,
+            )
+        }
+        channels.filter { it.channel in setOf(IndexChannel.OCR, IndexChannel.PHASH) }.forEach { channel ->
+            val source = checkNotNull(activeChannels[channel.channel])
+            check(
+                channel.pipelineVersion == source.pipelineVersion &&
+                    channel.componentHash == source.componentHash &&
+                    channel.embeddingSpaceHash == null &&
+                    channel.generationId == null &&
+                    channel.manifestRevision == null,
+            )
+        }
+        insertSnapshot(sanitizedSnapshot)
+        insertSnapshotChannels(channels)
+        activationCandidates()
+            .filter { candidate -> candidate.state == ActivationCandidateState.ACTIVE }
+            .forEach { candidate ->
+                check(
+                    transitionActivationCandidateRow(
+                        candidateId = candidate.candidateId,
+                        expectedState = ActivationCandidateState.ACTIVE,
+                        newState = ActivationCandidateState.ROLLED_BACK,
+                        nowMillis = nowMillis,
+                        failureCode = "QUARANTINE_PURGE",
+                    ) == 1,
+                )
+            }
+        val pointer = activePointer()
+        replaceActivePointer(
+            ActiveSnapshotPointerEntity(
+                snapshotId = sanitizedSnapshot.snapshotId,
+                rollbackSnapshotId = null,
+                activationSequence = Math.addExact(pointer?.activationSequence ?: 0, 1),
+                updatedAtMillis = nowMillis,
+            ),
+        )
+        return sanitizedSnapshot
     }
 
     @Transaction

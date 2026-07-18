@@ -9,14 +9,15 @@ import androidx.room3.PrimaryKey
 
 @Entity(
     tableName = "ocr_document",
+    primaryKeys = ["publicationEpoch"],
     indices = [
         Index(value = ["publicationToken"], unique = true),
-        Index(value = ["publicationEpoch"]),
+        Index(value = ["assetId", "publicationEpoch"]),
         Index(value = ["sourceFingerprint"]),
     ],
 )
 data class OcrDocumentEntity(
-    @PrimaryKey val assetId: Long,
+    val assetId: Long,
     val sourceFingerprint: String,
     val accessRevision: Long,
     val pipelineVersion: String,
@@ -40,10 +41,11 @@ data class OcrDocumentEntity(
 
 @Entity(
     tableName = "ocr_region",
-    primaryKeys = ["assetId", "ordinal"],
-    indices = [Index(value = ["assetId"])],
+    primaryKeys = ["publicationEpoch", "ordinal"],
+    indices = [Index(value = ["assetId", "publicationEpoch"])],
 )
 data class OcrRegionEntity(
+    val publicationEpoch: Long,
     val assetId: Long,
     val ordinal: Int,
     val rawText: String,
@@ -69,7 +71,7 @@ data class OcrRegionEntity(
 data class OcrLexicalFtsEntity(
     @PrimaryKey
     @ColumnInfo(name = "rowid")
-    val assetId: Long,
+    val publicationEpoch: Long,
     val canonical: String,
     val stems: String,
     val identifiers: String,
@@ -80,7 +82,7 @@ data class OcrLexicalFtsEntity(
 data class OcrTrigramFtsEntity(
     @PrimaryKey
     @ColumnInfo(name = "rowid")
-    val assetId: Long,
+    val publicationEpoch: Long,
     val canonical: String,
 )
 

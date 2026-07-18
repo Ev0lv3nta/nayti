@@ -71,8 +71,7 @@ class OcrSemanticChannelExecutor(
         if (
             ocrDependency.state != IndexWorkState.DONE ||
             ocrDependency.sourceFingerprint != claim.work.sourceFingerprint ||
-            ocrDependency.accessRevision != claim.work.accessRevision ||
-            ocrDependency.componentHash != claim.work.componentHash
+            ocrDependency.accessRevision != claim.work.accessRevision
         ) {
             return IndexExecutionOutcome.LeaseRejected
         }
@@ -88,15 +87,18 @@ class OcrSemanticChannelExecutor(
             return IndexExecutionOutcome.LeaseRejected
         }
 
-        val document = semantic.ocrDocument(claim.work.assetId) ?: return IndexExecutionOutcome.LeaseRejected
+        val ocrPublicationToken = ocrDependency.publicationToken ?: return IndexExecutionOutcome.LeaseRejected
+        val document = semantic.ocrDocument(ocrPublicationToken) ?: return IndexExecutionOutcome.LeaseRejected
         if (
+            document.assetId != claim.work.assetId ||
             document.sourceFingerprint != claim.work.sourceFingerprint ||
             document.accessRevision != claim.work.accessRevision ||
-            document.componentHash != claim.work.componentHash
+            document.pipelineVersion != ocrDependency.pipelineVersion ||
+            document.componentHash != ocrDependency.componentHash
         ) {
             return IndexExecutionOutcome.LeaseRejected
         }
-        val regions = semantic.ocrRegions(document.assetId)
+        val regions = semantic.ocrRegions(document.publicationEpoch)
         val materialization =
             try {
                 materializer.materialize(document, regions, clock.nowMillis())

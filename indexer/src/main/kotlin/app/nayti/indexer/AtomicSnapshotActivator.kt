@@ -72,9 +72,9 @@ class AtomicSnapshotActivator(
         check(
             plan.none {
                 it.action == ActivationCandidateChannelAction.REBUILD_SHADOW &&
-                    it.channel !in shadowVectorChannels
+                    it.channel !in shadowBuildChannels
             },
-        ) { "This build can prepare changed vector channels only" }
+        ) { "This build cannot prepare the changed channel" }
         val candidate =
             ActivationCandidateEntity(
                 candidateId = candidateId,
@@ -153,6 +153,6 @@ class AtomicSnapshotActivator(
         vectors.rejectActivationCandidate(candidateId, failureCode, clock())
 
     private companion object {
-        val shadowVectorChannels = setOf(IndexChannel.OCR_SEMANTIC, IndexChannel.VISUAL)
+        val shadowBuildChannels = setOf(IndexChannel.OCR, IndexChannel.OCR_SEMANTIC, IndexChannel.VISUAL)
     }
 }

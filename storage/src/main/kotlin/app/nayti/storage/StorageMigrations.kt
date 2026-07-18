@@ -272,5 +272,88 @@ object StorageMigrations {
             }
         }
 
-    val All: Array<Migration> = arrayOf(From1To2, From2To3, From3To4, From4To5, From5To6, From6To7)
+    val From7To8: Migration =
+        object : Migration(7, 8) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `ocr_document_new` (" +
+                        "`assetId` INTEGER NOT NULL, `sourceFingerprint` TEXT NOT NULL, " +
+                        "`accessRevision` INTEGER NOT NULL, `pipelineVersion` TEXT NOT NULL, " +
+                        "`componentHash` TEXT NOT NULL, `publicationToken` TEXT NOT NULL, " +
+                        "`publicationEpoch` INTEGER NOT NULL, `sourceWidth` INTEGER NOT NULL, " +
+                        "`sourceHeight` INTEGER NOT NULL, `rawText` TEXT NOT NULL, `displayText` TEXT NOT NULL, " +
+                        "`canonicalText` TEXT NOT NULL, `stemText` TEXT NOT NULL, `identifierText` TEXT NOT NULL, " +
+                        "`hasRecognizedText` INTEGER NOT NULL, `regionCount` INTEGER NOT NULL, " +
+                        "`normalizerVersion` TEXT NOT NULL, `stemmerVersion` TEXT NOT NULL, " +
+                        "`identifierVersion` TEXT NOT NULL, `publishedAtMillis` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`publicationEpoch`))",
+                )
+                connection.execSQL(
+                    "INSERT INTO `ocr_document_new` SELECT assetId, sourceFingerprint, accessRevision, " +
+                        "pipelineVersion, componentHash, publicationToken, publicationEpoch, sourceWidth, " +
+                        "sourceHeight, rawText, displayText, canonicalText, stemText, identifierText, " +
+                        "hasRecognizedText, regionCount, normalizerVersion, stemmerVersion, identifierVersion, " +
+                        "publishedAtMillis FROM `ocr_document`",
+                )
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `ocr_region_new` (" +
+                        "`publicationEpoch` INTEGER NOT NULL, `assetId` INTEGER NOT NULL, `ordinal` INTEGER NOT NULL, " +
+                        "`rawText` TEXT NOT NULL, `displayText` TEXT NOT NULL, `canonicalText` TEXT NOT NULL, " +
+                        "`confidenceMicros` INTEGER NOT NULL, `x0Micros` INTEGER NOT NULL, `y0Micros` INTEGER NOT NULL, " +
+                        "`x1Micros` INTEGER NOT NULL, `y1Micros` INTEGER NOT NULL, `x2Micros` INTEGER NOT NULL, " +
+                        "`y2Micros` INTEGER NOT NULL, `x3Micros` INTEGER NOT NULL, `y3Micros` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`publicationEpoch`, `ordinal`))",
+                )
+                connection.execSQL(
+                    "INSERT INTO `ocr_region_new` " +
+                        "SELECT document.publicationEpoch, region.assetId, region.ordinal, region.rawText, " +
+                        "region.displayText, region.canonicalText, region.confidenceMicros, region.x0Micros, " +
+                        "region.y0Micros, region.x1Micros, region.y1Micros, region.x2Micros, region.y2Micros, " +
+                        "region.x3Micros, region.y3Micros FROM `ocr_region` AS region " +
+                        "INNER JOIN `ocr_document` AS document ON document.assetId = region.assetId",
+                )
+                connection.execSQL("DROP TABLE `ocr_lexical_fts`")
+                connection.execSQL("DROP TABLE `ocr_trigram_fts`")
+                connection.execSQL("DROP TABLE `ocr_region`")
+                connection.execSQL("DROP TABLE `ocr_document`")
+                connection.execSQL("ALTER TABLE `ocr_document_new` RENAME TO `ocr_document`")
+                connection.execSQL("ALTER TABLE `ocr_region_new` RENAME TO `ocr_region`")
+                connection.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_ocr_document_publicationToken` " +
+                        "ON `ocr_document` (`publicationToken`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_ocr_document_assetId_publicationEpoch` " +
+                        "ON `ocr_document` (`assetId`, `publicationEpoch`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_ocr_document_sourceFingerprint` " +
+                        "ON `ocr_document` (`sourceFingerprint`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_ocr_region_assetId_publicationEpoch` " +
+                        "ON `ocr_region` (`assetId`, `publicationEpoch`)",
+                )
+                connection.execSQL(
+                    "CREATE VIRTUAL TABLE IF NOT EXISTS `ocr_lexical_fts` USING " +
+                        "FTS5(`canonical`, `stems`, `identifiers`, tokenize=`unicode61 remove_diacritics 2`, " +
+                        "prefix=`2 3 4`)",
+                )
+                connection.execSQL(
+                    "INSERT INTO `ocr_lexical_fts` (`rowid`, `canonical`, `stems`, `identifiers`) " +
+                        "SELECT publicationEpoch, canonicalText, stemText, identifierText FROM `ocr_document`",
+                )
+                connection.execSQL(
+                    "CREATE VIRTUAL TABLE IF NOT EXISTS `ocr_trigram_fts` " +
+                        "USING FTS5(`canonical`, tokenize=`trigram`)",
+                )
+                connection.execSQL(
+                    "INSERT INTO `ocr_trigram_fts` (`rowid`, `canonical`) " +
+                        "SELECT publicationEpoch, canonicalText FROM `ocr_document`",
+                )
+            }
+        }
+
+    val All: Array<Migration> =
+        arrayOf(From1To2, From2To3, From3To4, From4To5, From5To6, From6To7, From7To8)
 }

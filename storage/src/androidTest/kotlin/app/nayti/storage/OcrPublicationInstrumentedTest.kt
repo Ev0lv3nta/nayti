@@ -108,6 +108,55 @@ class OcrPublicationInstrumentedTest {
     }
 
     @Test
+    fun changedOcrContractPublishesBesidePinnedParentEpoch() = runBlocking {
+        val assetId = insertAsset(SourceFingerprint)
+        val parentClaim = claimOcr(assetId)
+        val parent = document(assetId, "Parent invoice", "parent invoice", "parent invoic", "")
+        val parentRegions = listOf(region("Parent invoice", "parent invoice"))
+        checkNotNull(
+            ocr.commitOcrPublication(
+                checkNotNull(parentClaim.leaseToken),
+                "ocr-parent",
+                OcrPublicationCodec.identity(parent, parentRegions),
+                parent,
+                parentRegions,
+                20,
+            ),
+        )
+
+        index.ensureWork(assetId, IndexChannel.OCR, AccessRevision, PipelineVersion, NewComponentHash, 21)
+        val candidateClaim = index.claimBatch(WindowId, IndexChannel.OCR, "claim-candidate", 22, 100, 1).single()
+        val candidate =
+            document(assetId, "Candidate receipt", "candidate receipt", "candidat receipt", "")
+                .copy(componentHash = NewComponentHash)
+        val candidateRegions = listOf(region("Candidate receipt", "candidate receipt"))
+        checkNotNull(
+            ocr.commitOcrPublication(
+                checkNotNull(candidateClaim.leaseToken),
+                "ocr-candidate",
+                OcrPublicationCodec.identity(candidate, candidateRegions),
+                candidate,
+                candidateRegions,
+                23,
+            ),
+        )
+
+        assertEquals(
+            listOf(assetId),
+            ocr.lexicalCandidates("parent", PipelineVersion, ComponentHash, 1, 10).map { it.assetId },
+        )
+        assertTrue(ocr.lexicalCandidates("candidate", PipelineVersion, NewComponentHash, 1, 10).isEmpty())
+        assertEquals(
+            listOf(assetId),
+            ocr.lexicalCandidates("candidate", PipelineVersion, NewComponentHash, 2, 10).map { it.assetId },
+        )
+        assertEquals("Parent invoice", semantic.ocrDocument("ocr-parent")?.displayText)
+        assertEquals("Candidate receipt", semantic.ocrDocument("ocr-candidate")?.displayText)
+        assertEquals("Candidate receipt", ocr.document(assetId)?.displayText)
+        assertEquals(2L, ocr.publicationClock()?.lastEpoch)
+    }
+
+    @Test
     fun staleSourceIsImmediatelyIneligibleAndRejectedReplacementPreservesOldEvidence() = runBlocking {
         val assetId = insertAsset(SourceFingerprint)
         val firstClaim = claimOcr(assetId)
@@ -417,6 +466,7 @@ class OcrPublicationInstrumentedTest {
         const val SourceFingerprint = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         const val NewSourceFingerprint = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
         const val ComponentHash = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        const val NewComponentHash = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
         const val InvalidHash = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
     }
 }

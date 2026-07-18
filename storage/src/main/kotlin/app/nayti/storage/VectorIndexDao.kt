@@ -56,6 +56,30 @@ interface VectorIndexDao {
     @Query("SELECT * FROM catalog_access_observation WHERE singletonId = 1")
     suspend fun accessObservation(): CatalogAccessObservationEntity?
 
+    @Query("SELECT * FROM index_publication_clock WHERE singletonId = 1")
+    suspend fun publicationClock(): IndexPublicationClockEntity?
+
+    @Query("SELECT COUNT(*) FROM catalog_asset WHERE availability = 'AVAILABLE'")
+    suspend fun availableAssetCount(): Int
+
+    @Query(
+        "SELECT COUNT(*) FROM catalog_asset AS asset " +
+            "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
+            "WHERE asset.availability = 'AVAILABLE' AND access.accessScope != 'None' " +
+            "AND EXISTS (SELECT 1 FROM ocr_document AS document " +
+            "WHERE document.assetId = asset.assetId " +
+            "AND document.sourceFingerprint = asset.sourceFingerprint " +
+            "AND document.accessRevision = access.processAccessRevision " +
+            "AND document.pipelineVersion = :pipelineVersion " +
+            "AND document.componentHash = :componentHash " +
+            "AND document.publicationEpoch <= :maximumPublicationEpoch)",
+    )
+    suspend fun coveredOcrAssetCount(
+        pipelineVersion: String,
+        componentHash: String,
+        maximumPublicationEpoch: Long,
+    ): Int
+
     @Query("SELECT * FROM model_pack WHERE packId = :packId AND packVersion = :packVersion")
     suspend fun modelPack(packId: String, packVersion: String): ModelPackEntity?
 
@@ -86,12 +110,13 @@ interface VectorIndexDao {
             "INNER JOIN vector_manifest AS vectorManifest ON vectorManifest.revision = manifestSegment.manifestRevision " +
             "INNER JOIN vector_generation AS generation ON generation.generationId = vectorManifest.generationId " +
             "INNER JOIN ocr_semantic_chunk AS chunk ON chunk.chunkId = vectorRecord.semanticChunkId " +
-            "INNER JOIN ocr_document AS document ON document.assetId = chunk.assetId " +
+            "INNER JOIN ocr_document AS document ON document.publicationToken = chunk.ocrPublicationToken " +
             "INNER JOIN catalog_asset AS asset ON asset.assetId = chunk.assetId " +
             "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
             "WHERE manifestSegment.manifestRevision = :manifestRevision " +
             "AND vectorRecord.recordId IN (:recordIds) " +
             "AND vectorRecord.assetId = chunk.assetId " +
+            "AND document.assetId = chunk.assetId " +
             "AND vectorRecord.sourceFingerprint = chunk.sourceFingerprint " +
             "AND vectorRecord.accessRevision = access.processAccessRevision " +
             "AND vectorRecord.chunkOrdinal = chunk.ordinal " +
@@ -125,12 +150,13 @@ interface VectorIndexDao {
             "INNER JOIN vector_manifest AS vectorManifest ON vectorManifest.revision = manifestSegment.manifestRevision " +
             "INNER JOIN vector_generation AS generation ON generation.generationId = vectorManifest.generationId " +
             "INNER JOIN ocr_semantic_chunk AS chunk ON chunk.chunkId = vectorRecord.semanticChunkId " +
-            "INNER JOIN ocr_document AS document ON document.assetId = chunk.assetId " +
+            "INNER JOIN ocr_document AS document ON document.publicationToken = chunk.ocrPublicationToken " +
             "INNER JOIN catalog_asset AS asset ON asset.assetId = chunk.assetId " +
             "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
             "WHERE manifestSegment.manifestRevision = :manifestRevision " +
             "AND vectorRecord.segmentSha256 = :segmentSha256 " +
             "AND vectorRecord.assetId = chunk.assetId " +
+            "AND document.assetId = chunk.assetId " +
             "AND vectorRecord.sourceFingerprint = chunk.sourceFingerprint " +
             "AND vectorRecord.accessRevision = access.processAccessRevision " +
             "AND vectorRecord.chunkOrdinal = chunk.ordinal " +
@@ -1300,6 +1326,22 @@ interface VectorIndexDao {
                 check(component.inheritedFromSnapshotId == null)
             }
             validateActivationComponent(snapshot, component)
+        }
+        val parentSnapshot = candidate.parentSnapshotId?.let { checkNotNull(snapshot(it)) }
+        if (parentSnapshot != null) {
+            check(snapshot.lexicalPublicationEpoch >= parentSnapshot.lexicalPublicationEpoch)
+            check(snapshot.pHashPublicationEpoch >= parentSnapshot.pHashPublicationEpoch)
+        }
+        val ocrPlan = checkNotNull(plannedByChannel[IndexChannel.OCR])
+        if (ocrPlan.action == ActivationCandidateChannelAction.REBUILD_SHADOW) {
+            check(snapshot.lexicalPublicationEpoch <= (publicationClock()?.lastEpoch ?: 0))
+            check(
+                coveredOcrAssetCount(
+                    pipelineVersion = ocrPlan.pipelineVersion,
+                    componentHash = ocrPlan.componentHash,
+                    maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
+                ) == availableAssetCount(),
+            ) { "Changed OCR candidate does not cover the accessible cutover set" }
         }
         check(snapshot.semanticManifestRevision != null || snapshot.visualManifestRevision != null)
     }

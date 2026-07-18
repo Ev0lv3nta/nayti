@@ -64,6 +64,7 @@ class NaytiSchemaMigrationInstrumentedTest {
                 StorageMigrations.From4To5,
                 StorageMigrations.From5To6,
                 StorageMigrations.From6To7,
+                StorageMigrations.From7To8,
             ),
         ).use { connection ->
             connection.prepare(
@@ -212,6 +213,65 @@ class NaytiSchemaMigrationInstrumentedTest {
             connection.prepare("SELECT COUNT(*) FROM activation_candidate_channel").use { statement ->
                 assertTrue(statement.step())
                 assertEquals(0L, statement.getLong(0))
+            }
+        }
+    }
+
+    @Test
+    fun migration7To8VersionsOcrDocumentsAndRebuildsFtsRows() = runBlocking {
+        migration.createDatabase(7).use { connection ->
+            connection.execSQL(
+                "INSERT INTO ocr_document " +
+                    "(assetId, sourceFingerprint, accessRevision, pipelineVersion, componentHash, " +
+                    "publicationToken, publicationEpoch, sourceWidth, sourceHeight, rawText, displayText, " +
+                    "canonicalText, stemText, identifierText, hasRecognizedText, regionCount, " +
+                    "normalizerVersion, stemmerVersion, identifierVersion, publishedAtMillis) VALUES " +
+                    "(7, '$SegmentSha', 1, 'ocr-v1', '$EmbeddingSha', 'ocr-token-v7', 41, 100, 200, " +
+                    "'Quarterly report', 'Quarterly report', 'quarterly report', 'quarter report', '', " +
+                    "1, 1, 'normalizer-v1', 'stemmer-v1', 'identifier-v1', 42)",
+            )
+            connection.execSQL(
+                "INSERT INTO ocr_region " +
+                    "(assetId, ordinal, rawText, displayText, canonicalText, confidenceMicros, " +
+                    "x0Micros, y0Micros, x1Micros, y1Micros, x2Micros, y2Micros, x3Micros, y3Micros) " +
+                    "VALUES (7, 0, 'Quarterly report', 'Quarterly report', 'quarterly report', 900000, " +
+                    "0, 0, 1, 0, 1, 1, 0, 1)",
+            )
+            connection.execSQL(
+                "INSERT INTO ocr_lexical_fts(rowid, canonical, stems, identifiers) " +
+                    "VALUES (7, 'quarterly report', 'quarter report', '')",
+            )
+            connection.execSQL(
+                "INSERT INTO ocr_trigram_fts(rowid, canonical) VALUES (7, 'quarterly report')",
+            )
+        }
+
+        migration.runMigrationsAndValidate(8, listOf(StorageMigrations.From7To8)).use { connection ->
+            connection.prepare(
+                "SELECT assetId, publicationToken FROM ocr_document WHERE publicationEpoch = 41",
+            ).use { statement ->
+                assertTrue(statement.step())
+                assertEquals(7L, statement.getLong(0))
+                assertEquals("ocr-token-v7", statement.getText(1))
+                assertFalse(statement.step())
+            }
+            connection.prepare(
+                "SELECT assetId, ordinal FROM ocr_region WHERE publicationEpoch = 41",
+            ).use { statement ->
+                assertTrue(statement.step())
+                assertEquals(7L, statement.getLong(0))
+                assertEquals(0L, statement.getLong(1))
+                assertFalse(statement.step())
+            }
+            connection.prepare(
+                "SELECT document.assetId FROM ocr_lexical_fts " +
+                    "INNER JOIN ocr_document AS document " +
+                    "ON document.publicationEpoch = ocr_lexical_fts.rowid " +
+                    "WHERE ocr_lexical_fts MATCH 'quarterly'",
+            ).use { statement ->
+                assertTrue(statement.step())
+                assertEquals(7L, statement.getLong(0))
+                assertFalse(statement.step())
             }
         }
     }

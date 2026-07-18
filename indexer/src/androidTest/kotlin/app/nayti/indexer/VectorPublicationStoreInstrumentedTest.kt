@@ -16,6 +16,9 @@ import app.nayti.storage.IndexChannelWorkEntity
 import app.nayti.storage.IndexWorkState
 import app.nayti.storage.ModelPackEntity
 import app.nayti.storage.ModelPackStatus
+import app.nayti.storage.OcrDocumentDraft
+import app.nayti.storage.OcrPublicationCodec
+import app.nayti.storage.OcrRegionDraft
 import app.nayti.storage.PerceptualHashCodec
 import app.nayti.storage.PerceptualHashDraft
 import app.nayti.storage.QuerySnapshotLeaseEntity
@@ -215,6 +218,108 @@ class VectorPublicationStoreInstrumentedTest {
         assertEquals(parent.snapshotId, rolledBack.snapshotId)
         assertEquals(ActivationCandidateState.ROLLED_BACK, storage.vectorIndexDao.activationCandidate(candidate.candidateId)?.state)
         assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+    }
+
+    @Test
+    fun changedOcrPublicationStaysShadowedUntilCandidatePointerCommit() = runBlocking {
+        val assetId = insertAsset(111)
+        val inserted = checkNotNull(storage.catalogDao.asset(assetId))
+        assertEquals(1, storage.catalogDao.updateAsset(inserted.copy(sourceFingerprint = OcrSourceFingerprint)))
+        val parentOcrEpoch = publishOcr(assetId, "ocr-parent", ComponentHash, "parent invoice")
+        val visualLease =
+            stageRunningWork(
+                assetId,
+                "visual-parent-ocr-cutover",
+                sourceFingerprint = OcrSourceFingerprint,
+            )
+        val parentRequest =
+            request(111, assetId, visualLease).let { base ->
+                base.copy(
+                    lexicalPublicationEpoch = parentOcrEpoch,
+                    records = base.records.map { it.copy(sourceFingerprint = OcrSourceFingerprint) },
+                )
+            }
+        val parent =
+            store().publish(parentRequest)
+        now += 100
+        val changedPack =
+            pack().copy(
+                packVersion = "0.1.0-alpha.2",
+                manifestSha256 = ShadowComponentHash,
+                relativeDirectory = "model-packs/test-ocr-shadow",
+                installedAtMillis = now,
+            )
+        storage.modelPackDao.registerInstalledCandidate(changedPack)
+        val candidateSnapshotId = "candidate-snapshot-ocr"
+        val targetChannels =
+            storage.vectorIndexDao.snapshotChannels(parent.snapshotId).map { channel ->
+                if (channel.channel == IndexChannel.OCR) {
+                    channel.copy(
+                        snapshotId = candidateSnapshotId,
+                        componentHash = ShadowComponentHash,
+                        inheritedFromSnapshotId = null,
+                    )
+                } else {
+                    channel.copy(
+                        snapshotId = candidateSnapshotId,
+                        inheritedFromSnapshotId = parent.snapshotId,
+                    )
+                }
+            }
+        val activator = activator()
+        val candidate =
+            activator.register(
+                candidateId = "candidate-ocr",
+                snapshotId = candidateSnapshotId,
+                pack = changedPack,
+                targetChannels = targetChannels,
+            )
+        assertEquals(
+            ActivationCandidateChannelAction.REBUILD_SHADOW,
+            storage.vectorIndexDao.activationCandidateChannels(candidate.candidateId)
+                .single { it.channel == IndexChannel.OCR }.action,
+        )
+
+        val candidateOcrEpoch = publishOcr(assetId, "ocr-candidate", ShadowComponentHash, "candidate receipt")
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(
+            listOf(assetId),
+            storage.ocrDao.candidateSnapshotAt(
+                lexicalMatchQuery = "parent",
+                trigramMatchQuery = null,
+                pipelineVersion = "ocr-v1",
+                componentHash = ComponentHash,
+                maximumPublicationEpoch = parentOcrEpoch,
+                limit = 10,
+            ).documents.map { it.assetId },
+        )
+
+        val child =
+            parent.copy(
+                snapshotId = candidate.snapshotId,
+                parentSnapshotId = parent.snapshotId,
+                packVersion = changedPack.packVersion,
+                packManifestSha256 = changedPack.manifestSha256,
+                lexicalPublicationEpoch = candidateOcrEpoch,
+                capturedAccessRevision = candidate.capturedAccessRevision,
+                catalogWatermark = candidate.capturedCatalogWatermark,
+                createdAtMillis = now,
+            )
+        activator.markReady(candidate.candidateId, child, targetChannels)
+        activator.activate(candidate.candidateId)
+
+        assertEquals(child.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(
+            listOf(assetId),
+            storage.ocrDao.candidateSnapshotAt(
+                lexicalMatchQuery = "candidate",
+                trigramMatchQuery = null,
+                pipelineVersion = "ocr-v1",
+                componentHash = ShadowComponentHash,
+                maximumPublicationEpoch = child.lexicalPublicationEpoch,
+                limit = 10,
+            ).documents.map { it.assetId },
+        )
     }
 
     @Test
@@ -1232,13 +1337,14 @@ class VectorPublicationStoreInstrumentedTest {
         assetId: Long,
         leaseToken: String,
         componentHash: String = ComponentHash,
+        sourceFingerprint: String = "source-$assetId",
     ): String {
         storage.indexStateDao.replaceWork(
             IndexChannelWorkEntity(
                 assetId = assetId,
                 channel = IndexChannel.VISUAL,
                 state = IndexWorkState.RUNNING,
-                sourceFingerprint = "source-$assetId",
+                sourceFingerprint = sourceFingerprint,
                 accessRevision = AccessRevision,
                 pipelineVersion = "visual-v1",
                 componentHash = componentHash,
@@ -1256,6 +1362,83 @@ class VectorPublicationStoreInstrumentedTest {
             ),
         )
         return leaseToken
+    }
+
+    private suspend fun publishOcr(
+        assetId: Long,
+        publicationToken: String,
+        componentHash: String,
+        text: String,
+    ): Long {
+        val leaseToken = "lease-$publicationToken"
+        val sourceFingerprint = checkNotNull(storage.catalogDao.asset(assetId)).sourceFingerprint
+        storage.indexStateDao.replaceWork(
+            IndexChannelWorkEntity(
+                assetId = assetId,
+                channel = IndexChannel.OCR,
+                state = IndexWorkState.RUNNING,
+                sourceFingerprint = sourceFingerprint,
+                accessRevision = AccessRevision,
+                pipelineVersion = "ocr-v1",
+                componentHash = componentHash,
+                attempt = 1,
+                leaseToken = leaseToken,
+                leaseExpiresAtMillis = now + 10_000,
+                executionWindowId = null,
+                publicationToken = null,
+                stagedArtifactPath = null,
+                stagedArtifactLength = null,
+                stagedArtifactSha256 = null,
+                nextEligibleAtMillis = null,
+                errorCode = null,
+                updatedAtMillis = now,
+            ),
+        )
+        val document =
+            OcrDocumentDraft(
+                assetId = assetId,
+                sourceFingerprint = sourceFingerprint,
+                accessRevision = AccessRevision,
+                pipelineVersion = "ocr-v1",
+                componentHash = componentHash,
+                sourceWidth = 10,
+                sourceHeight = 10,
+                rawText = text,
+                displayText = text,
+                canonicalText = text,
+                stemText = text,
+                identifierText = "",
+                normalizerVersion = "normalizer-v1",
+                stemmerVersion = "stemmer-v1",
+                identifierVersion = "identifier-v1",
+            )
+        val regions =
+            listOf(
+                OcrRegionDraft(
+                    rawText = text,
+                    displayText = text,
+                    canonicalText = text,
+                    confidenceMicros = 900_000,
+                    x0Micros = 0,
+                    y0Micros = 0,
+                    x1Micros = 1_000_000,
+                    y1Micros = 0,
+                    x2Micros = 1_000_000,
+                    y2Micros = 1_000_000,
+                    x3Micros = 0,
+                    y3Micros = 1_000_000,
+                ),
+            )
+        return checkNotNull(
+            storage.ocrDao.commitOcrPublication(
+                leaseToken = leaseToken,
+                publicationToken = publicationToken,
+                expectedIdentity = OcrPublicationCodec.identity(document, regions),
+                document = document,
+                regions = regions,
+                nowMillis = now,
+            ),
+        ).publicationEpoch
     }
 
     private fun reopenStorage() {
@@ -1308,6 +1491,7 @@ class VectorPublicationStoreInstrumentedTest {
         const val PackManifestHash = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
         const val ShadowComponentHash = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
         const val ShadowEmbeddingHash = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        const val OcrSourceFingerprint = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         const val CrashIterations = 100
         val Boundaries = VectorPublicationBoundary.entries
     }

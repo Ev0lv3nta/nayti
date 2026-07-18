@@ -37,4 +37,25 @@ class NeuralExecutionLaneTest {
         assertSame(expected, actual)
         lane.acquire().close()
     }
+
+    @Test
+    fun interactiveQueryRunsBeforeQueuedBackgroundIndexing() = runTest {
+        val lane = NeuralExecutionLane()
+        val activeIndexing = lane.acquire()
+        val nextIndexing = async { lane.acquire(NeuralExecutionPriority.BACKGROUND_INDEXING) }
+        val query = async { lane.acquire(NeuralExecutionPriority.INTERACTIVE_QUERY) }
+        runCurrent()
+        assertFalse(nextIndexing.isCompleted)
+        assertFalse(query.isCompleted)
+
+        activeIndexing.close()
+        runCurrent()
+
+        assertTrue(query.isCompleted)
+        assertFalse(nextIndexing.isCompleted)
+        query.await().close()
+        runCurrent()
+        assertTrue(nextIndexing.isCompleted)
+        nextIndexing.await().close()
+    }
 }

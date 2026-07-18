@@ -63,6 +63,7 @@ data class VectorSegmentRecordEntity(
     val recordId: Long,
     val assetId: Long,
     val sourceFingerprint: String,
+    val accessRevision: Long,
     val chunkOrdinal: Int,
     val semanticChunkId: String? = null,
 )
@@ -166,6 +167,21 @@ data class ActivationCandidateEntity(
 )
 
 @Entity(
+    tableName = "activation_candidate_channel",
+    primaryKeys = ["candidateId", "channel"],
+    indices = [Index(value = ["candidateId", "action"])],
+)
+data class ActivationCandidateChannelEntity(
+    val candidateId: String,
+    val channel: String,
+    val pipelineVersion: String,
+    val componentHash: String,
+    val embeddingSpaceHash: String?,
+    val action: String,
+    val reason: String,
+)
+
+@Entity(
     tableName = "activation_snapshot_channel",
     primaryKeys = ["snapshotId", "channel"],
     indices = [
@@ -205,7 +221,7 @@ data class QuerySnapshotLeaseEntity(
         Index(value = ["state", "updatedAtMillis"]),
         Index(value = ["generationId"]),
         Index(value = ["manifestRevision"], unique = true),
-        Index(value = ["snapshotId"], unique = true),
+        Index(value = ["snapshotId"]),
     ],
 )
 data class VectorPublicationEntity(
@@ -260,4 +276,11 @@ object ActivationCandidateState {
     const val ACTIVE = "ACTIVE"
     const val ROLLED_BACK = "ROLLED_BACK"
     const val REJECTED = "REJECTED"
+}
+
+object ActivationCandidateChannelAction {
+    const val INHERIT = "INHERIT"
+    const val REBUILD_SHADOW = "REBUILD_SHADOW"
+
+    val all: Set<String> = setOf(INHERIT, REBUILD_SHADOW)
 }

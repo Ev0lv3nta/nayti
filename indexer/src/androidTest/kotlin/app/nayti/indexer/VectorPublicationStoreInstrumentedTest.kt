@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.nayti.search.engine.fusion.MultimodalQueryIntent
 import app.nayti.search.engine.VectorSegmentV1Reader
 import app.nayti.storage.ActivationCandidateState
+import app.nayti.storage.ActivationCandidateChannelAction
 import app.nayti.storage.CatalogAssetEntity
 import app.nayti.storage.CatalogAvailability
 import app.nayti.storage.CatalogStorage
@@ -15,6 +16,8 @@ import app.nayti.storage.IndexChannelWorkEntity
 import app.nayti.storage.IndexWorkState
 import app.nayti.storage.ModelPackEntity
 import app.nayti.storage.ModelPackStatus
+import app.nayti.storage.PerceptualHashCodec
+import app.nayti.storage.PerceptualHashDraft
 import app.nayti.storage.QuerySnapshotLeaseEntity
 import app.nayti.storage.StorageContract
 import app.nayti.storage.VectorGenerationEntity
@@ -156,6 +159,9 @@ class VectorPublicationStoreInstrumentedTest {
         now += 100
         val activator = activator()
         val candidate = activator.register("candidate-101", "candidate-snapshot-101", pack())
+        val persistedPlan = storage.vectorIndexDao.activationCandidateChannels(candidate.candidateId)
+        assertEquals(storage.vectorIndexDao.snapshotChannels(parent.snapshotId).size, persistedPlan.size)
+        assertTrue(persistedPlan.all { it.action == ActivationCandidateChannelAction.INHERIT })
         val child =
             parent.copy(
                 snapshotId = candidate.snapshotId,
@@ -354,7 +360,23 @@ class VectorPublicationStoreInstrumentedTest {
                 installedAtMillis = now,
             )
         storage.modelPackDao.registerInstalledCandidate(changedPack)
-        val changed = activator().register("candidate-changed", "candidate-snapshot-changed", changedPack)
+        val changedSnapshotId = "candidate-snapshot-changed"
+        val targetChannels =
+            storage.vectorIndexDao.snapshotChannels(parent.snapshotId).map { component ->
+                component.copy(
+                    snapshotId = changedSnapshotId,
+                    componentHash =
+                        if (component.channel == IndexChannel.VISUAL) changedPack.manifestSha256 else component.componentHash,
+                    inheritedFromSnapshotId = null,
+                )
+            }
+        val changed =
+            activator().register(
+                "candidate-changed",
+                changedSnapshotId,
+                changedPack,
+                targetChannels,
+            )
         val changedSnapshot =
             parent.copy(
                 snapshotId = changed.snapshotId,
@@ -368,15 +390,7 @@ class VectorPublicationStoreInstrumentedTest {
         val implicitInheritanceFailure =
             runCatching { activator().markReady(changed.candidateId, changedSnapshot) }.exceptionOrNull()
         assertTrue(implicitInheritanceFailure is IllegalStateException)
-        val incompatibleChannels =
-            storage.vectorIndexDao.snapshotChannels(parent.snapshotId).map { component ->
-                component.copy(
-                    snapshotId = changed.snapshotId,
-                    componentHash =
-                        if (component.channel == IndexChannel.VISUAL) changedPack.manifestSha256 else component.componentHash,
-                    inheritedFromSnapshotId = null,
-                )
-            }
+        val incompatibleChannels = targetChannels
         val inheritedGenerationFailure =
             runCatching {
                 activator().markReady(
@@ -387,6 +401,196 @@ class VectorPublicationStoreInstrumentedTest {
             }.exceptionOrNull()
         assertTrue(inheritedGenerationFailure is IllegalStateException)
         assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+    }
+
+    @Test
+    fun changedVisualChannelBuildsInShadowWithoutInterruptingParentSearch() = runBlocking {
+        val assetId = insertAsset(1)
+        val parent = store().publish(request(106, assetId, stageRunningWork(assetId, "shadow-parent")))
+        val parentManifestRevision = checkNotNull(parent.visualManifestRevision)
+        assertEquals(
+            1,
+            storage.vectorIndexDao.currentVisualEvidence(
+                parentManifestRevision,
+                listOf(assetId),
+                "visual-v1",
+                ComponentHash,
+            ).size,
+        )
+
+        now += 100
+        val changedPack =
+            pack().copy(
+                packVersion = "0.1.0-alpha.2",
+                manifestSha256 = ShadowComponentHash,
+                relativeDirectory = "model-packs/test-shadow",
+                installedAtMillis = now,
+            )
+        storage.modelPackDao.registerInstalledCandidate(changedPack)
+        val shadowGeneration =
+            generation().copy(
+                generationId = "visual-generation-shadow",
+                packVersion = changedPack.packVersion,
+                componentHash = ShadowComponentHash,
+                embeddingSpaceHash = ShadowEmbeddingHash,
+                createdAtMillis = now,
+            )
+        storage.vectorIndexDao.createGeneration(shadowGeneration)
+        val candidateSnapshotId = "candidate-snapshot-shadow"
+        val targetChannels =
+            storage.vectorIndexDao.snapshotChannels(parent.snapshotId).map { channel ->
+                if (channel.channel == IndexChannel.VISUAL) {
+                    channel.copy(
+                        snapshotId = candidateSnapshotId,
+                        componentHash = ShadowComponentHash,
+                        embeddingSpaceHash = ShadowEmbeddingHash,
+                        inheritedFromSnapshotId = null,
+                    )
+                } else {
+                    channel.copy(
+                        snapshotId = candidateSnapshotId,
+                        inheritedFromSnapshotId = parent.snapshotId,
+                    )
+                }
+            }
+        val candidate =
+            activator().register(
+                candidateId = "candidate-shadow",
+                snapshotId = candidateSnapshotId,
+                pack = changedPack,
+                targetChannels = targetChannels,
+            )
+        val plan = storage.vectorIndexDao.activationCandidateChannels(candidate.candidateId)
+        assertEquals(
+            ActivationCandidateChannelAction.REBUILD_SHADOW,
+            plan.single { it.channel == IndexChannel.VISUAL }.action,
+        )
+
+        val deltaAssetId = insertAsset(2)
+        storage.catalogDao.replaceWatermark(
+            CatalogWatermarkEntity(
+                catalogRevision = 1,
+                lastSuccessfulInventoryRunId = null,
+                updatedAtMillis = now,
+            ),
+        )
+
+        val shadowLease =
+            stageRunningWork(
+                assetId = assetId,
+                leaseToken = "shadow-visual-work",
+                componentHash = ShadowComponentHash,
+            )
+        assertEquals(
+            1,
+            storage.vectorIndexDao.currentVisualEvidence(
+                parentManifestRevision,
+                listOf(assetId),
+                "visual-v1",
+                ComponentHash,
+            ).size,
+        )
+        val firstShadowManifest =
+            store().publishShadow(
+                request(107, assetId, shadowLease).copy(
+                    publicationToken = "publication-shadow",
+                    generationId = shadowGeneration.generationId,
+                    manifestRevision = "manifest-shadow",
+                    snapshotId = candidate.snapshotId,
+                    records =
+                        listOf(
+                            PublishedVectorRecord(
+                                recordId = assetId,
+                                assetId = assetId,
+                                chunkOrdinal = 0,
+                                sourceFingerprint = "source-$assetId",
+                                accessRevision = AccessRevision,
+                                vector = ByteArray(Dimension) { 99.toByte() },
+                            ),
+                        ),
+                ),
+                parentManifestRevision = null,
+            )
+        val deltaShadowLease =
+            stageRunningWork(
+                assetId = deltaAssetId,
+                leaseToken = "shadow-visual-delta",
+                componentHash = ShadowComponentHash,
+            )
+        val shadowManifest =
+            store().publishShadow(
+                request(108, deltaAssetId, deltaShadowLease).copy(
+                    publicationToken = "publication-shadow-delta",
+                    generationId = shadowGeneration.generationId,
+                    manifestRevision = "manifest-shadow-delta",
+                    snapshotId = candidate.snapshotId,
+                    records =
+                        listOf(
+                            PublishedVectorRecord(
+                                recordId = deltaAssetId,
+                                assetId = deltaAssetId,
+                                chunkOrdinal = 0,
+                                sourceFingerprint = "source-$deltaAssetId",
+                                accessRevision = AccessRevision,
+                                vector = ByteArray(Dimension) { 55.toByte() },
+                            ),
+                        ),
+                ),
+                parentManifestRevision = firstShadowManifest.revision,
+            )
+        val reconciled =
+            activator().reconcileCatalogWatermark(
+                candidateId = candidate.candidateId,
+                expectedWatermark = candidate.capturedCatalogWatermark,
+                nextWatermark = 1,
+            )
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(
+            1,
+            storage.vectorIndexDao.currentVisualEvidence(
+                parentManifestRevision,
+                listOf(assetId),
+                "visual-v1",
+                ComponentHash,
+            ).size,
+        )
+
+        val preparedChannels =
+            targetChannels.map { channel ->
+                if (channel.channel == IndexChannel.VISUAL) {
+                    channel.copy(
+                        generationId = shadowGeneration.generationId,
+                        manifestRevision = shadowManifest.revision,
+                        inheritedFromSnapshotId = null,
+                    )
+                } else {
+                    channel
+                }
+            }
+        val child =
+            parent.copy(
+                snapshotId = candidate.snapshotId,
+                parentSnapshotId = parent.snapshotId,
+                packVersion = changedPack.packVersion,
+                packManifestSha256 = changedPack.manifestSha256,
+                visualManifestRevision = shadowManifest.revision,
+                catalogWatermark = reconciled.capturedCatalogWatermark,
+                capturedAccessRevision = candidate.capturedAccessRevision,
+                createdAtMillis = now,
+            )
+        activator().markReady(candidate.candidateId, child, preparedChannels)
+        activator().activate(candidate.candidateId)
+
+        assertEquals(child.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(
+            2,
+            storage.vectorIndexDao.currentVisualEvidence(
+                shadowManifest.revision,
+                listOf(assetId, deltaAssetId),
+                "visual-v1",
+                ShadowComponentHash,
+            ).size,
+        )
     }
 
     @Test
@@ -650,6 +854,81 @@ class VectorPublicationStoreInstrumentedTest {
     }
 
     @Test
+    fun perceptualHashSearchUsesActiveSnapshotEpochAndReleasesLease() = runBlocking {
+        val sourceAsset = insertAsset(1)
+        val similarAsset = insertAsset(2)
+        suspend fun publishHash(assetId: Long, bits: Long, suffix: String) {
+            val lease = "phash-$suffix"
+            storage.indexStateDao.replaceWork(
+                IndexChannelWorkEntity(
+                    assetId = assetId,
+                    channel = IndexChannel.PHASH,
+                    state = IndexWorkState.RUNNING,
+                    sourceFingerprint = "source-$assetId",
+                    accessRevision = AccessRevision,
+                    pipelineVersion = app.nayti.search.engine.similarity.PerceptualHashV1.PipelineVersion,
+                    componentHash = app.nayti.search.engine.similarity.PerceptualHashV1.ComponentHash,
+                    attempt = 1,
+                    leaseToken = lease,
+                    leaseExpiresAtMillis = now + 10_000,
+                    executionWindowId = null,
+                    publicationToken = null,
+                    stagedArtifactPath = null,
+                    stagedArtifactLength = null,
+                    stagedArtifactSha256 = null,
+                    nextEligibleAtMillis = null,
+                    errorCode = null,
+                    updatedAtMillis = now,
+                ),
+            )
+            val draft =
+                PerceptualHashDraft(
+                    assetId = assetId,
+                    sourceFingerprint = "source-$assetId",
+                    accessRevision = AccessRevision,
+                    pipelineVersion = app.nayti.search.engine.similarity.PerceptualHashV1.PipelineVersion,
+                    componentHash = app.nayti.search.engine.similarity.PerceptualHashV1.ComponentHash,
+                    hashBits = bits,
+                )
+            checkNotNull(
+                storage.perceptualHashDao.commit(
+                    leaseToken = lease,
+                    publicationToken = "phash-publication-$suffix",
+                    draft = draft,
+                    expectedIdentity = PerceptualHashCodec.identity(draft),
+                    nowMillis = now,
+                ),
+            )
+        }
+        publishHash(sourceAsset, 0x1234, "source")
+        publishHash(similarAsset, 0x1235, "similar")
+        val active =
+            store().publish(
+                request(2_051, sourceAsset, stageRunningWork(sourceAsset, "phash-active"))
+                    .copy(pHashPublicationEpoch = 2),
+            )
+        val search =
+            PerceptualHashSearch(
+                hashes = storage.perceptualHashDao,
+                vectors = storage.vectorIndexDao,
+                clock = { now },
+                leaseTokens = { "phash-query-test" },
+            )
+
+        val result = search.nearDuplicates(sourceAsset)
+
+        assertEquals(PerceptualHashSearchStatus.READY, result.status)
+        assertEquals(active.snapshotId, result.snapshotId)
+        assertEquals(AccessRevision, result.accessRevision)
+        assertEquals(listOf(similarAsset), result.hits.map { it.assetId })
+        assertNull(storage.vectorIndexDao.queryLease("phash-query-test"))
+
+        storage.catalogDao.recordAccessObservation("Full", AccessRevision + 1, now + 1)
+        assertEquals(PerceptualHashSearchStatus.SOURCE_NOT_INDEXED, search.nearDuplicates(sourceAsset).status)
+        assertNull(storage.vectorIndexDao.queryLease("phash-query-test"))
+    }
+
+    @Test
     fun textToImageSearchUsesActiveEmbeddingContractAndReleasesResources() = runBlocking {
         val firstAsset = insertAsset(1)
         store().publish(
@@ -906,6 +1185,7 @@ class VectorPublicationStoreInstrumentedTest {
                     assetId = assetId,
                     chunkOrdinal = 0,
                     sourceFingerprint = "source-$assetId",
+                    accessRevision = AccessRevision,
                     vector = ByteArray(Dimension) { index -> ((assetId + index) % 127).toByte() },
                 ),
             ),
@@ -948,7 +1228,11 @@ class VectorPublicationStoreInstrumentedTest {
             ),
         )
 
-    private suspend fun stageRunningWork(assetId: Long, leaseToken: String): String {
+    private suspend fun stageRunningWork(
+        assetId: Long,
+        leaseToken: String,
+        componentHash: String = ComponentHash,
+    ): String {
         storage.indexStateDao.replaceWork(
             IndexChannelWorkEntity(
                 assetId = assetId,
@@ -957,7 +1241,7 @@ class VectorPublicationStoreInstrumentedTest {
                 sourceFingerprint = "source-$assetId",
                 accessRevision = AccessRevision,
                 pipelineVersion = "visual-v1",
-                componentHash = ComponentHash,
+                componentHash = componentHash,
                 attempt = 1,
                 leaseToken = leaseToken,
                 leaseExpiresAtMillis = now + 10_000,
@@ -1022,6 +1306,8 @@ class VectorPublicationStoreInstrumentedTest {
         const val EmbeddingHash = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
         const val SecondEmbeddingHash = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
         const val PackManifestHash = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        const val ShadowComponentHash = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        const val ShadowEmbeddingHash = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         const val CrashIterations = 100
         val Boundaries = VectorPublicationBoundary.entries
     }

@@ -121,6 +121,7 @@ class VisualChannelExecutor(
                                 assetId = claim.work.assetId,
                                 chunkOrdinal = 0,
                                 sourceFingerprint = claim.work.sourceFingerprint,
+                                accessRevision = claim.work.accessRevision,
                                 vector = vector,
                             ),
                         ),

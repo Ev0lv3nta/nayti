@@ -130,6 +130,7 @@ class OcrSemanticChannelExecutor(
                         assetId = chunk.assetId,
                         chunkOrdinal = chunk.ordinal,
                         sourceFingerprint = chunk.sourceFingerprint,
+                        accessRevision = claim.work.accessRevision,
                         vector = embedding.encodeDocument(chunk.displayText),
                         semanticChunkId = chunk.chunkId,
                     )

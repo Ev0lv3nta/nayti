@@ -41,6 +41,7 @@ import kotlinx.coroutines.Dispatchers
         VectorPublicationEntity::class,
         ArtifactDeleteIntentEntity::class,
         ActivationCandidateEntity::class,
+        ActivationCandidateChannelEntity::class,
         ActivationSnapshotChannelEntity::class,
         PerceptualHashEntity::class,
     ],

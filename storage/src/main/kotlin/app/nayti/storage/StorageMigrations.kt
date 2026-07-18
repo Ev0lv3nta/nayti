@@ -217,5 +217,60 @@ object StorageMigrations {
             }
         }
 
-    val All: Array<Migration> = arrayOf(From1To2, From2To3, From3To4, From4To5, From5To6)
+    val From6To7: Migration =
+        object : Migration(6, 7) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL("DROP INDEX IF EXISTS `index_vector_publication_snapshotId`")
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_vector_publication_snapshotId` " +
+                        "ON `vector_publication` (`snapshotId`)",
+                )
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `vector_segment_record_new` (" +
+                        "`segmentSha256` TEXT NOT NULL, `ordinal` INTEGER NOT NULL, `recordId` INTEGER NOT NULL, " +
+                        "`assetId` INTEGER NOT NULL, `sourceFingerprint` TEXT NOT NULL, " +
+                        "`accessRevision` INTEGER NOT NULL, `chunkOrdinal` INTEGER NOT NULL, " +
+                        "`semanticChunkId` TEXT, PRIMARY KEY(`segmentSha256`, `ordinal`))",
+                )
+                connection.execSQL(
+                    "INSERT INTO vector_segment_record_new " +
+                        "(segmentSha256, ordinal, recordId, assetId, sourceFingerprint, accessRevision, " +
+                        "chunkOrdinal, semanticChunkId) " +
+                        "SELECT segmentSha256, ordinal, recordId, assetId, sourceFingerprint, " +
+                        "COALESCE((SELECT processAccessRevision FROM catalog_access_observation WHERE singletonId = 1), 1), " +
+                        "chunkOrdinal, semanticChunkId FROM vector_segment_record",
+                )
+                connection.execSQL("DROP TABLE vector_segment_record")
+                connection.execSQL("ALTER TABLE vector_segment_record_new RENAME TO vector_segment_record")
+                connection.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_vector_segment_record_segmentSha256_recordId` " +
+                        "ON `vector_segment_record` (`segmentSha256`, `recordId`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_vector_segment_record_assetId` " +
+                        "ON `vector_segment_record` (`assetId`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_vector_segment_record_semanticChunkId` " +
+                        "ON `vector_segment_record` (`semanticChunkId`)",
+                )
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `activation_candidate_channel` (" +
+                        "`candidateId` TEXT NOT NULL, `channel` TEXT NOT NULL, `pipelineVersion` TEXT NOT NULL, " +
+                        "`componentHash` TEXT NOT NULL, `embeddingSpaceHash` TEXT, `action` TEXT NOT NULL, " +
+                        "`reason` TEXT NOT NULL, PRIMARY KEY(`candidateId`, `channel`))",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activation_candidate_channel_candidateId_action` " +
+                        "ON `activation_candidate_channel` (`candidateId`, `action`)",
+                )
+                connection.execSQL(
+                    "UPDATE activation_candidate SET state = 'REJECTED', " +
+                        "failureCode = 'MISSING_CHANNEL_PLAN' " +
+                        "WHERE state IN ('BUILDING_SHADOW', 'READY_TO_ACTIVATE')",
+                )
+            }
+        }
+
+    val All: Array<Migration> = arrayOf(From1To2, From2To3, From3To4, From4To5, From5To6, From6To7)
 }

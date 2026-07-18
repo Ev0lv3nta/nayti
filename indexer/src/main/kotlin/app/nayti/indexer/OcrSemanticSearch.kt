@@ -80,7 +80,7 @@ class InstalledUser2QuerySessionFactory(
                 User2EmbeddingSpaceIdentity.calculate(pack.payloadDirectory.parent)
             }
         check(actualEmbeddingSpace == contract.embeddingSpaceHash)
-        val permit = neuralLane.acquire()
+        val permit = neuralLane.acquire(NeuralExecutionPriority.INTERACTIVE_QUERY)
         return try {
             val runtime = withContext(Dispatchers.Default) { User2OrtRuntime.open(pack.payloadDirectory) }
             User2QuerySession(runtime, actualEmbeddingSpace, permit)
@@ -168,6 +168,7 @@ class OcrSemanticSearch(
                 hits = emptyList(),
             )
         val component = checkNotNull(vectors.snapshotChannel(snapshot.snapshotId, IndexChannel.OCR_SEMANTIC))
+        val ocrComponent = checkNotNull(vectors.snapshotChannel(snapshot.snapshotId, IndexChannel.OCR))
         val manifest = checkNotNull(vectors.manifest(manifestRevision))
         val generation = checkNotNull(vectors.generation(manifest.generationId))
         check(
@@ -232,6 +233,8 @@ class OcrSemanticSearch(
                         semanticPipelineVersion = generation.pipelineVersion,
                         componentHash = generation.componentHash,
                         maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
+                        ocrPipelineVersion = ocrComponent.pipelineVersion,
+                        ocrComponentHash = ocrComponent.componentHash,
                     )
                 if (eligibleRecordIds.isEmpty()) return@forEachIndexed
                 val file = safeArtifactPath(artifact.relativePath)
@@ -274,6 +277,8 @@ class OcrSemanticSearch(
                 semanticPipelineVersion = generation.pipelineVersion,
                 componentHash = generation.componentHash,
                 maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
+                ocrPipelineVersion = ocrComponent.pipelineVersion,
+                ocrComponentHash = ocrComponent.componentHash,
             )
         val evidenceByRecord = evidence.associateBy { row -> RecordKey(row.segmentSha256, row.recordId) }
         check(evidenceByRecord.size == evidence.size)

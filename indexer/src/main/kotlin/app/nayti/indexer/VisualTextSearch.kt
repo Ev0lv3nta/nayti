@@ -44,7 +44,7 @@ class InstalledSiglip2TextQuerySessionFactory(
                 Siglip2EmbeddingSpaceIdentity.calculate(pack.payloadDirectory.parent)
             }
         check(actualEmbeddingSpace == contract.embeddingSpaceHash)
-        val permit = neuralLane.acquire()
+        val permit = neuralLane.acquire(NeuralExecutionPriority.INTERACTIVE_QUERY)
         return try {
             val runtime =
                 withContext(Dispatchers.Default) {

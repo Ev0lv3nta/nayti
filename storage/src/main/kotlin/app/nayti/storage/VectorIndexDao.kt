@@ -83,35 +83,27 @@ interface VectorIndexDao {
             "FROM vector_segment_record AS vectorRecord " +
             "INNER JOIN vector_manifest_segment AS manifestSegment " +
             "ON manifestSegment.segmentSha256 = vectorRecord.segmentSha256 " +
+            "INNER JOIN vector_manifest AS vectorManifest ON vectorManifest.revision = manifestSegment.manifestRevision " +
+            "INNER JOIN vector_generation AS generation ON generation.generationId = vectorManifest.generationId " +
             "INNER JOIN ocr_semantic_chunk AS chunk ON chunk.chunkId = vectorRecord.semanticChunkId " +
             "INNER JOIN ocr_document AS document ON document.assetId = chunk.assetId " +
             "INNER JOIN catalog_asset AS asset ON asset.assetId = chunk.assetId " +
-            "INNER JOIN index_channel_work AS semanticWork " +
-            "ON semanticWork.assetId = chunk.assetId AND semanticWork.channel = 'OCR_SEMANTIC' " +
-            "INNER JOIN index_channel_work AS ocrWork " +
-            "ON ocrWork.assetId = chunk.assetId AND ocrWork.channel = 'OCR' " +
             "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
             "WHERE manifestSegment.manifestRevision = :manifestRevision " +
             "AND vectorRecord.recordId IN (:recordIds) " +
             "AND vectorRecord.assetId = chunk.assetId " +
             "AND vectorRecord.sourceFingerprint = chunk.sourceFingerprint " +
+            "AND vectorRecord.accessRevision = access.processAccessRevision " +
             "AND vectorRecord.chunkOrdinal = chunk.ordinal " +
             "AND chunk.ocrPublicationToken = document.publicationToken " +
             "AND chunk.sourceFingerprint = document.sourceFingerprint " +
             "AND asset.availability = 'AVAILABLE' " +
             "AND asset.sourceFingerprint = document.sourceFingerprint " +
-            "AND semanticWork.state = 'DONE' " +
-            "AND semanticWork.sourceFingerprint = document.sourceFingerprint " +
-            "AND semanticWork.accessRevision = access.processAccessRevision " +
-            "AND semanticWork.pipelineVersion = :semanticPipelineVersion " +
-            "AND semanticWork.componentHash = :componentHash " +
-            "AND ocrWork.state = 'DONE' " +
-            "AND ocrWork.sourceFingerprint = document.sourceFingerprint " +
-            "AND ocrWork.accessRevision = document.accessRevision " +
-            "AND ocrWork.pipelineVersion = document.pipelineVersion " +
-            "AND ocrWork.componentHash = document.componentHash " +
+            "AND generation.pipelineVersion = :semanticPipelineVersion " +
+            "AND generation.componentHash = :componentHash " +
             "AND document.accessRevision = access.processAccessRevision " +
-            "AND document.componentHash = :componentHash " +
+            "AND document.pipelineVersion = :ocrPipelineVersion " +
+            "AND document.componentHash = :ocrComponentHash " +
             "AND document.publicationEpoch <= :maximumPublicationEpoch " +
             "AND access.accessScope != 'None' " +
             "ORDER BY vectorRecord.recordId, vectorRecord.segmentSha256",
@@ -121,6 +113,8 @@ interface VectorIndexDao {
         recordIds: List<Long>,
         semanticPipelineVersion: String,
         componentHash: String,
+        ocrPipelineVersion: String,
+        ocrComponentHash: String,
         maximumPublicationEpoch: Long,
     ): List<SemanticVectorEvidence>
 
@@ -128,35 +122,27 @@ interface VectorIndexDao {
         "SELECT vectorRecord.recordId FROM vector_segment_record AS vectorRecord " +
             "INNER JOIN vector_manifest_segment AS manifestSegment " +
             "ON manifestSegment.segmentSha256 = vectorRecord.segmentSha256 " +
+            "INNER JOIN vector_manifest AS vectorManifest ON vectorManifest.revision = manifestSegment.manifestRevision " +
+            "INNER JOIN vector_generation AS generation ON generation.generationId = vectorManifest.generationId " +
             "INNER JOIN ocr_semantic_chunk AS chunk ON chunk.chunkId = vectorRecord.semanticChunkId " +
             "INNER JOIN ocr_document AS document ON document.assetId = chunk.assetId " +
             "INNER JOIN catalog_asset AS asset ON asset.assetId = chunk.assetId " +
-            "INNER JOIN index_channel_work AS semanticWork " +
-            "ON semanticWork.assetId = chunk.assetId AND semanticWork.channel = 'OCR_SEMANTIC' " +
-            "INNER JOIN index_channel_work AS ocrWork " +
-            "ON ocrWork.assetId = chunk.assetId AND ocrWork.channel = 'OCR' " +
             "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
             "WHERE manifestSegment.manifestRevision = :manifestRevision " +
             "AND vectorRecord.segmentSha256 = :segmentSha256 " +
             "AND vectorRecord.assetId = chunk.assetId " +
             "AND vectorRecord.sourceFingerprint = chunk.sourceFingerprint " +
+            "AND vectorRecord.accessRevision = access.processAccessRevision " +
             "AND vectorRecord.chunkOrdinal = chunk.ordinal " +
             "AND chunk.ocrPublicationToken = document.publicationToken " +
             "AND chunk.sourceFingerprint = document.sourceFingerprint " +
             "AND asset.availability = 'AVAILABLE' " +
             "AND asset.sourceFingerprint = document.sourceFingerprint " +
-            "AND semanticWork.state = 'DONE' " +
-            "AND semanticWork.sourceFingerprint = document.sourceFingerprint " +
-            "AND semanticWork.accessRevision = access.processAccessRevision " +
-            "AND semanticWork.pipelineVersion = :semanticPipelineVersion " +
-            "AND semanticWork.componentHash = :componentHash " +
-            "AND ocrWork.state = 'DONE' " +
-            "AND ocrWork.sourceFingerprint = document.sourceFingerprint " +
-            "AND ocrWork.accessRevision = document.accessRevision " +
-            "AND ocrWork.pipelineVersion = document.pipelineVersion " +
-            "AND ocrWork.componentHash = document.componentHash " +
+            "AND generation.pipelineVersion = :semanticPipelineVersion " +
+            "AND generation.componentHash = :componentHash " +
             "AND document.accessRevision = access.processAccessRevision " +
-            "AND document.componentHash = :componentHash " +
+            "AND document.pipelineVersion = :ocrPipelineVersion " +
+            "AND document.componentHash = :ocrComponentHash " +
             "AND document.publicationEpoch <= :maximumPublicationEpoch " +
             "AND access.accessScope != 'None' " +
             "ORDER BY vectorRecord.recordId",
@@ -166,6 +152,8 @@ interface VectorIndexDao {
         segmentSha256: String,
         semanticPipelineVersion: String,
         componentHash: String,
+        ocrPipelineVersion: String,
+        ocrComponentHash: String,
         maximumPublicationEpoch: Long,
     ): List<Long>
 
@@ -176,9 +164,9 @@ interface VectorIndexDao {
             "FROM vector_segment_record AS vectorRecord " +
             "INNER JOIN vector_manifest_segment AS manifestSegment " +
             "ON manifestSegment.segmentSha256 = vectorRecord.segmentSha256 " +
+            "INNER JOIN vector_manifest AS vectorManifest ON vectorManifest.revision = manifestSegment.manifestRevision " +
+            "INNER JOIN vector_generation AS generation ON generation.generationId = vectorManifest.generationId " +
             "INNER JOIN catalog_asset AS asset ON asset.assetId = vectorRecord.assetId " +
-            "INNER JOIN index_channel_work AS visualWork " +
-            "ON visualWork.assetId = vectorRecord.assetId AND visualWork.channel = 'VISUAL' " +
             "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
             "WHERE manifestSegment.manifestRevision = :manifestRevision " +
             "AND vectorRecord.recordId IN (:recordIds) " +
@@ -186,11 +174,9 @@ interface VectorIndexDao {
             "AND vectorRecord.chunkOrdinal = 0 AND vectorRecord.semanticChunkId IS NULL " +
             "AND asset.availability = 'AVAILABLE' " +
             "AND asset.sourceFingerprint = vectorRecord.sourceFingerprint " +
-            "AND visualWork.state = 'DONE' " +
-            "AND visualWork.sourceFingerprint = vectorRecord.sourceFingerprint " +
-            "AND visualWork.accessRevision = access.processAccessRevision " +
-            "AND visualWork.pipelineVersion = :visualPipelineVersion " +
-            "AND visualWork.componentHash = :componentHash " +
+            "AND vectorRecord.accessRevision = access.processAccessRevision " +
+            "AND generation.pipelineVersion = :visualPipelineVersion " +
+            "AND generation.componentHash = :componentHash " +
             "AND access.accessScope != 'None' " +
             "ORDER BY vectorRecord.recordId, vectorRecord.segmentSha256",
     )
@@ -205,9 +191,9 @@ interface VectorIndexDao {
         "SELECT vectorRecord.recordId FROM vector_segment_record AS vectorRecord " +
             "INNER JOIN vector_manifest_segment AS manifestSegment " +
             "ON manifestSegment.segmentSha256 = vectorRecord.segmentSha256 " +
+            "INNER JOIN vector_manifest AS vectorManifest ON vectorManifest.revision = manifestSegment.manifestRevision " +
+            "INNER JOIN vector_generation AS generation ON generation.generationId = vectorManifest.generationId " +
             "INNER JOIN catalog_asset AS asset ON asset.assetId = vectorRecord.assetId " +
-            "INNER JOIN index_channel_work AS visualWork " +
-            "ON visualWork.assetId = vectorRecord.assetId AND visualWork.channel = 'VISUAL' " +
             "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
             "WHERE manifestSegment.manifestRevision = :manifestRevision " +
             "AND vectorRecord.segmentSha256 = :segmentSha256 " +
@@ -215,11 +201,9 @@ interface VectorIndexDao {
             "AND vectorRecord.chunkOrdinal = 0 AND vectorRecord.semanticChunkId IS NULL " +
             "AND asset.availability = 'AVAILABLE' " +
             "AND asset.sourceFingerprint = vectorRecord.sourceFingerprint " +
-            "AND visualWork.state = 'DONE' " +
-            "AND visualWork.sourceFingerprint = vectorRecord.sourceFingerprint " +
-            "AND visualWork.accessRevision = access.processAccessRevision " +
-            "AND visualWork.pipelineVersion = :visualPipelineVersion " +
-            "AND visualWork.componentHash = :componentHash " +
+            "AND vectorRecord.accessRevision = access.processAccessRevision " +
+            "AND generation.pipelineVersion = :visualPipelineVersion " +
+            "AND generation.componentHash = :componentHash " +
             "AND access.accessScope != 'None' " +
             "ORDER BY vectorRecord.recordId",
     )
@@ -280,6 +264,9 @@ interface VectorIndexDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertActivationCandidate(candidate: ActivationCandidateEntity)
 
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertActivationCandidateChannels(channels: List<ActivationCandidateChannelEntity>)
+
     @Query("SELECT * FROM activation_candidate WHERE candidateId = :candidateId")
     suspend fun activationCandidate(candidateId: String): ActivationCandidateEntity?
 
@@ -288,6 +275,9 @@ interface VectorIndexDao {
 
     @Query("SELECT * FROM activation_candidate ORDER BY createdAtMillis, candidateId")
     suspend fun activationCandidates(): List<ActivationCandidateEntity>
+
+    @Query("SELECT * FROM activation_candidate_channel WHERE candidateId = :candidateId ORDER BY channel")
+    suspend fun activationCandidateChannels(candidateId: String): List<ActivationCandidateChannelEntity>
 
     @Query(
         "SELECT COUNT(*) FROM activation_candidate WHERE snapshotId = :snapshotId " +
@@ -305,6 +295,18 @@ interface VectorIndexDao {
         newState: String,
         nowMillis: Long,
         failureCode: String?,
+    ): Int
+
+    @Query(
+        "UPDATE activation_candidate SET capturedCatalogWatermark = :nextWatermark, " +
+            "updatedAtMillis = :nowMillis WHERE candidateId = :candidateId " +
+            "AND state = 'BUILDING_SHADOW' AND capturedCatalogWatermark = :expectedWatermark",
+    )
+    suspend fun advanceActivationCandidateWatermarkRow(
+        candidateId: String,
+        expectedWatermark: Long,
+        nextWatermark: Long,
+        nowMillis: Long,
     ): Int
 
     @Query("SELECT * FROM catalog_watermark WHERE singletonId = 1")
@@ -527,7 +529,11 @@ interface VectorIndexDao {
             val asset = checkNotNull(catalogAsset(item.assetId))
             check(asset.availability == CatalogAvailability.AVAILABLE)
             check(asset.sourceFingerprint == item.sourceFingerprint)
-            check(records.filter { it.assetId == item.assetId }.all { it.sourceFingerprint == item.sourceFingerprint })
+            check(
+                records.filter { it.assetId == item.assetId }.all {
+                    it.sourceFingerprint == item.sourceFingerprint && it.accessRevision == item.accessRevision
+                },
+            )
         }
 
         insertSegmentIfAbsent(segment)
@@ -551,6 +557,81 @@ interface VectorIndexDao {
         check(completePublicationWork(publicationToken, nowMillis) == work.size)
         check(completePublicationRow(publicationToken, nowMillis) == 1)
         return snapshot
+    }
+
+    @Transaction
+    suspend fun commitShadowVectorPublication(
+        publicationToken: String,
+        segment: VectorSegmentArtifactEntity,
+        records: List<VectorSegmentRecordEntity>,
+        manifest: VectorManifestEntity,
+        manifestEntries: List<VectorManifestSegmentEntity>,
+        nowMillis: Long,
+    ): VectorManifestEntity {
+        val publication = checkNotNull(publication(publicationToken))
+        check(publication.state == VectorPublicationState.STAGED)
+        check(publication.segmentSha256 == segment.sha256)
+        check(publication.manifestRevision == manifest.revision)
+        val candidate = checkNotNull(activationCandidateBySnapshot(publication.snapshotId))
+        check(candidate.state == ActivationCandidateState.BUILDING_SHADOW)
+        val generation = checkNotNull(generation(publication.generationId))
+        check(generation.packId == candidate.packId && generation.packVersion == candidate.packVersion)
+        val planned = activationCandidateChannels(candidate.candidateId).single { it.channel == generation.channel }
+        check(planned.action == ActivationCandidateChannelAction.REBUILD_SHADOW)
+        check(
+            planned.pipelineVersion == generation.pipelineVersion &&
+                planned.componentHash == generation.componentHash &&
+                planned.embeddingSpaceHash == generation.embeddingSpaceHash,
+        )
+        validateSegment(generation, segment, records)
+        validateSemanticRecordReferences(generation, records)
+
+        val work = publicationWork(publicationToken)
+        check(work.isNotEmpty() && work.all { item ->
+            item.state == IndexWorkState.STAGED &&
+                item.channel == publication.channel &&
+                item.pipelineVersion == generation.pipelineVersion &&
+                item.componentHash == generation.componentHash &&
+                item.stagedArtifactPath == segment.relativePath &&
+                item.stagedArtifactLength == segment.byteLength &&
+                item.stagedArtifactSha256 == segment.sha256
+        })
+        check(work.map(IndexChannelWorkEntity::assetId).toSet() == records.map(VectorSegmentRecordEntity::assetId).toSet())
+        val access = checkNotNull(accessObservation())
+        check(
+            access.accessScope != "None" &&
+                access.processAccessRevision == candidate.capturedAccessRevision &&
+                (catalogWatermark()?.catalogRevision ?: 0) >= candidate.capturedCatalogWatermark,
+        )
+        work.forEach { item ->
+            check(item.accessRevision == access.processAccessRevision)
+            val asset = checkNotNull(catalogAsset(item.assetId))
+            check(asset.availability == CatalogAvailability.AVAILABLE)
+            check(asset.sourceFingerprint == item.sourceFingerprint)
+            check(
+                records.filter { it.assetId == item.assetId }.all {
+                    it.sourceFingerprint == item.sourceFingerprint && it.accessRevision == item.accessRevision
+                },
+            )
+        }
+
+        insertSegmentIfAbsent(segment)
+        check(segment(segment.sha256) == segment)
+        if (records.isNotEmpty()) insertSegmentRecordsIfAbsent(records)
+        check(segmentRecords(segment.sha256) == records.sortedBy(VectorSegmentRecordEntity::ordinal))
+        validateManifest(generation, manifest, manifestEntries)
+        check(manifestEntries.any { it.segmentSha256 == segment.sha256 })
+        manifestEntries.forEach { entry ->
+            val artifact = checkNotNull(segment(entry.segmentSha256))
+            check(artifact.channel == generation.channel)
+            check(artifact.embeddingSpaceHash == generation.embeddingSpaceHash)
+            check(artifact.dimension == generation.dimension)
+        }
+        insertManifest(manifest)
+        insertManifestSegments(manifestEntries)
+        check(completePublicationWork(publicationToken, nowMillis) == work.size)
+        check(completePublicationRow(publicationToken, nowMillis) == 1)
+        return manifest
     }
 
     @Transaction
@@ -619,7 +700,10 @@ interface VectorIndexDao {
     }
 
     @Transaction
-    suspend fun registerActivationCandidate(candidate: ActivationCandidateEntity) {
+    suspend fun registerActivationCandidate(
+        candidate: ActivationCandidateEntity,
+        channels: List<ActivationCandidateChannelEntity>,
+    ) {
         require(identifier(candidate.candidateId) && identifier(candidate.snapshotId))
         require(candidate.parentSnapshotId == null || identifier(candidate.parentSnapshotId))
         require(identifier(candidate.packId) && contractValue(candidate.packVersion))
@@ -635,7 +719,9 @@ interface VectorIndexDao {
         check(access.accessScope != "None" && access.processAccessRevision == candidate.capturedAccessRevision)
         check((catalogWatermark()?.catalogRevision ?: 0) == candidate.capturedCatalogWatermark)
         check(snapshot(candidate.snapshotId) == null)
+        validateActivationCandidatePlan(candidate, channels)
         insertActivationCandidate(candidate)
+        insertActivationCandidateChannels(channels)
     }
 
     @Transaction
@@ -649,7 +735,12 @@ interface VectorIndexDao {
         check(candidate.state == ActivationCandidateState.BUILDING_SHADOW)
         check(activeSnapshotId() == candidate.parentSnapshotId)
         require(snapshot.createdAtMillis in candidate.createdAtMillis..nowMillis)
-        validateActivationCandidateSnapshot(candidate, snapshot, channels)
+        validateActivationCandidateSnapshot(
+            candidate,
+            activationCandidateChannels(candidate.candidateId),
+            snapshot,
+            channels,
+        )
         insertSnapshot(snapshot)
         insertSnapshotChannels(channels)
         check(
@@ -665,6 +756,32 @@ interface VectorIndexDao {
     }
 
     @Transaction
+    suspend fun reconcileActivationCandidateWatermark(
+        candidateId: String,
+        expectedWatermark: Long,
+        nextWatermark: Long,
+        nowMillis: Long,
+    ): ActivationCandidateEntity {
+        require(expectedWatermark >= 0 && nextWatermark >= expectedWatermark)
+        val candidate = checkNotNull(activationCandidate(candidateId))
+        check(candidate.state == ActivationCandidateState.BUILDING_SHADOW)
+        check(candidate.capturedCatalogWatermark == expectedWatermark)
+        check(activeSnapshotId() == candidate.parentSnapshotId)
+        val access = checkNotNull(accessObservation())
+        check(access.accessScope != "None" && access.processAccessRevision == candidate.capturedAccessRevision)
+        check((catalogWatermark()?.catalogRevision ?: 0) == nextWatermark)
+        check(
+            advanceActivationCandidateWatermarkRow(
+                candidateId = candidateId,
+                expectedWatermark = expectedWatermark,
+                nextWatermark = nextWatermark,
+                nowMillis = nowMillis,
+            ) == 1,
+        )
+        return checkNotNull(activationCandidate(candidateId))
+    }
+
+    @Transaction
     suspend fun activateReadyCandidate(candidateId: String, nowMillis: Long): ActiveSnapshotPointerEntity {
         val candidate = checkNotNull(activationCandidate(candidateId))
         check(candidate.state == ActivationCandidateState.READY_TO_ACTIVATE)
@@ -674,7 +791,12 @@ interface VectorIndexDao {
         check(access.accessScope != "None" && access.processAccessRevision == candidate.capturedAccessRevision)
         check((catalogWatermark()?.catalogRevision ?: 0) == candidate.capturedCatalogWatermark)
         val snapshot = checkNotNull(snapshot(candidate.snapshotId))
-        validateActivationCandidateSnapshot(candidate, snapshot, snapshotChannels(snapshot.snapshotId))
+        validateActivationCandidateSnapshot(
+            candidate,
+            activationCandidateChannels(candidate.candidateId),
+            snapshot,
+            snapshotChannels(snapshot.snapshotId),
+        )
         check(deleteIntentCount(snapshot.snapshotId) == 0)
         val activated =
             ActiveSnapshotPointerEntity(
@@ -810,11 +932,18 @@ interface VectorIndexDao {
         semanticPipelineVersion: String,
         componentHash: String,
         maximumPublicationEpoch: Long,
+        ocrPipelineVersion: String = "ocr-v1",
+        ocrComponentHash: String = componentHash,
     ): List<SemanticVectorEvidence> {
         require(identifier(manifestRevision))
         require(recordIds.isNotEmpty() && recordIds.size <= MaximumSemanticCandidates)
         require(recordIds.all { it > 0 } && recordIds.distinct().size == recordIds.size)
-        require(contractValue(semanticPipelineVersion) && sha256(componentHash))
+        require(
+            contractValue(semanticPipelineVersion) &&
+                sha256(componentHash) &&
+                contractValue(ocrPipelineVersion) &&
+                sha256(ocrComponentHash),
+        )
         require(maximumPublicationEpoch >= 0)
         val manifest = checkNotNull(manifest(manifestRevision))
         check(manifest.channel == IndexChannel.OCR_SEMANTIC)
@@ -823,6 +952,8 @@ interface VectorIndexDao {
             recordIds = recordIds,
             semanticPipelineVersion = semanticPipelineVersion,
             componentHash = componentHash,
+            ocrPipelineVersion = ocrPipelineVersion,
+            ocrComponentHash = ocrComponentHash,
             maximumPublicationEpoch = maximumPublicationEpoch,
         ).also { evidence ->
             check(evidence.all { row ->
@@ -842,9 +973,16 @@ interface VectorIndexDao {
         semanticPipelineVersion: String,
         componentHash: String,
         maximumPublicationEpoch: Long,
+        ocrPipelineVersion: String = "ocr-v1",
+        ocrComponentHash: String = componentHash,
     ): List<Long> {
         require(identifier(manifestRevision) && sha256(segmentSha256))
-        require(contractValue(semanticPipelineVersion) && sha256(componentHash))
+        require(
+            contractValue(semanticPipelineVersion) &&
+                sha256(componentHash) &&
+                contractValue(ocrPipelineVersion) &&
+                sha256(ocrComponentHash),
+        )
         require(maximumPublicationEpoch >= 0)
         val manifest = checkNotNull(manifest(manifestRevision))
         check(manifest.channel == IndexChannel.OCR_SEMANTIC)
@@ -853,6 +991,8 @@ interface VectorIndexDao {
             segmentSha256 = segmentSha256,
             semanticPipelineVersion = semanticPipelineVersion,
             componentHash = componentHash,
+            ocrPipelineVersion = ocrPipelineVersion,
+            ocrComponentHash = ocrComponentHash,
             maximumPublicationEpoch = maximumPublicationEpoch,
         ).also { recordIds ->
             check(recordIds.size <= MaximumSegmentRecords)
@@ -1079,8 +1219,38 @@ interface VectorIndexDao {
         }
     }
 
+    private suspend fun validateActivationCandidatePlan(
+        candidate: ActivationCandidateEntity,
+        channels: List<ActivationCandidateChannelEntity>,
+    ) {
+        require(channels.isNotEmpty() && channels.map { it.channel }.distinct().size == channels.size)
+        require(channels.all { component ->
+            component.candidateId == candidate.candidateId &&
+                component.channel in IndexChannel.all &&
+                contractValue(component.pipelineVersion) &&
+                sha256(component.componentHash) &&
+                (component.embeddingSpaceHash == null || sha256(component.embeddingSpaceHash)) &&
+                component.action in ActivationCandidateChannelAction.all &&
+                contractValue(component.reason)
+        })
+        val parentChannels = candidate.parentSnapshotId?.let { snapshotChannels(it) }.orEmpty()
+        val parentByChannel = parentChannels.associateBy(ActivationSnapshotChannelEntity::channel)
+        channels.forEach { planned ->
+            val parent = parentByChannel[planned.channel]
+            if (planned.action == ActivationCandidateChannelAction.INHERIT) {
+                check(parent != null)
+                check(
+                    parent.pipelineVersion == planned.pipelineVersion &&
+                        parent.componentHash == planned.componentHash &&
+                        parent.embeddingSpaceHash == planned.embeddingSpaceHash,
+                )
+            }
+        }
+    }
+
     private suspend fun validateActivationCandidateSnapshot(
         candidate: ActivationCandidateEntity,
+        plan: List<ActivationCandidateChannelEntity>,
         snapshot: ActivationSnapshotEntity,
         channels: List<ActivationSnapshotChannelEntity>,
     ) {
@@ -1095,6 +1265,7 @@ interface VectorIndexDao {
         require(snapshot.capturedAccessRevision == candidate.capturedAccessRevision)
         require(snapshot.createdAtMillis >= candidate.createdAtMillis)
         check(modelPack(snapshot.packId, snapshot.packVersion)?.manifestSha256 == snapshot.packManifestSha256)
+        validateActivationCandidatePlan(candidate, plan)
         require(channels.isNotEmpty() && channels.map { it.channel }.distinct().size == channels.size)
         val expectedChannels =
             buildSet {
@@ -1104,6 +1275,7 @@ interface VectorIndexDao {
                 if (snapshot.visualManifestRevision != null) add(IndexChannel.VISUAL)
             }
         require(channels.map(ActivationSnapshotChannelEntity::channel).toSet() == expectedChannels)
+        require(plan.map(ActivationCandidateChannelEntity::channel).toSet() == expectedChannels)
         require(channels.all { component ->
             component.snapshotId == snapshot.snapshotId &&
                 component.channel in IndexChannel.all &&
@@ -1114,7 +1286,21 @@ interface VectorIndexDao {
                 (component.manifestRevision == null || identifier(component.manifestRevision)) &&
                 (component.inheritedFromSnapshotId == null || identifier(component.inheritedFromSnapshotId))
         })
-        channels.forEach { component -> validateActivationComponent(snapshot, component) }
+        val plannedByChannel = plan.associateBy(ActivationCandidateChannelEntity::channel)
+        channels.forEach { component ->
+            val planned = checkNotNull(plannedByChannel[component.channel])
+            check(
+                component.pipelineVersion == planned.pipelineVersion &&
+                    component.componentHash == planned.componentHash &&
+                    component.embeddingSpaceHash == planned.embeddingSpaceHash,
+            )
+            if (planned.action == ActivationCandidateChannelAction.INHERIT) {
+                check(component.inheritedFromSnapshotId == candidate.parentSnapshotId)
+            } else {
+                check(component.inheritedFromSnapshotId == null)
+            }
+            validateActivationComponent(snapshot, component)
+        }
         check(snapshot.semanticManifestRevision != null || snapshot.visualManifestRevision != null)
     }
 
@@ -1240,7 +1426,7 @@ interface VectorIndexDao {
         require(records.map(VectorSegmentRecordEntity::ordinal) == records.indices.toList())
         require(records.all { record ->
             record.segmentSha256 == segment.sha256 &&
-                record.recordId > 0 && record.assetId > 0 && record.chunkOrdinal >= 0 &&
+                record.recordId > 0 && record.assetId > 0 && record.accessRevision > 0 && record.chunkOrdinal >= 0 &&
                 record.sourceFingerprint.isNotBlank() && record.sourceFingerprint.length <= 128
         })
         require(records.map(VectorSegmentRecordEntity::recordId).distinct().size == records.size)

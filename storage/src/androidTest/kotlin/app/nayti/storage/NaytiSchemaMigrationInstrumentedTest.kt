@@ -63,16 +63,19 @@ class NaytiSchemaMigrationInstrumentedTest {
                 StorageMigrations.From3To4,
                 StorageMigrations.From4To5,
                 StorageMigrations.From5To6,
+                StorageMigrations.From6To7,
             ),
         ).use { connection ->
             connection.prepare(
-                "SELECT recordId, assetId, semanticChunkId FROM vector_segment_record WHERE segmentSha256 = ?",
+                "SELECT recordId, assetId, semanticChunkId, accessRevision " +
+                    "FROM vector_segment_record WHERE segmentSha256 = ?",
             ).use { statement ->
                 statement.bindText(1, SegmentSha)
                 assertTrue(statement.step())
                 assertEquals(17L, statement.getLong(0))
                 assertEquals(7L, statement.getLong(1))
                 assertTrue(statement.isNull(2))
+                assertEquals(1L, statement.getLong(3))
                 assertFalse(statement.step())
             }
 
@@ -180,6 +183,35 @@ class NaytiSchemaMigrationInstrumentedTest {
                 assertEquals("semantic-manifest", rows.single { it[0] == "OCR_SEMANTIC" }[4])
                 assertEquals(ChunkSha, rows.single { it[0] == "VISUAL" }[2])
                 assertEquals(PackSha, rows.single { it[0] == "OCR" }[2])
+            }
+        }
+    }
+
+    @Test
+    fun migration6To7RejectsUnplannedIncompleteCandidate() = runBlocking {
+        migration.createDatabase(6).use { connection ->
+            connection.execSQL(
+                "INSERT INTO activation_candidate " +
+                    "(candidateId, snapshotId, parentSnapshotId, packId, packVersion, packManifestSha256, " +
+                    "capturedAccessRevision, capturedCatalogWatermark, state, createdAtMillis, " +
+                    "updatedAtMillis, failureCode) VALUES " +
+                    "('candidate-v6', 'snapshot-v6', NULL, 'nayti-offline-search', '0.1.0-alpha.2', " +
+                    "'$PackSha', 1, 2, 'READY_TO_ACTIVATE', 3, 4, NULL)",
+            )
+        }
+
+        migration.runMigrationsAndValidate(7, listOf(StorageMigrations.From6To7)).use { connection ->
+            connection.prepare(
+                "SELECT state, failureCode FROM activation_candidate WHERE candidateId = 'candidate-v6'",
+            ).use { statement ->
+                assertTrue(statement.step())
+                assertEquals("REJECTED", statement.getText(0))
+                assertEquals("MISSING_CHANNEL_PLAN", statement.getText(1))
+                assertFalse(statement.step())
+            }
+            connection.prepare("SELECT COUNT(*) FROM activation_candidate_channel").use { statement ->
+                assertTrue(statement.step())
+                assertEquals(0L, statement.getLong(0))
             }
         }
     }

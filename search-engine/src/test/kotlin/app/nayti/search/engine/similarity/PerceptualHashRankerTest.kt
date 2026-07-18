@@ -46,6 +46,36 @@ class PerceptualHashRankerTest {
         }
     }
 
+    @Test
+    fun libraryScaleRankingIsBoundedAndDeterministic() {
+        val records =
+            (1L..13_000L).map { assetId ->
+                record(assetId, assetId * -7046029254386353131L)
+            }
+
+        val first =
+            PerceptualHashRanker.rank(
+                sourceAssetId = 6_500,
+                sourceHash = records[6_499].hashBits,
+                records = records,
+                maximumDistance = 63,
+                limit = 50,
+            )
+        val repeated =
+            PerceptualHashRanker.rank(
+                sourceAssetId = 6_500,
+                sourceHash = records[6_499].hashBits,
+                records = records,
+                maximumDistance = 63,
+                limit = 50,
+            )
+
+        assertEquals(50, first.size)
+        assertEquals(first, repeated)
+        assertEquals(50, first.map(PerceptualHashMatch::assetId).distinct().size)
+        assertEquals(first.sortedWith(compareBy(PerceptualHashMatch::distance, PerceptualHashMatch::assetId)), first)
+    }
+
     private fun record(assetId: Long, hashBits: Long) =
         PerceptualHashRecord(assetId, hashBits, publicationEpoch = assetId + 100)
 }

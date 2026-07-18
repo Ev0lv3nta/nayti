@@ -14,6 +14,7 @@ fi
   testDebugUnitTest \
   lintDebug \
   :app:assembleDebug \
+  :app:assembleBenchmark \
   :app:assembleRelease \
   :benchmark:assemble \
   :ml-runtime:assembleDebugAndroidTest \
@@ -26,6 +27,8 @@ python3 scripts/verify_manifest_policy.py \
   app/build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml
 python3 scripts/verify_manifest_policy.py \
   app/build/intermediates/merged_manifests/release/processReleaseManifest/AndroidManifest.xml
+python3 scripts/verify_manifest_policy.py \
+  app/build/intermediates/merged_manifests/benchmark/processBenchmarkManifest/AndroidManifest.xml
 
 release_dependency_report="build/reports/release-dependencies.txt"
 ./gradlew \
@@ -46,6 +49,7 @@ PYTHONPATH=model-tools/src python3 -m unittest discover -s model-tools/tests
 
 apks=(
   "app/build/outputs/apk/debug/app-debug.apk"
+  "app/build/outputs/apk/benchmark/app-benchmark.apk"
   "app/build/outputs/apk/release/app-release-unsigned.apk"
 )
 for apk in "${apks[@]}"; do

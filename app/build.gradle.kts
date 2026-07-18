@@ -51,6 +51,7 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
             isDebuggable = false
+            versionNameSuffix = "-alpha-local"
         }
     }
 

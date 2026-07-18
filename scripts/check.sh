@@ -27,6 +27,20 @@ python3 scripts/verify_manifest_policy.py \
 python3 scripts/verify_manifest_policy.py \
   app/build/intermediates/merged_manifests/release/processReleaseManifest/AndroidManifest.xml
 
+release_dependency_report="build/reports/release-dependencies.txt"
+./gradlew \
+  :app:dependencies \
+  --configuration releaseRuntimeClasspath \
+  --no-daemon \
+  --max-workers="${NAYTI_GRADLE_WORKERS:-2}" \
+  --console=plain \
+  > "$release_dependency_report"
+python3 scripts/generate_release_sbom.py \
+  "$release_dependency_report" \
+  --policy scripts/release_license_policy.json \
+  --sbom build/reports/nayti-app-release.cdx.json \
+  --notices build/reports/nayti-app-release-notices.md
+
 python3 -m unittest discover -s scripts/tests
 PYTHONPATH=model-tools/src python3 -m unittest discover -s model-tools/tests
 

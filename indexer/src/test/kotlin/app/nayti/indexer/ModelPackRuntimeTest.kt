@@ -63,6 +63,29 @@ class ModelPackRuntimeTest {
     }
 
     @Test
+    fun importedCandidateDoesNotReplaceThePackPinnedByActiveSnapshot() = runTest {
+        val active = pack("0.1.0-alpha.1", 1)
+        val candidate = pack("0.1.0-alpha.2", 2)
+        val registry = FakeRegistry(mutableListOf(active))
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val runtime =
+            ModelPackRuntime(
+                installer = RegisteredModelPackInstaller { candidate.also(registry.values::add) },
+                registry = registry,
+                scope = CoroutineScope(SupervisorJob() + dispatcher),
+                activePack = { active },
+            )
+
+        runtime.start()
+        advanceUntilIdle()
+        runtime.install(ModelPackSource { ByteArrayInputStream(byteArrayOf()) })
+        advanceUntilIdle()
+
+        assertEquals(active, runtime.state.value.installed)
+        assertEquals(candidate, runtime.state.value.candidate)
+    }
+
+    @Test
     fun missingNativeRuntimeIsReportedWithoutLosingPreviousPack() = runTest {
         val previous = pack("0.1.0-alpha.1", 1)
         val dispatcher = StandardTestDispatcher(testScheduler)

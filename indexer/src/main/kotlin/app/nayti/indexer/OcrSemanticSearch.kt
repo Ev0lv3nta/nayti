@@ -150,7 +150,7 @@ class OcrSemanticSearch(
         }
     }
 
-    private suspend fun searchLeased(
+    internal suspend fun searchLeased(
         query: String,
         limit: Int,
         lease: QuerySnapshotLeaseEntity,

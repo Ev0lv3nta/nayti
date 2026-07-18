@@ -217,6 +217,7 @@ class VectorPublicationStore(
             )
         }
         val pack = checkNotNull(dao.modelPack(generation.packId, generation.packVersion))
+        val accessRevision = checkNotNull(dao.accessObservation()).processAccessRevision
         val snapshot = ActivationSnapshotEntity(
             snapshotId = request.snapshotId,
             parentSnapshotId = parentSnapshotId,
@@ -231,6 +232,7 @@ class VectorPublicationStore(
             visualManifestRevision = if (generation.channel == IndexChannel.VISUAL) request.manifestRevision else parentSnapshot?.visualManifestRevision,
             catalogWatermark = request.catalogWatermark,
             createdAtMillis = stagedAt,
+            capturedAccessRevision = accessRevision,
         )
         boundaryObserver(VectorPublicationBoundary.BEFORE_DB_COMMIT)
         val committed = dao.commitVectorPublication(

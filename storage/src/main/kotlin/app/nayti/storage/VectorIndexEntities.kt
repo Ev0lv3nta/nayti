@@ -127,12 +127,42 @@ data class ActivationSnapshotEntity(
     val visualManifestRevision: String?,
     val catalogWatermark: Long,
     val createdAtMillis: Long,
+    val formatVersion: Int = ActivationSnapshotFormat.Current,
+    val capturedAccessRevision: Long = 0,
 )
 
 @Entity(tableName = "active_snapshot_pointer", primaryKeys = ["singletonId"])
 data class ActiveSnapshotPointerEntity(
     val singletonId: Int = 1,
     val snapshotId: String?,
+    val rollbackSnapshotId: String? = null,
+    val activationSequence: Long = 0,
+    val updatedAtMillis: Long = 0,
+)
+
+@Entity(
+    tableName = "activation_candidate",
+    primaryKeys = ["candidateId"],
+    indices = [
+        Index(value = ["snapshotId"], unique = true),
+        Index(value = ["state", "updatedAtMillis"]),
+        Index(value = ["packId", "packVersion"]),
+        Index(value = ["parentSnapshotId"]),
+    ],
+)
+data class ActivationCandidateEntity(
+    val candidateId: String,
+    val snapshotId: String,
+    val parentSnapshotId: String?,
+    val packId: String,
+    val packVersion: String,
+    val packManifestSha256: String,
+    val capturedAccessRevision: Long,
+    val capturedCatalogWatermark: Long,
+    val state: String,
+    val createdAtMillis: Long,
+    val updatedAtMillis: Long,
+    val failureCode: String?,
 )
 
 @Entity(
@@ -198,4 +228,16 @@ object VectorPublicationState {
 object ArtifactDeleteState {
     const val PENDING = "PENDING"
     const val CONFIRMED = "CONFIRMED"
+}
+
+object ActivationSnapshotFormat {
+    const val Current = 1
+}
+
+object ActivationCandidateState {
+    const val BUILDING_SHADOW = "BUILDING_SHADOW"
+    const val READY_TO_ACTIVATE = "READY_TO_ACTIVATE"
+    const val ACTIVE = "ACTIVE"
+    const val ROLLED_BACK = "ROLLED_BACK"
+    const val REJECTED = "REJECTED"
 }

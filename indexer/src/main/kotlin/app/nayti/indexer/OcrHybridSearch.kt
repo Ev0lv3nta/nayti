@@ -8,6 +8,7 @@ import app.nayti.search.engine.fusion.TextLexicalEvidence
 import app.nayti.search.engine.fusion.TextSemanticCandidate
 import app.nayti.search.engine.lexical.LexicalIntent
 import app.nayti.storage.OcrDao
+import app.nayti.storage.QuerySnapshotLeaseEntity
 import app.nayti.storage.VectorIndexDao
 
 data class HybridOcrHit(
@@ -52,6 +53,37 @@ class OcrHybridSearch(
             }
         }
         throw checkNotNull(accessFailure)
+    }
+
+    internal suspend fun searchLeased(
+        query: String,
+        pipelineVersion: String,
+        limit: Int,
+        lease: QuerySnapshotLeaseEntity,
+    ): OcrHybridSearchResult {
+        require(limit in 1..MaximumResultLimit)
+        val snapshot = checkNotNull(vectors.snapshot(lease.snapshotId))
+        val lexicalResult =
+            lexical.searchAtEpoch(
+                query = query,
+                pipelineVersion = pipelineVersion,
+                componentHash = snapshot.packManifestSha256,
+                maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
+                limit = MaximumRetrieverCandidates,
+            )
+        val semanticResult =
+            if (lexicalResult.intent == LexicalIntent.ORDINARY_TEXT) {
+                semantic.searchLeased(query.trim(), MaximumRetrieverCandidates, lease)
+            } else {
+                null
+            }
+        if (semanticResult?.status == OcrSemanticSearchStatus.READY) {
+            check(semanticResult.snapshotId == snapshot.snapshotId)
+            check(semanticResult.accessRevision == lease.accessRevision)
+            check(semanticResult.lexicalPublicationEpoch == snapshot.lexicalPublicationEpoch)
+            check(semanticResult.componentHash == snapshot.packManifestSha256)
+        }
+        return fuse(lexicalResult, semanticResult, limit)
     }
 
     private suspend fun searchOnce(
@@ -105,6 +137,14 @@ class OcrHybridSearch(
             }
         }
 
+        return fuse(lexicalResult, semanticResult, limit)
+    }
+
+    private fun fuse(
+        lexicalResult: OcrLexicalSearchResult,
+        semanticResult: OcrSemanticSearchResult?,
+        limit: Int,
+    ): OcrHybridSearchResult {
         val lexicalByAsset = lexicalResult.hits.associateBy(OcrLexicalHit::assetId)
         val semanticByAsset = semanticResult?.hits.orEmpty().associateBy(OcrSemanticHit::assetId)
         val fused =

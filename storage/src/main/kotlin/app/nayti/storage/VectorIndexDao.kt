@@ -260,8 +260,38 @@ interface VectorIndexDao {
     @Query("SELECT snapshotId FROM active_snapshot_pointer WHERE singletonId = 1")
     suspend fun activeSnapshotId(): String?
 
+    @Query("SELECT * FROM active_snapshot_pointer WHERE singletonId = 1")
+    suspend fun activePointer(): ActiveSnapshotPointerEntity?
+
     @Upsert
     suspend fun replaceActivePointer(pointer: ActiveSnapshotPointerEntity)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertActivationCandidate(candidate: ActivationCandidateEntity)
+
+    @Query("SELECT * FROM activation_candidate WHERE candidateId = :candidateId")
+    suspend fun activationCandidate(candidateId: String): ActivationCandidateEntity?
+
+    @Query("SELECT * FROM activation_candidate WHERE snapshotId = :snapshotId")
+    suspend fun activationCandidateBySnapshot(snapshotId: String): ActivationCandidateEntity?
+
+    @Query("SELECT * FROM activation_candidate ORDER BY createdAtMillis, candidateId")
+    suspend fun activationCandidates(): List<ActivationCandidateEntity>
+
+    @Query(
+        "UPDATE activation_candidate SET state = :newState, updatedAtMillis = :nowMillis, " +
+            "failureCode = :failureCode WHERE candidateId = :candidateId AND state = :expectedState",
+    )
+    suspend fun transitionActivationCandidateRow(
+        candidateId: String,
+        expectedState: String,
+        newState: String,
+        nowMillis: Long,
+        failureCode: String?,
+    ): Int
+
+    @Query("SELECT * FROM catalog_watermark WHERE singletonId = 1")
+    suspend fun catalogWatermark(): CatalogWatermarkEntity?
 
     @Query(
         "UPDATE index_channel_work SET state = 'DONE', leaseToken = NULL, leaseExpiresAtMillis = NULL, " +
@@ -496,7 +526,7 @@ interface VectorIndexDao {
         insertManifestSegments(manifestEntries)
         validateSnapshot(snapshot, generation, manifest)
         insertSnapshot(snapshot)
-        replaceActivePointer(ActiveSnapshotPointerEntity(snapshotId = snapshot.snapshotId))
+        advanceActivePointer(snapshot.snapshotId, nowMillis)
         check(completePublicationWork(publicationToken, nowMillis) == work.size)
         check(completePublicationRow(publicationToken, nowMillis) == 1)
         return snapshot
@@ -546,7 +576,7 @@ interface VectorIndexDao {
         insertManifestSegments(manifestEntries)
         validateSnapshot(candidateSnapshot, generation, manifest)
         insertSnapshot(candidateSnapshot)
-        replaceActivePointer(ActiveSnapshotPointerEntity(snapshotId = candidateSnapshot.snapshotId))
+        advanceActivePointer(candidateSnapshot.snapshotId, nowMillis)
         return candidateSnapshot
     }
 
@@ -564,6 +594,130 @@ interface VectorIndexDao {
         check(revision == expectedActiveManifestRevision)
         check(manifest(expectedActiveManifestRevision)?.generationId == generationId)
         check(sealGenerationRow(generationId, nowMillis) == 1)
+    }
+
+    @Transaction
+    suspend fun registerActivationCandidate(candidate: ActivationCandidateEntity) {
+        require(identifier(candidate.candidateId) && identifier(candidate.snapshotId))
+        require(candidate.parentSnapshotId == null || identifier(candidate.parentSnapshotId))
+        require(identifier(candidate.packId) && contractValue(candidate.packVersion))
+        require(sha256(candidate.packManifestSha256))
+        require(candidate.capturedAccessRevision > 0 && candidate.capturedCatalogWatermark >= 0)
+        require(candidate.state == ActivationCandidateState.BUILDING_SHADOW)
+        require(candidate.createdAtMillis >= 0 && candidate.updatedAtMillis == candidate.createdAtMillis)
+        require(candidate.failureCode == null)
+        val pack = checkNotNull(modelPack(candidate.packId, candidate.packVersion))
+        check(pack.manifestSha256 == candidate.packManifestSha256)
+        check(activeSnapshotId() == candidate.parentSnapshotId)
+        val access = checkNotNull(accessObservation())
+        check(access.accessScope != "None" && access.processAccessRevision == candidate.capturedAccessRevision)
+        check((catalogWatermark()?.catalogRevision ?: 0) == candidate.capturedCatalogWatermark)
+        check(snapshot(candidate.snapshotId) == null)
+        insertActivationCandidate(candidate)
+    }
+
+    @Transaction
+    suspend fun markActivationCandidateReady(
+        candidateId: String,
+        snapshot: ActivationSnapshotEntity,
+        nowMillis: Long,
+    ): ActivationSnapshotEntity {
+        val candidate = checkNotNull(activationCandidate(candidateId))
+        check(candidate.state == ActivationCandidateState.BUILDING_SHADOW)
+        check(activeSnapshotId() == candidate.parentSnapshotId)
+        require(snapshot.createdAtMillis in candidate.createdAtMillis..nowMillis)
+        validateActivationCandidateSnapshot(candidate, snapshot)
+        insertSnapshot(snapshot)
+        check(
+            transitionActivationCandidateRow(
+                candidateId = candidateId,
+                expectedState = ActivationCandidateState.BUILDING_SHADOW,
+                newState = ActivationCandidateState.READY_TO_ACTIVATE,
+                nowMillis = nowMillis,
+                failureCode = null,
+            ) == 1,
+        )
+        return snapshot
+    }
+
+    @Transaction
+    suspend fun activateReadyCandidate(candidateId: String, nowMillis: Long): ActiveSnapshotPointerEntity {
+        val candidate = checkNotNull(activationCandidate(candidateId))
+        check(candidate.state == ActivationCandidateState.READY_TO_ACTIVATE)
+        val pointer = activePointer()
+        check(pointer?.snapshotId == candidate.parentSnapshotId)
+        val access = checkNotNull(accessObservation())
+        check(access.accessScope != "None" && access.processAccessRevision == candidate.capturedAccessRevision)
+        check((catalogWatermark()?.catalogRevision ?: 0) == candidate.capturedCatalogWatermark)
+        val snapshot = checkNotNull(snapshot(candidate.snapshotId))
+        validateActivationCandidateSnapshot(candidate, snapshot)
+        check(deleteIntentCount(snapshot.snapshotId) == 0)
+        val activated =
+            ActiveSnapshotPointerEntity(
+                snapshotId = snapshot.snapshotId,
+                rollbackSnapshotId = candidate.parentSnapshotId,
+                activationSequence = Math.addExact(pointer?.activationSequence ?: 0, 1),
+                updatedAtMillis = nowMillis,
+            )
+        replaceActivePointer(activated)
+        check(
+            transitionActivationCandidateRow(
+                candidateId = candidateId,
+                expectedState = ActivationCandidateState.READY_TO_ACTIVATE,
+                newState = ActivationCandidateState.ACTIVE,
+                nowMillis = nowMillis,
+                failureCode = null,
+            ) == 1,
+        )
+        return activated
+    }
+
+    @Transaction
+    suspend fun rollbackActiveCandidate(nowMillis: Long): ActiveSnapshotPointerEntity? {
+        val pointer = activePointer() ?: return null
+        val activeId = pointer.snapshotId ?: return null
+        val rollbackId = pointer.rollbackSnapshotId ?: return null
+        check(snapshot(rollbackId) != null && deleteIntentCount(rollbackId) == 0)
+        val candidate = activationCandidateBySnapshot(activeId)
+        if (candidate != null && candidate.state == ActivationCandidateState.ACTIVE) {
+            check(
+                transitionActivationCandidateRow(
+                    candidateId = candidate.candidateId,
+                    expectedState = ActivationCandidateState.ACTIVE,
+                    newState = ActivationCandidateState.ROLLED_BACK,
+                    nowMillis = nowMillis,
+                    failureCode = "ACTIVE_ROLLBACK",
+                ) == 1,
+            )
+        }
+        val rolledBack = ActiveSnapshotPointerEntity(
+            snapshotId = rollbackId,
+            rollbackSnapshotId = snapshot(rollbackId)?.parentSnapshotId,
+            activationSequence = Math.addExact(pointer.activationSequence, 1),
+            updatedAtMillis = nowMillis,
+        )
+        replaceActivePointer(rolledBack)
+        return rolledBack
+    }
+
+    @Transaction
+    suspend fun rejectActivationCandidate(candidateId: String, failureCode: String, nowMillis: Long): Boolean {
+        require(contractValue(failureCode))
+        val candidate = activationCandidate(candidateId) ?: return false
+        if (candidate.state !in setOf(
+                ActivationCandidateState.BUILDING_SHADOW,
+                ActivationCandidateState.READY_TO_ACTIVATE,
+            )
+        ) {
+            return false
+        }
+        return transitionActivationCandidateRow(
+            candidateId = candidateId,
+            expectedState = candidate.state,
+            newState = ActivationCandidateState.REJECTED,
+            nowMillis = nowMillis,
+            failureCode = failureCode,
+        ) == 1
     }
 
     @Transaction
@@ -739,7 +893,15 @@ interface VectorIndexDao {
             check(snapshot(recoveredSnapshotId) != null)
             if (deleteIntentCount(recoveredSnapshotId) != 0) return false
         }
-        replaceActivePointer(ActiveSnapshotPointerEntity(snapshotId = recoveredSnapshotId))
+        val current = activePointer()
+        replaceActivePointer(
+            ActiveSnapshotPointerEntity(
+                snapshotId = recoveredSnapshotId,
+                rollbackSnapshotId = recoveredSnapshotId?.let { snapshot(it)?.parentSnapshotId },
+                activationSequence = Math.addExact(current?.activationSequence ?: 0, 1),
+                updatedAtMillis = current?.updatedAtMillis ?: 0,
+            ),
+        )
         return true
     }
 
@@ -749,8 +911,8 @@ interface VectorIndexDao {
         val candidate = snapshot(snapshotId) ?: return emptyList()
         val activeId = activeSnapshotId()
         check(snapshotId != activeId)
-        val activeParentId = activeId?.let { snapshot(it)?.parentSnapshotId }
-        check(snapshotId != activeParentId)
+        val rollbackId = activePointer()?.rollbackSnapshotId ?: activeId?.let { snapshot(it)?.parentSnapshotId }
+        check(snapshotId != rollbackId)
         check(liveQueryLeaseCount(snapshotId, nowMillis) == 0)
         val revisions = listOfNotNull(candidate.semanticManifestRevision, candidate.visualManifestRevision).distinct()
         val intents = mutableListOf<ArtifactDeleteIntentEntity>()
@@ -792,7 +954,8 @@ interface VectorIndexDao {
         check(intents.all { it.state == ArtifactDeleteState.CONFIRMED })
         val activeId = activeSnapshotId()
         check(snapshotId != activeId)
-        check(snapshotId != activeId?.let { snapshot(it)?.parentSnapshotId })
+        val rollbackId = activePointer()?.rollbackSnapshotId ?: activeId?.let { snapshot(it)?.parentSnapshotId }
+        check(snapshotId != rollbackId)
         val revisions = listOfNotNull(candidate.semanticManifestRevision, candidate.visualManifestRevision).distinct()
         check(deleteSnapshot(snapshotId) == 1)
         revisions.forEach { revision ->
@@ -851,6 +1014,7 @@ interface VectorIndexDao {
         require(contractValue(candidate.rankingConfigVersion))
         require(candidate.lexicalPublicationEpoch >= 0 && candidate.pHashPublicationEpoch >= 0)
         require(candidate.catalogWatermark >= 0 && candidate.createdAtMillis >= 0)
+        require(candidate.formatVersion == ActivationSnapshotFormat.Current)
         val pack = checkNotNull(modelPack(candidate.packId, candidate.packVersion))
         check(pack.manifestSha256 == candidate.packManifestSha256)
         val activeId = activeSnapshotId()
@@ -867,6 +1031,45 @@ interface VectorIndexDao {
             check(candidate.pHashPublicationEpoch >= parent.pHashPublicationEpoch)
             check(candidate.catalogWatermark >= parent.catalogWatermark)
         }
+    }
+
+    private suspend fun validateActivationCandidateSnapshot(
+        candidate: ActivationCandidateEntity,
+        snapshot: ActivationSnapshotEntity,
+    ) {
+        require(snapshot.formatVersion == ActivationSnapshotFormat.Current)
+        require(identifier(snapshot.snapshotId) && snapshot.snapshotId == candidate.snapshotId)
+        require(snapshot.parentSnapshotId == candidate.parentSnapshotId)
+        require(snapshot.packId == candidate.packId && snapshot.packVersion == candidate.packVersion)
+        require(snapshot.packManifestSha256 == candidate.packManifestSha256)
+        require(snapshot.engineContractVersion > 0 && contractValue(snapshot.rankingConfigVersion))
+        require(snapshot.lexicalPublicationEpoch >= 0 && snapshot.pHashPublicationEpoch >= 0)
+        require(snapshot.catalogWatermark == candidate.capturedCatalogWatermark)
+        require(snapshot.capturedAccessRevision == candidate.capturedAccessRevision)
+        require(snapshot.createdAtMillis >= candidate.createdAtMillis)
+        check(modelPack(snapshot.packId, snapshot.packVersion)?.manifestSha256 == snapshot.packManifestSha256)
+        listOfNotNull(snapshot.semanticManifestRevision, snapshot.visualManifestRevision).forEach { revision ->
+            val manifest = checkNotNull(manifest(revision))
+            val generation = checkNotNull(generation(manifest.generationId))
+            check(manifest.channel == generation.channel)
+            check(generation.packId == snapshot.packId && generation.packVersion == snapshot.packVersion)
+            check(generation.componentHash == snapshot.packManifestSha256)
+            check(generation.state in setOf(VectorGenerationState.BUILDING, VectorGenerationState.SEALED))
+            check(manifestSegments(revision).size == manifest.segmentCount)
+        }
+        check(snapshot.semanticManifestRevision != null || snapshot.visualManifestRevision != null)
+    }
+
+    private suspend fun advanceActivePointer(snapshotId: String, nowMillis: Long) {
+        val current = activePointer()
+        replaceActivePointer(
+            ActiveSnapshotPointerEntity(
+                snapshotId = snapshotId,
+                rollbackSnapshotId = current?.snapshotId,
+                activationSequence = Math.addExact(current?.activationSequence ?: 0, 1),
+                updatedAtMillis = nowMillis,
+            ),
+        )
     }
 
     private fun validateSegment(

@@ -3,6 +3,7 @@ package app.nayti.indexer
 import app.nayti.ml.runtime.visual.Siglip2Contract
 import app.nayti.ml.runtime.visual.Siglip2EmbeddingSpaceIdentity
 import app.nayti.ml.runtime.visual.Siglip2TextOrtRuntime
+import app.nayti.storage.QuerySnapshotLeaseEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -98,9 +99,35 @@ class VisualTextSearch(
                     }
                 }
             }
-        return VisualTextSearchResult(
+        return result.toTextResult()
+    }
+
+    internal suspend fun searchLeased(
+        query: String,
+        limit: Int,
+        lease: QuerySnapshotLeaseEntity,
+    ): VisualTextSearchResult {
+        val normalizedQuery = query.trim()
+        require(normalizedQuery.isNotEmpty() && normalizedQuery.length <= MaximumQueryCharacters)
+        val result =
+            similarity.searchEncodedLeased(limit, lease) { contract ->
+                sessions.open(contract).use { session ->
+                    check(
+                        session.embeddingSpaceHash == contract.embeddingSpaceHash &&
+                            session.dimension == contract.dimension,
+                    )
+                    session.encodeQuery(normalizedQuery).also { vector ->
+                        check(vector.size == contract.dimension)
+                    }
+                }
+            }
+        return result.toTextResult()
+    }
+
+    private fun EncodedVisualSearchResult.toTextResult() =
+        VisualTextSearchResult(
             status =
-                when (result.status) {
+                when (status) {
                     VisualSimilaritySearchStatus.READY -> VisualTextSearchStatus.READY
                     VisualSimilaritySearchStatus.NO_ACTIVE_SNAPSHOT ->
                         VisualTextSearchStatus.NO_ACTIVE_SNAPSHOT
@@ -109,12 +136,11 @@ class VisualTextSearch(
                     VisualSimilaritySearchStatus.SOURCE_NOT_INDEXED ->
                         error("Encoded visual query cannot have a missing source asset")
                 },
-            snapshotId = result.snapshotId,
-            manifestRevision = result.manifestRevision,
-            accessRevision = result.accessRevision,
-            hits = result.hits,
+            snapshotId = snapshotId,
+            manifestRevision = manifestRevision,
+            accessRevision = accessRevision,
+            hits = hits,
         )
-    }
 
     companion object {
         const val MaximumQueryCharacters = 512

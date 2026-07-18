@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.nayti.search.engine.fusion.MultimodalQueryIntent
 import app.nayti.search.engine.VectorSegmentV1Reader
+import app.nayti.storage.ActivationCandidateState
 import app.nayti.storage.CatalogAssetEntity
 import app.nayti.storage.CatalogAvailability
 import app.nayti.storage.CatalogStorage
@@ -145,6 +146,76 @@ class VectorPublicationStoreInstrumentedTest {
         assertEquals(first.snapshotId, recovery.activeAfter)
         assertEquals(1, recovery.expiredQueryLeases)
         assertNull(storage.vectorIndexDao.queryLease("query-lease"))
+    }
+
+    @Test
+    fun readyCandidateActivatesAtomicallyWhileParentLeaseRemainsValidAndRollbackIsPointerOnly() = runBlocking {
+        val assetId = insertAsset(1)
+        val parent = store().publish(request(101, assetId, stageRunningWork(assetId, "activation-parent")))
+        now += 100
+        val activator = activator()
+        val candidate = activator.register("candidate-101", "candidate-snapshot-101", pack())
+        val child =
+            parent.copy(
+                snapshotId = candidate.snapshotId,
+                parentSnapshotId = parent.snapshotId,
+                capturedAccessRevision = AccessRevision,
+                catalogWatermark = candidate.capturedCatalogWatermark,
+                createdAtMillis = now,
+            )
+        activator.markReady(candidate.candidateId, child)
+        storage.vectorIndexDao.acquireActiveSnapshotLease(
+            QuerySnapshotLeaseEntity(
+                leaseToken = "parent-query",
+                snapshotId = parent.snapshotId,
+                accessRevision = AccessRevision,
+                createdAtMillis = now,
+                expiresAtMillis = now + 60_000,
+            ),
+            now,
+        )
+
+        val activated = activator.activate(candidate.candidateId)
+
+        assertEquals(child.snapshotId, activated.snapshotId)
+        assertEquals(parent.snapshotId, activated.rollbackSnapshotId)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.queryLease("parent-query")?.snapshotId)
+        assertFalse(VectorSnapshotGarbageCollector(root, storage.vectorIndexDao).collect(parent.snapshotId, now))
+        assertEquals(ActivationCandidateState.ACTIVE, storage.vectorIndexDao.activationCandidate(candidate.candidateId)?.state)
+
+        val rolledBack = checkNotNull(activator.rollback())
+        assertEquals(parent.snapshotId, rolledBack.snapshotId)
+        assertEquals(ActivationCandidateState.ROLLED_BACK, storage.vectorIndexDao.activationCandidate(candidate.candidateId)?.state)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+    }
+
+    @Test
+    fun accessChangeRejectsReadyCandidateWithoutMovingActivePointer() = runBlocking {
+        val assetId = insertAsset(1)
+        val parent = store().publish(request(102, assetId, stageRunningWork(assetId, "activation-race")))
+        now += 100
+        val activator = activator()
+        val candidate = activator.register("candidate-102", "candidate-snapshot-102", pack())
+        activator.markReady(
+            candidate.candidateId,
+            parent.copy(
+                snapshotId = candidate.snapshotId,
+                parentSnapshotId = parent.snapshotId,
+                capturedAccessRevision = AccessRevision,
+                catalogWatermark = candidate.capturedCatalogWatermark,
+                createdAtMillis = now,
+            ),
+        )
+        storage.catalogDao.recordAccessObservation("Full", AccessRevision + 1, now + 1)
+
+        val failure = runCatching { activator.activate(candidate.candidateId) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(
+            ActivationCandidateState.READY_TO_ACTIVATE,
+            storage.vectorIndexDao.activationCandidate(candidate.candidateId)?.state,
+        )
     }
 
     @Test
@@ -548,6 +619,8 @@ class VectorPublicationStoreInstrumentedTest {
                 vectors = storage.vectorIndexDao,
                 text = OcrHybridSearch(storage.ocrDao, storage.vectorIndexDao, semantic),
                 visual = visual,
+                clock = { now },
+                leaseTokens = { "unified-query-session" },
             )
 
         val scene =
@@ -561,6 +634,9 @@ class VectorPublicationStoreInstrumentedTest {
         assertEquals(listOf(firstAsset, secondAsset), scene.hits.map { it.assetId })
         assertEquals(UnifiedSearchReason.VISUAL_CONTENT, scene.hits.first().reason)
         assertEquals(1, visualSessionsOpened)
+        assertEquals(scene.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(AccessRevision, scene.accessRevision)
+        assertNull(storage.vectorIndexDao.queryLease("unified-query-session"))
         assertNull(storage.vectorIndexDao.queryLease("unified-semantic-query"))
         assertNull(storage.vectorIndexDao.queryLease("unified-visual-query"))
 
@@ -612,6 +688,15 @@ class VectorPublicationStoreInstrumentedTest {
 
     private fun store(observer: (VectorPublicationBoundary) -> Unit = {}) =
         VectorPublicationStore(root, storage.vectorIndexDao, { now }, observer)
+
+    private fun activator() =
+        AtomicSnapshotActivator(
+            vectors = storage.vectorIndexDao,
+            verifier = ActivationCandidateVerifier { snapshot ->
+                check(snapshot.semanticManifestRevision != null || snapshot.visualManifestRevision != null)
+            },
+            clock = { now },
+        )
 
     private suspend fun publishSingle(iteration: Int, mediaStoreId: Long): app.nayti.storage.ActivationSnapshotEntity {
         now += 100

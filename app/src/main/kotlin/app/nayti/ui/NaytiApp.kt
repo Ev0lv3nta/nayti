@@ -1310,6 +1310,7 @@ private fun NaytiPreview() {
                 ModelPackRuntimeState(
                     status = ModelPackRuntimeStatus.Missing,
                     installed = null,
+                    candidate = null,
                     errorCode = null,
                 ),
             indexing =

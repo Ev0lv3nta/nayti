@@ -118,7 +118,7 @@ class VisualSimilaritySearch(
         }
     }
 
-    private suspend fun searchLeased(
+    internal suspend fun searchLeased(
         sourceAssetId: Long,
         limit: Int,
         lease: QuerySnapshotLeaseEntity,
@@ -163,7 +163,7 @@ class VisualSimilaritySearch(
         return ready(sourceAssetId, snapshot.snapshotId, manifestRevision, lease.accessRevision, hits)
     }
 
-    private suspend fun searchEncodedLeased(
+    internal suspend fun searchEncodedLeased(
         limit: Int,
         lease: QuerySnapshotLeaseEntity,
         encoder: suspend (VisualQueryContract) -> ByteArray,

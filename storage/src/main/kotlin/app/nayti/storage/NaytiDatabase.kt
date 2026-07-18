@@ -40,6 +40,7 @@ import kotlinx.coroutines.Dispatchers
         QuerySnapshotLeaseEntity::class,
         VectorPublicationEntity::class,
         ArtifactDeleteIntentEntity::class,
+        ActivationCandidateEntity::class,
         PerceptualHashEntity::class,
     ],
     version = StorageContract.CurrentSchemaVersion,

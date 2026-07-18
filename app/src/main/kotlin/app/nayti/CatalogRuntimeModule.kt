@@ -75,6 +75,11 @@ object CatalogRuntimeModule {
             installer = installer,
             registry = storage.modelPackDao,
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+            activePack = {
+                val snapshotId = storage.vectorIndexDao.activeSnapshotId()
+                val snapshot = snapshotId?.let { id -> storage.vectorIndexDao.snapshot(id) }
+                snapshot?.let { active -> storage.modelPackDao.pack(active.packId, active.packVersion) }
+            },
         ).also(ModelPackRuntime::start)
     }
 

@@ -102,5 +102,56 @@ object StorageMigrations {
             }
         }
 
-    val All: Array<Migration> = arrayOf(From1To2, From2To3, From3To4)
+    val From4To5: Migration =
+        object : Migration(4, 5) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "ALTER TABLE `activation_snapshot` " +
+                        "ADD COLUMN `formatVersion` INTEGER NOT NULL DEFAULT 1",
+                )
+                connection.execSQL(
+                    "ALTER TABLE `activation_snapshot` " +
+                        "ADD COLUMN `capturedAccessRevision` INTEGER NOT NULL DEFAULT 0",
+                )
+                connection.execSQL(
+                    "ALTER TABLE `active_snapshot_pointer` " +
+                        "ADD COLUMN `rollbackSnapshotId` TEXT",
+                )
+                connection.execSQL(
+                    "ALTER TABLE `active_snapshot_pointer` " +
+                        "ADD COLUMN `activationSequence` INTEGER NOT NULL DEFAULT 0",
+                )
+                connection.execSQL(
+                    "ALTER TABLE `active_snapshot_pointer` " +
+                        "ADD COLUMN `updatedAtMillis` INTEGER NOT NULL DEFAULT 0",
+                )
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `activation_candidate` (" +
+                        "`candidateId` TEXT NOT NULL, `snapshotId` TEXT NOT NULL, " +
+                        "`parentSnapshotId` TEXT, `packId` TEXT NOT NULL, `packVersion` TEXT NOT NULL, " +
+                        "`packManifestSha256` TEXT NOT NULL, `capturedAccessRevision` INTEGER NOT NULL, " +
+                        "`capturedCatalogWatermark` INTEGER NOT NULL, `state` TEXT NOT NULL, " +
+                        "`createdAtMillis` INTEGER NOT NULL, `updatedAtMillis` INTEGER NOT NULL, " +
+                        "`failureCode` TEXT, PRIMARY KEY(`candidateId`))",
+                )
+                connection.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_activation_candidate_snapshotId` " +
+                        "ON `activation_candidate` (`snapshotId`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activation_candidate_state_updatedAtMillis` " +
+                        "ON `activation_candidate` (`state`, `updatedAtMillis`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activation_candidate_packId_packVersion` " +
+                        "ON `activation_candidate` (`packId`, `packVersion`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activation_candidate_parentSnapshotId` " +
+                        "ON `activation_candidate` (`parentSnapshotId`)",
+                )
+            }
+        }
+
+    val All: Array<Migration> = arrayOf(From1To2, From2To3, From3To4, From4To5)
 }

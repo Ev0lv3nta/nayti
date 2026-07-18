@@ -8,9 +8,12 @@ import android.provider.MediaStore
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.nayti.platform.media.MediaKey
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,17 +48,40 @@ class ThumbnailLoaderTest {
             val loader = ThumbnailLoader(context)
             val key = MediaKey(MediaStore.VOLUME_EXTERNAL_PRIMARY, ContentUris.parseId(uri))
 
-            loader.onAccessRevision(1L)
+            loader.onCatalogState(accessRevision = 1, catalogRevision = 1)
             val first = loader.load(key, 1L)
             assertNotNull(first)
             assertTrue(checkNotNull(first).width in 1..512)
 
-            loader.onAccessRevision(2L)
+            loader.onCatalogState(accessRevision = 2, catalogRevision = 2)
             val afterRevisionChange = loader.load(key, 2L)
             assertNotNull(afterRevisionChange)
             assertNotSame(first, afterRevisionChange)
         } finally {
             runCatching { resolver.delete(uri, null, null) }
         }
+    }
+
+    @Test
+    fun accessRevisionChangeRejectsDecodeThatFinishesAfterRevoke() = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        val resume = CompletableDeferred<Unit>()
+        val decoded = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
+        val loader =
+            ThumbnailLoader {
+                started.complete(Unit)
+                resume.await()
+                decoded
+            }
+        val key = MediaKey(MediaStore.VOLUME_EXTERNAL_PRIMARY, 42)
+        loader.onCatalogState(accessRevision = 1, catalogRevision = 1)
+
+        val result = async { loader.load(key, 1) }
+        started.await()
+        loader.onCatalogState(accessRevision = 2, catalogRevision = 2)
+        resume.complete(Unit)
+
+        assertNull(result.await())
+        assertTrue(decoded.isRecycled)
     }
 }

@@ -209,9 +209,13 @@ class CatalogViewModel @Inject constructor(
             }.collectLatest { (_, pack) -> ocrIndexing.refresh(pack) }
         }
         viewModelScope.launch {
-            catalog.map { state -> state.access.value }.distinctUntilChanged().collect { revision ->
-                thumbnailLoader.onAccessRevision(revision)
-            }
+            catalog
+                .map { state -> state.access.value to state.catalogRevision }
+                .distinctUntilChanged()
+                .collect { (accessRevision, catalogRevision) ->
+                    thumbnailLoader.onCatalogState(accessRevision, catalogRevision)
+                    clearDerivedUiState()
+                }
         }
         viewModelScope.launch {
             modelPack

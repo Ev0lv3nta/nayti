@@ -68,6 +68,7 @@ data class CatalogRuntimeState(
     val summary: CatalogSummary,
     val recentItems: List<CatalogItem>,
     val lastErrorCode: String?,
+    val catalogRevision: Long = 0,
 )
 
 class CatalogRuntime private constructor(
@@ -219,6 +220,7 @@ class CatalogRuntime private constructor(
                     summary = result.counts.toSummary(currentAccess.permission.scope),
                     recentItems = items,
                     lastErrorCode = null,
+                    catalogRevision = storage.catalogDao.watermark()?.catalogRevision ?: 0,
                 )
         } catch (failure: SecurityException) {
             publishFailure("MEDIA_ACCESS_CHANGED")

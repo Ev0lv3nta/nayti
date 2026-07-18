@@ -85,6 +85,7 @@
     <string name="ocr_pause">Pause</string>
     <string name="ocr_stop_for_now">Stop for now</string>
     <string name="ocr_cancel">Cancel task</string>
+    <string name="ocr_retry_gaps">Retry skipped photos</string>
     <string name="ocr_index_failed">Preparation stopped safely. You can resume it.</string>
     <string name="preparation_paused_thermal">The phone is too warm, so preparation is paused. It can continue after the device cools down.</string>
     <string name="preparation_paused_memory">Android requested more memory. Preparation stopped without losing progress.</string>

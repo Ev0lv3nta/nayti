@@ -143,6 +143,83 @@ class IndexStateInstrumentedTest {
     }
 
     @Test
+    fun explicitRetryReopensOnlyPermanentGaps() = runBlocking {
+        val assetId = insertAsset("source-a")
+        catalog.recordAccessObservation("Full", AccessRevision, 1)
+        index.createOperation(
+            operation =
+                IndexOperationEntity(
+                    operationId = OperationId,
+                    profileId = "balanced-v1",
+                    targetPackId = "nayti-offline-search",
+                    targetPackVersion = "0.1.0-alpha.1",
+                    denominatorCatalogRevision = 1,
+                    denominatorAssetCount = 1,
+                    state = IndexOperationState.PLANNED,
+                    autoResume = true,
+                    createdAtMillis = 0,
+                    updatedAtMillis = 0,
+                    completedAtMillis = null,
+                ),
+            channels =
+                listOf(
+                    IndexOperationChannelEntity(
+                        operationId = OperationId,
+                        channel = IndexChannel.VISUAL,
+                        priority = 0,
+                        pipelineVersion = "visual-v1",
+                        componentHash = ComponentHash,
+                    ),
+                ),
+            assets =
+                listOf(
+                    IndexOperationAssetEntity(
+                        operationId = OperationId,
+                        assetId = assetId,
+                        sourceFingerprint = "source-a",
+                    ),
+                ),
+        )
+        index.startExecutionWindow(window("window-a", 0, 10_000), 0)
+        index.ensureWork(assetId, IndexChannel.VISUAL, AccessRevision, "visual-v1", ComponentHash, 2)
+        repeat(3) { zeroBasedAttempt ->
+            val attempt = zeroBasedAttempt + 1
+            val now = attempt * 100L
+            val claim =
+                index.claimBatch(
+                    "window-a",
+                    IndexChannel.VISUAL,
+                    "retryable-$attempt",
+                    now,
+                    50,
+                    1,
+                ).single()
+            index.recordFailure(
+                leaseToken = checkNotNull(claim.leaseToken),
+                errorCode = "DECODE_FAILED",
+                nextEligibleAtMillis = now + 50,
+                nowMillis = now + 1,
+            )
+        }
+        index.stopExecutionWindow("window-a", IndexExecutionWindowState.FINISHED, 500)
+        index.refreshOperationTerminalState(OperationId, 501)
+
+        assertEquals(IndexOperationState.COMPLETED_WITH_GAPS, index.operation(OperationId)?.state)
+        assertEquals(1, index.retryPermanentGaps(OperationId, 502))
+        val retried = checkNotNull(index.work(assetId, IndexChannel.VISUAL))
+        assertEquals(IndexWorkState.PENDING, retried.state)
+        assertEquals(0, retried.attempt)
+        assertNull(retried.errorCode)
+        assertEquals(IndexOperationState.PLANNED, index.operation(OperationId)?.state)
+
+        index.startExecutionWindow(window("window-b", 503, 1_000), 503)
+        assertEquals(
+            assetId,
+            index.claimBatch("window-b", IndexChannel.VISUAL, "retried", 504, 50, 1).single().assetId,
+        )
+    }
+
+    @Test
     fun stoppingWindowInvalidatesOutstandingWork() = runBlocking {
         val assetId = insertAsset("source-a")
         catalog.recordAccessObservation("Full", AccessRevision, 1)

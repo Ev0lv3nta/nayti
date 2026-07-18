@@ -434,6 +434,12 @@ class CatalogViewModel @Inject constructor(
 
     fun cancelIndexing() = indexingService.cancel()
 
+    fun retryIndexingGaps() {
+        viewModelScope.launch {
+            if (ocrIndexing.retryPermanentGaps()) indexingService.start()
+        }
+    }
+
     fun search(query: String) {
         val normalizedQuery = query.trim()
         if (normalizedQuery.isEmpty()) {

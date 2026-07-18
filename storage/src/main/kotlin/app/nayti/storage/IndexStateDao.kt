@@ -278,6 +278,29 @@ interface IndexStateDao {
     suspend fun resolveItemErrors(assetId: Long, channel: String, nowMillis: Long): Int
 
     @Query(
+        "UPDATE index_error_ledger SET resolvedAtMillis = :nowMillis " +
+            "WHERE operationId = :operationId AND resolvedAtMillis IS NULL",
+    )
+    suspend fun resolveOperationErrors(operationId: String, nowMillis: Long): Int
+
+    @Query(
+        "UPDATE index_channel_work SET state = 'PENDING', attempt = 0, " +
+            "leaseToken = NULL, leaseExpiresAtMillis = NULL, executionWindowId = NULL, " +
+            "publicationToken = NULL, stagedArtifactPath = NULL, stagedArtifactLength = NULL, " +
+            "stagedArtifactSha256 = NULL, nextEligibleAtMillis = NULL, errorCode = NULL, " +
+            "updatedAtMillis = :nowMillis " +
+            "WHERE state = 'PERMANENT_ERROR' AND EXISTS (" +
+            "SELECT 1 FROM index_operation_asset AS asset " +
+            "INNER JOIN index_operation_channel AS channel ON channel.operationId = asset.operationId " +
+            "WHERE asset.operationId = :operationId AND asset.assetId = index_channel_work.assetId " +
+            "AND channel.channel = index_channel_work.channel " +
+            "AND asset.sourceFingerprint = index_channel_work.sourceFingerprint " +
+            "AND channel.pipelineVersion = index_channel_work.pipelineVersion " +
+            "AND channel.componentHash = index_channel_work.componentHash)",
+    )
+    suspend fun resetPermanentWorkForOperation(operationId: String, nowMillis: Long): Int
+
+    @Query(
         "UPDATE index_operation SET state = :state, updatedAtMillis = :nowMillis, completedAtMillis = :nowMillis " +
             "WHERE operationId = :operationId AND state NOT IN ('CANCELLED', 'COMPLETED', 'COMPLETED_WITH_GAPS')",
     )
@@ -581,6 +604,26 @@ interface IndexStateDao {
         }
         check(updateOperationControlRow(operationId, state, autoResume, nowMillis) == 1)
         return checkNotNull(operation(operationId))
+    }
+
+    @Transaction
+    suspend fun retryPermanentGaps(operationId: String, nowMillis: Long): Int {
+        require(identifier(operationId))
+        val current = checkNotNull(operation(operationId))
+        check(current.state == IndexOperationState.COMPLETED_WITH_GAPS)
+        check(liveExecutionWindowCount(operationId, nowMillis) == 0)
+        val reset = resetPermanentWorkForOperation(operationId, nowMillis)
+        check(reset > 0)
+        resolveOperationErrors(operationId, nowMillis)
+        check(
+            updateOperationControlRow(
+                operationId = operationId,
+                state = IndexOperationState.PLANNED,
+                autoResume = true,
+                nowMillis = nowMillis,
+            ) == 1,
+        )
+        return reset
     }
 
     @Transaction

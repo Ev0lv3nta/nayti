@@ -93,6 +93,7 @@
     <string name="ocr_pause">Пауза</string>
     <string name="ocr_stop_for_now">Остановить пока что</string>
     <string name="ocr_cancel">Отменить задачу</string>
+    <string name="ocr_retry_gaps">Повторить пропущенные фото</string>
     <string name="ocr_index_failed">Подготовка безопасно остановлена. Её можно продолжить.</string>
     <string name="preparation_paused_thermal">Телефон нагрелся, поэтому подготовка поставлена на паузу. Она продолжится после охлаждения.</string>
     <string name="preparation_paused_memory">Android попросил освободить память. Подготовка остановлена без потери прогресса.</string>

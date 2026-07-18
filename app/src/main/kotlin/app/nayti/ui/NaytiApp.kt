@@ -211,6 +211,7 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
             onPauseIndexing = viewModel::pauseIndexing,
             onStopIndexing = viewModel::stopIndexingForNow,
             onCancelIndexing = viewModel::cancelIndexing,
+            onRetryIndexingGaps = viewModel::retryIndexingGaps,
             onProbe = viewModel::probe,
             onClearProbe = viewModel::clearProbe,
             onRefreshStorage = viewModel::refreshLocalStorage,
@@ -245,6 +246,7 @@ private fun NaytiAppContent(
     onPauseIndexing: () -> Unit,
     onStopIndexing: () -> Unit,
     onCancelIndexing: () -> Unit,
+    onRetryIndexingGaps: () -> Unit,
     onProbe: (Long) -> Unit,
     onClearProbe: () -> Unit,
     onRefreshStorage: () -> Unit,
@@ -291,6 +293,7 @@ private fun NaytiAppContent(
                     onPauseIndexing = onPauseIndexing,
                     onStopIndexing = onStopIndexing,
                     onCancelIndexing = onCancelIndexing,
+                    onRetryIndexingGaps = onRetryIndexingGaps,
                     onProbe = onProbe,
                     onClearProbe = onClearProbe,
                     onRefreshStorage = onRefreshStorage,
@@ -336,6 +339,7 @@ private fun NaytiAppContent(
                     onPauseIndexing = onPauseIndexing,
                     onStopIndexing = onStopIndexing,
                     onCancelIndexing = onCancelIndexing,
+                    onRetryIndexingGaps = onRetryIndexingGaps,
                     onProbe = onProbe,
                     onClearProbe = onClearProbe,
                     onRefreshStorage = onRefreshStorage,
@@ -421,6 +425,7 @@ private fun RootNavHost(
     onPauseIndexing: () -> Unit,
     onStopIndexing: () -> Unit,
     onCancelIndexing: () -> Unit,
+    onRetryIndexingGaps: () -> Unit,
     onProbe: (Long) -> Unit,
     onClearProbe: () -> Unit,
     onRefreshStorage: () -> Unit,
@@ -456,6 +461,7 @@ private fun RootNavHost(
                     onPauseIndexing = onPauseIndexing,
                     onStopIndexing = onStopIndexing,
                     onCancelIndexing = onCancelIndexing,
+                    onRetryIndexingGaps = onRetryIndexingGaps,
                     onOpenItem = { item -> navController.navigate("viewer/${item.assetId}") },
                 )
             }
@@ -906,6 +912,7 @@ private fun ReadinessScreen(
     onPauseIndexing: () -> Unit,
     onStopIndexing: () -> Unit,
     onCancelIndexing: () -> Unit,
+    onRetryIndexingGaps: () -> Unit,
     onOpenItem: (CatalogItem) -> Unit,
 ) {
     LazyColumn(
@@ -930,6 +937,7 @@ private fun ReadinessScreen(
                 onPauseIndexing = onPauseIndexing,
                 onStopIndexing = onStopIndexing,
                 onCancelIndexing = onCancelIndexing,
+                onRetryIndexingGaps = onRetryIndexingGaps,
             )
         }
         item {
@@ -1071,7 +1079,7 @@ private fun capabilityDescription(capability: SearchCapability): String = string
 )
 
 @Composable
-private fun OcrReadinessCard(
+internal fun OcrReadinessCard(
     catalog: CatalogRuntimeState,
     modelPack: ModelPackRuntimeState,
     indexing: OcrIndexingState,
@@ -1079,6 +1087,7 @@ private fun OcrReadinessCard(
     onPauseIndexing: () -> Unit,
     onStopIndexing: () -> Unit,
     onCancelIndexing: () -> Unit,
+    onRetryIndexingGaps: () -> Unit,
 ) {
     val canStart =
         catalog.summary.available > 0 &&
@@ -1137,6 +1146,11 @@ private fun OcrReadinessCard(
             if (cancellable) {
                 TextButton(onClick = onCancelIndexing) {
                     Text(stringResource(R.string.ocr_cancel))
+                }
+            }
+            if (indexing.permanentGaps > 0 && indexing.status != OcrIndexingStatus.Running) {
+                OutlinedButton(onClick = onRetryIndexingGaps) {
+                    Text(stringResource(R.string.ocr_retry_gaps))
                 }
             }
             indexing.errorCode?.let { code ->
@@ -2104,6 +2118,7 @@ private fun NaytiPreview() {
             onPauseIndexing = {},
             onStopIndexing = {},
             onCancelIndexing = {},
+            onRetryIndexingGaps = {},
             onProbe = {},
             onClearProbe = {},
             onRefreshStorage = {},

@@ -145,6 +145,18 @@ class OcrIndexingRuntime(
         transitionAndPublish(IndexOperationState.CANCELLED, autoResume = false)
     }
 
+    suspend fun retryPermanentGaps(): Boolean = executionMutex.withLock {
+        val pack = currentPack.get() ?: return@withLock false
+        val catalogRevision = storage.catalogDao.watermark()?.catalogRevision ?: 0
+        val operationId = mutableState.value.operationId ?: operationId(pack, catalogRevision)
+        val operation = storage.indexStateDao.operation(operationId) ?: return@withLock false
+        if (operation.state != IndexOperationState.COMPLETED_WITH_GAPS) return@withLock false
+        storage.indexStateDao.retryPermanentGaps(operationId, System.currentTimeMillis())
+        currentOperationId.set(operationId)
+        publishCoverage(pack, lastSlicePublished = 0, operationId = operationId)
+        true
+    }
+
     suspend fun resume() {
         transitionAndPublish(IndexOperationState.PLANNED, autoResume = true)
     }

@@ -61,6 +61,8 @@ android {
         )
     }
 
+    sourceSets.getByName("main").assets.directories.add(rootProject.file("third_party").path)
+
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }

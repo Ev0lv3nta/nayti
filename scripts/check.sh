@@ -4,11 +4,17 @@ set -euo pipefail
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_dir"
 
+if [[ -z "${NAYTI_ORT_AAR:-}" || ! -f "$NAYTI_ORT_AAR" ]]; then
+  echo "NAYTI_ORT_AAR must point to the pinned reduced runtime; run scripts/fetch_reduced_ort.sh first." >&2
+  exit 1
+fi
+
 ./gradlew \
   verifyArchitecture \
   testDebugUnitTest \
   lintDebug \
   :app:assembleDebug \
+  :app:assembleRelease \
   :benchmark:assemble \
   :ml-runtime:assembleDebugAndroidTest \
   :search-engine:assembleDebugAndroidTest \
@@ -18,12 +24,19 @@ cd "$repo_dir"
 
 python3 scripts/verify_manifest_policy.py \
   app/build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml
+python3 scripts/verify_manifest_policy.py \
+  app/build/intermediates/merged_manifests/release/processReleaseManifest/AndroidManifest.xml
 
 python3 -m unittest discover -s scripts/tests
 PYTHONPATH=model-tools/src python3 -m unittest discover -s model-tools/tests
 
-debug_apk="app/build/outputs/apk/debug/app-debug.apk"
-python3 scripts/verify_native_page_size.py "$debug_apk" --check-zip-alignment
+apks=(
+  "app/build/outputs/apk/debug/app-debug.apk"
+  "app/build/outputs/apk/release/app-release-unsigned.apk"
+)
+for apk in "${apks[@]}"; do
+  python3 scripts/verify_native_page_size.py "$apk" --check-zip-alignment
+done
 
 sdk_root="${ANDROID_SDK_ROOT:-}"
 if [[ -z "$sdk_root" ]] && [[ -f local.properties ]]; then
@@ -41,14 +54,16 @@ if [[ -z "$zipalign_bin" ]]; then
   echo "Android SDK zipalign is required for the 16 KiB APK check." >&2
   exit 1
 fi
-if "$zipalign_bin" -c -P 16 -v 4 "$debug_apk" >/dev/null 2>&1; then
-  echo "APK ZIP alignment supports 16 KiB pages (zipalign + portable parser)."
-elif [[ "$(uname -m)" == "arm64" ]] && file "$zipalign_bin" | grep -q 'x86_64'; then
-  echo "APK ZIP alignment supports 16 KiB pages (portable parser; Rosetta unavailable)."
-else
-  echo "Android SDK zipalign rejected the APK." >&2
-  exit 1
-fi
+for apk in "${apks[@]}"; do
+  if "$zipalign_bin" -c -P 16 -v 4 "$apk" >/dev/null 2>&1; then
+    echo "APK ZIP alignment supports 16 KiB pages: $apk"
+  elif [[ "$(uname -m)" == "arm64" ]] && file "$zipalign_bin" | grep -q 'x86_64'; then
+    echo "APK ZIP alignment supports 16 KiB pages (portable parser): $apk"
+  else
+    echo "Android SDK zipalign rejected $apk." >&2
+    exit 1
+  fi
+done
 
 if [[ "${NAYTI_SKIP_HOST_NATIVE_TESTS:-0}" != "1" ]]; then
   cmake_bin="${CMAKE_BIN:-}"

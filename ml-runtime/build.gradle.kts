@@ -1,10 +1,34 @@
+import java.security.MessageDigest
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.library)
 }
 
+val reducedOrtMetadata =
+    Properties().apply {
+        rootProject.file("gradle/reduced-ort.properties").inputStream().use(::load)
+    }
 val reducedOrtAar = providers.environmentVariable("NAYTI_ORT_AAR").orNull
 reducedOrtAar?.let { path ->
-    require(file(path).isFile) { "NAYTI_ORT_AAR does not point to a file: $path" }
+    val artifact = file(path)
+    require(artifact.isFile) { "NAYTI_ORT_AAR does not point to a file: $path" }
+    require(artifact.length() == reducedOrtMetadata.getProperty("bytes").toLong()) {
+        "NAYTI_ORT_AAR has an unexpected size: $path"
+    }
+    val digest = MessageDigest.getInstance("SHA-256")
+    artifact.inputStream().buffered().use { input ->
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) break
+            digest.update(buffer, 0, count)
+        }
+    }
+    val actualSha256 = digest.digest().joinToString("") { byte -> "%02x".format(byte) }
+    require(actualSha256 == reducedOrtMetadata.getProperty("sha256")) {
+        "NAYTI_ORT_AAR failed the pinned SHA-256 check: $path"
+    }
 }
 
 android {

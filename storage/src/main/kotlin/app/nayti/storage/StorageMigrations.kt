@@ -102,5 +102,258 @@ object StorageMigrations {
             }
         }
 
-    val All: Array<Migration> = arrayOf(From1To2, From2To3, From3To4)
+    val From4To5: Migration =
+        object : Migration(4, 5) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "ALTER TABLE `activation_snapshot` " +
+                        "ADD COLUMN `formatVersion` INTEGER NOT NULL DEFAULT 1",
+                )
+                connection.execSQL(
+                    "ALTER TABLE `activation_snapshot` " +
+                        "ADD COLUMN `capturedAccessRevision` INTEGER NOT NULL DEFAULT 0",
+                )
+                connection.execSQL(
+                    "ALTER TABLE `active_snapshot_pointer` " +
+                        "ADD COLUMN `rollbackSnapshotId` TEXT",
+                )
+                connection.execSQL(
+                    "ALTER TABLE `active_snapshot_pointer` " +
+                        "ADD COLUMN `activationSequence` INTEGER NOT NULL DEFAULT 0",
+                )
+                connection.execSQL(
+                    "ALTER TABLE `active_snapshot_pointer` " +
+                        "ADD COLUMN `updatedAtMillis` INTEGER NOT NULL DEFAULT 0",
+                )
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `activation_candidate` (" +
+                        "`candidateId` TEXT NOT NULL, `snapshotId` TEXT NOT NULL, " +
+                        "`parentSnapshotId` TEXT, `packId` TEXT NOT NULL, `packVersion` TEXT NOT NULL, " +
+                        "`packManifestSha256` TEXT NOT NULL, `capturedAccessRevision` INTEGER NOT NULL, " +
+                        "`capturedCatalogWatermark` INTEGER NOT NULL, `state` TEXT NOT NULL, " +
+                        "`createdAtMillis` INTEGER NOT NULL, `updatedAtMillis` INTEGER NOT NULL, " +
+                        "`failureCode` TEXT, PRIMARY KEY(`candidateId`))",
+                )
+                connection.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_activation_candidate_snapshotId` " +
+                        "ON `activation_candidate` (`snapshotId`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activation_candidate_state_updatedAtMillis` " +
+                        "ON `activation_candidate` (`state`, `updatedAtMillis`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activation_candidate_packId_packVersion` " +
+                        "ON `activation_candidate` (`packId`, `packVersion`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activation_candidate_parentSnapshotId` " +
+                        "ON `activation_candidate` (`parentSnapshotId`)",
+                )
+            }
+        }
+
+    val From5To6: Migration =
+        object : Migration(5, 6) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `activation_snapshot_channel` (" +
+                        "`snapshotId` TEXT NOT NULL, `channel` TEXT NOT NULL, `pipelineVersion` TEXT NOT NULL, " +
+                        "`componentHash` TEXT NOT NULL, `embeddingSpaceHash` TEXT, `generationId` TEXT, " +
+                        "`manifestRevision` TEXT, `inheritedFromSnapshotId` TEXT, " +
+                        "PRIMARY KEY(`snapshotId`, `channel`))",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activation_snapshot_channel_manifestRevision` " +
+                        "ON `activation_snapshot_channel` (`manifestRevision`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activation_snapshot_channel_generationId` " +
+                        "ON `activation_snapshot_channel` (`generationId`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activation_snapshot_channel_inheritedFromSnapshotId` " +
+                        "ON `activation_snapshot_channel` (`inheritedFromSnapshotId`)",
+                )
+                connection.execSQL(
+                    "INSERT INTO activation_snapshot_channel " +
+                        "(snapshotId, channel, pipelineVersion, componentHash, embeddingSpaceHash, " +
+                        "generationId, manifestRevision, inheritedFromSnapshotId) " +
+                        "SELECT snapshotId, 'OCR', 'ocr-v1', packManifestSha256, NULL, NULL, NULL, NULL " +
+                        "FROM activation_snapshot",
+                )
+                connection.execSQL(
+                    "INSERT INTO activation_snapshot_channel " +
+                        "(snapshotId, channel, pipelineVersion, componentHash, embeddingSpaceHash, " +
+                        "generationId, manifestRevision, inheritedFromSnapshotId) " +
+                        "SELECT snapshotId, 'PHASH', 'phash-v1', " +
+                        "'b88379e5ff4d030a0193e528514079b18d5c0619d4500357381d0b4ec82b656a', " +
+                        "NULL, NULL, NULL, NULL FROM activation_snapshot",
+                )
+                connection.execSQL(
+                    "INSERT INTO activation_snapshot_channel " +
+                        "(snapshotId, channel, pipelineVersion, componentHash, embeddingSpaceHash, " +
+                        "generationId, manifestRevision, inheritedFromSnapshotId) " +
+                        "SELECT snapshot.snapshotId, generation.channel, generation.pipelineVersion, " +
+                        "generation.componentHash, generation.embeddingSpaceHash, generation.generationId, " +
+                        "manifest.revision, NULL FROM activation_snapshot AS snapshot " +
+                        "INNER JOIN vector_manifest AS manifest " +
+                        "ON manifest.revision = snapshot.semanticManifestRevision " +
+                        "INNER JOIN vector_generation AS generation " +
+                        "ON generation.generationId = manifest.generationId",
+                )
+                connection.execSQL(
+                    "INSERT INTO activation_snapshot_channel " +
+                        "(snapshotId, channel, pipelineVersion, componentHash, embeddingSpaceHash, " +
+                        "generationId, manifestRevision, inheritedFromSnapshotId) " +
+                        "SELECT snapshot.snapshotId, generation.channel, generation.pipelineVersion, " +
+                        "generation.componentHash, generation.embeddingSpaceHash, generation.generationId, " +
+                        "manifest.revision, NULL FROM activation_snapshot AS snapshot " +
+                        "INNER JOIN vector_manifest AS manifest " +
+                        "ON manifest.revision = snapshot.visualManifestRevision " +
+                        "INNER JOIN vector_generation AS generation " +
+                        "ON generation.generationId = manifest.generationId",
+                )
+            }
+        }
+
+    val From6To7: Migration =
+        object : Migration(6, 7) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL("DROP INDEX IF EXISTS `index_vector_publication_snapshotId`")
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_vector_publication_snapshotId` " +
+                        "ON `vector_publication` (`snapshotId`)",
+                )
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `vector_segment_record_new` (" +
+                        "`segmentSha256` TEXT NOT NULL, `ordinal` INTEGER NOT NULL, `recordId` INTEGER NOT NULL, " +
+                        "`assetId` INTEGER NOT NULL, `sourceFingerprint` TEXT NOT NULL, " +
+                        "`accessRevision` INTEGER NOT NULL, `chunkOrdinal` INTEGER NOT NULL, " +
+                        "`semanticChunkId` TEXT, PRIMARY KEY(`segmentSha256`, `ordinal`))",
+                )
+                connection.execSQL(
+                    "INSERT INTO vector_segment_record_new " +
+                        "(segmentSha256, ordinal, recordId, assetId, sourceFingerprint, accessRevision, " +
+                        "chunkOrdinal, semanticChunkId) " +
+                        "SELECT segmentSha256, ordinal, recordId, assetId, sourceFingerprint, " +
+                        "COALESCE((SELECT processAccessRevision FROM catalog_access_observation WHERE singletonId = 1), 1), " +
+                        "chunkOrdinal, semanticChunkId FROM vector_segment_record",
+                )
+                connection.execSQL("DROP TABLE vector_segment_record")
+                connection.execSQL("ALTER TABLE vector_segment_record_new RENAME TO vector_segment_record")
+                connection.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_vector_segment_record_segmentSha256_recordId` " +
+                        "ON `vector_segment_record` (`segmentSha256`, `recordId`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_vector_segment_record_assetId` " +
+                        "ON `vector_segment_record` (`assetId`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_vector_segment_record_semanticChunkId` " +
+                        "ON `vector_segment_record` (`semanticChunkId`)",
+                )
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `activation_candidate_channel` (" +
+                        "`candidateId` TEXT NOT NULL, `channel` TEXT NOT NULL, `pipelineVersion` TEXT NOT NULL, " +
+                        "`componentHash` TEXT NOT NULL, `embeddingSpaceHash` TEXT, `action` TEXT NOT NULL, " +
+                        "`reason` TEXT NOT NULL, PRIMARY KEY(`candidateId`, `channel`))",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activation_candidate_channel_candidateId_action` " +
+                        "ON `activation_candidate_channel` (`candidateId`, `action`)",
+                )
+                connection.execSQL(
+                    "UPDATE activation_candidate SET state = 'REJECTED', " +
+                        "failureCode = 'MISSING_CHANNEL_PLAN' " +
+                        "WHERE state IN ('BUILDING_SHADOW', 'READY_TO_ACTIVATE')",
+                )
+            }
+        }
+
+    val From7To8: Migration =
+        object : Migration(7, 8) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `ocr_document_new` (" +
+                        "`assetId` INTEGER NOT NULL, `sourceFingerprint` TEXT NOT NULL, " +
+                        "`accessRevision` INTEGER NOT NULL, `pipelineVersion` TEXT NOT NULL, " +
+                        "`componentHash` TEXT NOT NULL, `publicationToken` TEXT NOT NULL, " +
+                        "`publicationEpoch` INTEGER NOT NULL, `sourceWidth` INTEGER NOT NULL, " +
+                        "`sourceHeight` INTEGER NOT NULL, `rawText` TEXT NOT NULL, `displayText` TEXT NOT NULL, " +
+                        "`canonicalText` TEXT NOT NULL, `stemText` TEXT NOT NULL, `identifierText` TEXT NOT NULL, " +
+                        "`hasRecognizedText` INTEGER NOT NULL, `regionCount` INTEGER NOT NULL, " +
+                        "`normalizerVersion` TEXT NOT NULL, `stemmerVersion` TEXT NOT NULL, " +
+                        "`identifierVersion` TEXT NOT NULL, `publishedAtMillis` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`publicationEpoch`))",
+                )
+                connection.execSQL(
+                    "INSERT INTO `ocr_document_new` SELECT assetId, sourceFingerprint, accessRevision, " +
+                        "pipelineVersion, componentHash, publicationToken, publicationEpoch, sourceWidth, " +
+                        "sourceHeight, rawText, displayText, canonicalText, stemText, identifierText, " +
+                        "hasRecognizedText, regionCount, normalizerVersion, stemmerVersion, identifierVersion, " +
+                        "publishedAtMillis FROM `ocr_document`",
+                )
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `ocr_region_new` (" +
+                        "`publicationEpoch` INTEGER NOT NULL, `assetId` INTEGER NOT NULL, `ordinal` INTEGER NOT NULL, " +
+                        "`rawText` TEXT NOT NULL, `displayText` TEXT NOT NULL, `canonicalText` TEXT NOT NULL, " +
+                        "`confidenceMicros` INTEGER NOT NULL, `x0Micros` INTEGER NOT NULL, `y0Micros` INTEGER NOT NULL, " +
+                        "`x1Micros` INTEGER NOT NULL, `y1Micros` INTEGER NOT NULL, `x2Micros` INTEGER NOT NULL, " +
+                        "`y2Micros` INTEGER NOT NULL, `x3Micros` INTEGER NOT NULL, `y3Micros` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`publicationEpoch`, `ordinal`))",
+                )
+                connection.execSQL(
+                    "INSERT INTO `ocr_region_new` " +
+                        "SELECT document.publicationEpoch, region.assetId, region.ordinal, region.rawText, " +
+                        "region.displayText, region.canonicalText, region.confidenceMicros, region.x0Micros, " +
+                        "region.y0Micros, region.x1Micros, region.y1Micros, region.x2Micros, region.y2Micros, " +
+                        "region.x3Micros, region.y3Micros FROM `ocr_region` AS region " +
+                        "INNER JOIN `ocr_document` AS document ON document.assetId = region.assetId",
+                )
+                connection.execSQL("DROP TABLE `ocr_lexical_fts`")
+                connection.execSQL("DROP TABLE `ocr_trigram_fts`")
+                connection.execSQL("DROP TABLE `ocr_region`")
+                connection.execSQL("DROP TABLE `ocr_document`")
+                connection.execSQL("ALTER TABLE `ocr_document_new` RENAME TO `ocr_document`")
+                connection.execSQL("ALTER TABLE `ocr_region_new` RENAME TO `ocr_region`")
+                connection.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_ocr_document_publicationToken` " +
+                        "ON `ocr_document` (`publicationToken`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_ocr_document_assetId_publicationEpoch` " +
+                        "ON `ocr_document` (`assetId`, `publicationEpoch`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_ocr_document_sourceFingerprint` " +
+                        "ON `ocr_document` (`sourceFingerprint`)",
+                )
+                connection.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_ocr_region_assetId_publicationEpoch` " +
+                        "ON `ocr_region` (`assetId`, `publicationEpoch`)",
+                )
+                connection.execSQL(
+                    "CREATE VIRTUAL TABLE IF NOT EXISTS `ocr_lexical_fts` USING " +
+                        "FTS5(`canonical`, `stems`, `identifiers`, tokenize=`unicode61 remove_diacritics 2`, " +
+                        "prefix=`2 3 4`)",
+                )
+                connection.execSQL(
+                    "INSERT INTO `ocr_lexical_fts` (`rowid`, `canonical`, `stems`, `identifiers`) " +
+                        "SELECT publicationEpoch, canonicalText, stemText, identifierText FROM `ocr_document`",
+                )
+                connection.execSQL(
+                    "CREATE VIRTUAL TABLE IF NOT EXISTS `ocr_trigram_fts` " +
+                        "USING FTS5(`canonical`, tokenize=`trigram`)",
+                )
+                connection.execSQL(
+                    "INSERT INTO `ocr_trigram_fts` (`rowid`, `canonical`) " +
+                        "SELECT publicationEpoch, canonicalText FROM `ocr_document`",
+                )
+            }
+        }
+
+    val All: Array<Migration> =
+        arrayOf(From1To2, From2To3, From3To4, From4To5, From5To6, From6To7, From7To8)
 }

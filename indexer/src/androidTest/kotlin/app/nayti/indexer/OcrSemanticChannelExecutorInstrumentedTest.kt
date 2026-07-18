@@ -152,6 +152,7 @@ class OcrSemanticChannelExecutorInstrumentedTest {
                                 assetId = record.assetId,
                                 chunkOrdinal = record.chunkOrdinal,
                                 sourceFingerprint = record.sourceFingerprint,
+                                accessRevision = record.accessRevision,
                                 vector = engine.encodeDocument("compaction input $index"),
                                 semanticChunkId = record.semanticChunkId,
                             ),

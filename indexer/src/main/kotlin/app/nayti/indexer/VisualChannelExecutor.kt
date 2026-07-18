@@ -15,6 +15,7 @@ import app.nayti.storage.IndexChannel
 import app.nayti.storage.IndexStateDao
 import app.nayti.storage.OcrSemanticDao
 import app.nayti.storage.PerceptualHashDao
+import app.nayti.storage.VectorIndexDao
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -44,6 +45,28 @@ class VectorStoreVisualPublisher(
     override suspend fun publish(request: VectorPublicationRequest): VisualVectorPublicationResult =
         try {
             store.publish(request)
+            VisualVectorPublicationResult.PUBLISHED
+        } catch (_: VectorPublicationLeaseRejectedException) {
+            VisualVectorPublicationResult.LEASE_REJECTED
+        }
+}
+
+class ShadowVectorStoreVisualPublisher(
+    private val store: VectorPublicationStore,
+    private val vectors: VectorIndexDao,
+    private val candidateSnapshotId: String,
+) : VisualVectorPublisher {
+    override suspend fun publish(request: VectorPublicationRequest): VisualVectorPublicationResult =
+        try {
+            val parent = vectors.latestCompletedPublication(candidateSnapshotId, IndexChannel.VISUAL)
+            store.publishShadow(
+                request =
+                    request.copy(
+                        manifestRevision = "candidate-visual-${request.publicationToken}",
+                        snapshotId = candidateSnapshotId,
+                    ),
+                parentManifestRevision = parent?.manifestRevision,
+            )
             VisualVectorPublicationResult.PUBLISHED
         } catch (_: VectorPublicationLeaseRejectedException) {
             VisualVectorPublicationResult.LEASE_REJECTED
@@ -121,6 +144,7 @@ class VisualChannelExecutor(
                                 assetId = claim.work.assetId,
                                 chunkOrdinal = 0,
                                 sourceFingerprint = claim.work.sourceFingerprint,
+                                accessRevision = claim.work.accessRevision,
                                 vector = vector,
                             ),
                         ),

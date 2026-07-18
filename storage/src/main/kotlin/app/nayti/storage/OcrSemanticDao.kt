@@ -8,11 +8,11 @@ import androidx.room3.Transaction
 
 @Dao
 interface OcrSemanticDao {
-    @Query("SELECT * FROM ocr_document WHERE assetId = :assetId")
-    suspend fun ocrDocument(assetId: Long): OcrDocumentEntity?
+    @Query("SELECT * FROM ocr_document WHERE publicationToken = :publicationToken")
+    suspend fun ocrDocument(publicationToken: String): OcrDocumentEntity?
 
-    @Query("SELECT * FROM ocr_region WHERE assetId = :assetId ORDER BY ordinal")
-    suspend fun ocrRegions(assetId: Long): List<OcrRegionEntity>
+    @Query("SELECT * FROM ocr_region WHERE publicationEpoch = :publicationEpoch ORDER BY ordinal")
+    suspend fun ocrRegions(publicationEpoch: Long): List<OcrRegionEntity>
 
     @Query("SELECT COALESCE(MAX(publicationEpoch), 0) FROM ocr_document")
     suspend fun maximumOcrPublicationEpoch(): Long
@@ -67,14 +67,14 @@ interface OcrSemanticDao {
             )
         require(materialization == expected)
 
-        val document = ocrDocument(materialization.chunkSet.assetId) ?: return null
+        val document = ocrDocument(materialization.chunkSet.ocrPublicationToken) ?: return null
         if (
             document.sourceFingerprint != materialization.chunkSet.sourceFingerprint ||
             document.publicationToken != materialization.chunkSet.ocrPublicationToken
         ) {
             return null
         }
-        val regionOrdinals = ocrRegions(document.assetId).mapTo(mutableSetOf(), OcrRegionEntity::ordinal)
+        val regionOrdinals = ocrRegions(document.publicationEpoch).mapTo(mutableSetOf(), OcrRegionEntity::ordinal)
         if (!materialization.lines.all { line ->
             line.assetId == document.assetId && line.lineOrdinal in regionOrdinals
         }) {

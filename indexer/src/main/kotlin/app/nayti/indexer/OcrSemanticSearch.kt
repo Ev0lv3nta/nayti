@@ -80,7 +80,7 @@ class InstalledUser2QuerySessionFactory(
                 User2EmbeddingSpaceIdentity.calculate(pack.payloadDirectory.parent)
             }
         check(actualEmbeddingSpace == contract.embeddingSpaceHash)
-        val permit = neuralLane.acquire()
+        val permit = neuralLane.acquire(NeuralExecutionPriority.INTERACTIVE_QUERY)
         return try {
             val runtime = withContext(Dispatchers.Default) { User2OrtRuntime.open(pack.payloadDirectory) }
             User2QuerySession(runtime, actualEmbeddingSpace, permit)
@@ -150,7 +150,7 @@ class OcrSemanticSearch(
         }
     }
 
-    private suspend fun searchLeased(
+    internal suspend fun searchLeased(
         query: String,
         limit: Int,
         lease: QuerySnapshotLeaseEntity,
@@ -164,18 +164,22 @@ class OcrSemanticSearch(
                 manifestRevision = null,
                 lexicalPublicationEpoch = snapshot.lexicalPublicationEpoch,
                 accessRevision = lease.accessRevision,
-                componentHash = snapshot.packManifestSha256,
+                componentHash = null,
                 hits = emptyList(),
             )
+        val component = checkNotNull(vectors.snapshotChannel(snapshot.snapshotId, IndexChannel.OCR_SEMANTIC))
+        val ocrComponent = checkNotNull(vectors.snapshotChannel(snapshot.snapshotId, IndexChannel.OCR))
         val manifest = checkNotNull(vectors.manifest(manifestRevision))
         val generation = checkNotNull(vectors.generation(manifest.generationId))
         check(
             manifest.channel == IndexChannel.OCR_SEMANTIC &&
                 generation.channel == IndexChannel.OCR_SEMANTIC &&
                 generation.generationId == manifest.generationId &&
-                generation.packId == snapshot.packId &&
-                generation.packVersion == snapshot.packVersion &&
-                generation.componentHash == snapshot.packManifestSha256 &&
+                generation.generationId == component.generationId &&
+                generation.pipelineVersion == component.pipelineVersion &&
+                generation.componentHash == component.componentHash &&
+                generation.embeddingSpaceHash == component.embeddingSpaceHash &&
+                manifest.revision == component.manifestRevision &&
                 generation.state in setOf(VectorGenerationState.BUILDING, VectorGenerationState.SEALED),
         )
 
@@ -229,6 +233,8 @@ class OcrSemanticSearch(
                         semanticPipelineVersion = generation.pipelineVersion,
                         componentHash = generation.componentHash,
                         maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
+                        ocrPipelineVersion = ocrComponent.pipelineVersion,
+                        ocrComponentHash = ocrComponent.componentHash,
                     )
                 if (eligibleRecordIds.isEmpty()) return@forEachIndexed
                 val file = safeArtifactPath(artifact.relativePath)
@@ -260,7 +266,7 @@ class OcrSemanticSearch(
                 manifestRevision,
                 snapshot.lexicalPublicationEpoch,
                 lease.accessRevision,
-                snapshot.packManifestSha256,
+                component.componentHash,
                 emptyList(),
             )
         }
@@ -271,6 +277,8 @@ class OcrSemanticSearch(
                 semanticPipelineVersion = generation.pipelineVersion,
                 componentHash = generation.componentHash,
                 maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
+                ocrPipelineVersion = ocrComponent.pipelineVersion,
+                ocrComponentHash = ocrComponent.componentHash,
             )
         val evidenceByRecord = evidence.associateBy { row -> RecordKey(row.segmentSha256, row.recordId) }
         check(evidenceByRecord.size == evidence.size)
@@ -294,7 +302,7 @@ class OcrSemanticSearch(
                 manifestRevision,
                 snapshot.lexicalPublicationEpoch,
                 lease.accessRevision,
-                snapshot.packManifestSha256,
+                component.componentHash,
                 emptyList(),
             )
         }
@@ -322,7 +330,7 @@ class OcrSemanticSearch(
             manifestRevision,
             snapshot.lexicalPublicationEpoch,
             lease.accessRevision,
-            snapshot.packManifestSha256,
+            component.componentHash,
             hits,
         )
     }

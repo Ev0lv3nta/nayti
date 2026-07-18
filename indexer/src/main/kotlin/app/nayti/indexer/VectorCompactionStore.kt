@@ -100,6 +100,7 @@ class VectorCompactionStore(
                     assetId = record.assetId,
                     chunkOrdinal = record.ordinal,
                     sourceFingerprint = stored.sourceFingerprint,
+                    accessRevision = stored.accessRevision,
                     vector = record.vector,
                     semanticChunkId = stored.semanticChunkId,
                 )
@@ -191,6 +192,7 @@ class VectorCompactionStore(
                 recordId = record.recordId,
                 assetId = record.assetId,
                 sourceFingerprint = record.sourceFingerprint,
+                accessRevision = record.accessRevision,
                 chunkOrdinal = record.chunkOrdinal,
                 semanticChunkId = record.semanticChunkId,
             )

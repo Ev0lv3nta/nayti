@@ -8,11 +8,18 @@ import androidx.room3.Transaction
 
 @Dao
 interface OcrDao {
-    @Query("SELECT * FROM ocr_document WHERE assetId = :assetId")
+    @Query("SELECT * FROM ocr_document WHERE assetId = :assetId ORDER BY publicationEpoch DESC LIMIT 1")
     suspend fun document(assetId: Long): OcrDocumentEntity?
 
-    @Query("SELECT * FROM ocr_region WHERE assetId = :assetId ORDER BY ordinal")
-    suspend fun regions(assetId: Long): List<OcrRegionEntity>
+    @Query("SELECT * FROM ocr_document WHERE publicationEpoch = :publicationEpoch")
+    suspend fun documentByPublicationEpoch(publicationEpoch: Long): OcrDocumentEntity?
+
+    @Query("SELECT * FROM ocr_region WHERE publicationEpoch = :publicationEpoch ORDER BY ordinal")
+    suspend fun regionsByPublicationEpoch(publicationEpoch: Long): List<OcrRegionEntity>
+
+    @Transaction
+    suspend fun regions(assetId: Long): List<OcrRegionEntity> =
+        document(assetId)?.let { regionsByPublicationEpoch(it.publicationEpoch) }.orEmpty()
 
     @Query("SELECT * FROM index_channel_work WHERE leaseToken = :leaseToken")
     suspend fun workByLease(leaseToken: String): IndexChannelWorkEntity?
@@ -47,18 +54,6 @@ interface OcrDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertTrigram(row: OcrTrigramFtsEntity)
 
-    @Query("DELETE FROM ocr_lexical_fts WHERE rowid = :assetId")
-    suspend fun deleteLexical(assetId: Long): Int
-
-    @Query("DELETE FROM ocr_trigram_fts WHERE rowid = :assetId")
-    suspend fun deleteTrigram(assetId: Long): Int
-
-    @Query("DELETE FROM ocr_region WHERE assetId = :assetId")
-    suspend fun deleteRegions(assetId: Long): Int
-
-    @Query("DELETE FROM ocr_document WHERE assetId = :assetId")
-    suspend fun deleteDocument(assetId: Long): Int
-
     @Query(
         "UPDATE index_channel_work SET state = 'DONE', leaseToken = NULL, leaseExpiresAtMillis = NULL, " +
             "executionWindowId = NULL, publicationToken = :publicationToken, stagedArtifactPath = NULL, " +
@@ -84,24 +79,24 @@ interface OcrDao {
         "SELECT ocr_document.assetId AS assetId, " +
             "bm25(ocr_lexical_fts, 1.0, 0.8, 1.2) AS score " +
             "FROM ocr_lexical_fts " +
-            "INNER JOIN ocr_document ON ocr_document.assetId = ocr_lexical_fts.rowid " +
+            "INNER JOIN ocr_document ON ocr_document.publicationEpoch = ocr_lexical_fts.rowid " +
             "INNER JOIN catalog_asset ON catalog_asset.assetId = ocr_document.assetId " +
-            "INNER JOIN index_channel_work ON index_channel_work.assetId = ocr_document.assetId " +
-            "AND index_channel_work.channel = 'OCR' " +
             "INNER JOIN catalog_access_observation ON catalog_access_observation.singletonId = 1 " +
             "WHERE ocr_lexical_fts MATCH :matchQuery " +
             "AND catalog_asset.availability = 'AVAILABLE' " +
             "AND catalog_asset.sourceFingerprint = ocr_document.sourceFingerprint " +
-            "AND index_channel_work.state = 'DONE' " +
-            "AND index_channel_work.sourceFingerprint = ocr_document.sourceFingerprint " +
-            "AND index_channel_work.accessRevision = ocr_document.accessRevision " +
-            "AND index_channel_work.pipelineVersion = :pipelineVersion " +
-            "AND index_channel_work.componentHash = :componentHash " +
             "AND ocr_document.pipelineVersion = :pipelineVersion " +
             "AND ocr_document.componentHash = :componentHash " +
             "AND ocr_document.accessRevision = catalog_access_observation.processAccessRevision " +
             "AND catalog_access_observation.accessScope != 'None' " +
             "AND ocr_document.publicationEpoch <= :maximumPublicationEpoch " +
+            "AND NOT EXISTS (SELECT 1 FROM ocr_document AS newer " +
+            "WHERE newer.assetId = ocr_document.assetId " +
+            "AND newer.sourceFingerprint = ocr_document.sourceFingerprint " +
+            "AND newer.accessRevision = ocr_document.accessRevision " +
+            "AND newer.pipelineVersion = :pipelineVersion AND newer.componentHash = :componentHash " +
+            "AND newer.publicationEpoch <= :maximumPublicationEpoch " +
+            "AND newer.publicationEpoch > ocr_document.publicationEpoch) " +
             "ORDER BY score, ocr_document.assetId LIMIT :limit",
     )
     suspend fun lexicalCandidatesRow(
@@ -115,24 +110,24 @@ interface OcrDao {
     @Query(
         "SELECT ocr_document.assetId AS assetId, rank AS score " +
             "FROM ocr_trigram_fts " +
-            "INNER JOIN ocr_document ON ocr_document.assetId = ocr_trigram_fts.rowid " +
+            "INNER JOIN ocr_document ON ocr_document.publicationEpoch = ocr_trigram_fts.rowid " +
             "INNER JOIN catalog_asset ON catalog_asset.assetId = ocr_document.assetId " +
-            "INNER JOIN index_channel_work ON index_channel_work.assetId = ocr_document.assetId " +
-            "AND index_channel_work.channel = 'OCR' " +
             "INNER JOIN catalog_access_observation ON catalog_access_observation.singletonId = 1 " +
             "WHERE ocr_trigram_fts MATCH :matchQuery " +
             "AND catalog_asset.availability = 'AVAILABLE' " +
             "AND catalog_asset.sourceFingerprint = ocr_document.sourceFingerprint " +
-            "AND index_channel_work.state = 'DONE' " +
-            "AND index_channel_work.sourceFingerprint = ocr_document.sourceFingerprint " +
-            "AND index_channel_work.accessRevision = ocr_document.accessRevision " +
-            "AND index_channel_work.pipelineVersion = :pipelineVersion " +
-            "AND index_channel_work.componentHash = :componentHash " +
             "AND ocr_document.pipelineVersion = :pipelineVersion " +
             "AND ocr_document.componentHash = :componentHash " +
             "AND ocr_document.accessRevision = catalog_access_observation.processAccessRevision " +
             "AND catalog_access_observation.accessScope != 'None' " +
             "AND ocr_document.publicationEpoch <= :maximumPublicationEpoch " +
+            "AND NOT EXISTS (SELECT 1 FROM ocr_document AS newer " +
+            "WHERE newer.assetId = ocr_document.assetId " +
+            "AND newer.sourceFingerprint = ocr_document.sourceFingerprint " +
+            "AND newer.accessRevision = ocr_document.accessRevision " +
+            "AND newer.pipelineVersion = :pipelineVersion AND newer.componentHash = :componentHash " +
+            "AND newer.publicationEpoch <= :maximumPublicationEpoch " +
+            "AND newer.publicationEpoch > ocr_document.publicationEpoch) " +
             "ORDER BY score, ocr_document.assetId LIMIT :limit",
     )
     suspend fun trigramCandidatesRow(
@@ -146,22 +141,22 @@ interface OcrDao {
     @Query(
         "SELECT ocr_document.* FROM ocr_document " +
             "INNER JOIN catalog_asset ON catalog_asset.assetId = ocr_document.assetId " +
-            "INNER JOIN index_channel_work ON index_channel_work.assetId = ocr_document.assetId " +
-            "AND index_channel_work.channel = 'OCR' " +
             "INNER JOIN catalog_access_observation ON catalog_access_observation.singletonId = 1 " +
             "WHERE ocr_document.assetId IN (:assetIds) " +
             "AND catalog_asset.availability = 'AVAILABLE' " +
             "AND catalog_asset.sourceFingerprint = ocr_document.sourceFingerprint " +
-            "AND index_channel_work.state = 'DONE' " +
-            "AND index_channel_work.sourceFingerprint = ocr_document.sourceFingerprint " +
-            "AND index_channel_work.accessRevision = ocr_document.accessRevision " +
-            "AND index_channel_work.pipelineVersion = :pipelineVersion " +
-            "AND index_channel_work.componentHash = :componentHash " +
             "AND ocr_document.pipelineVersion = :pipelineVersion " +
             "AND ocr_document.componentHash = :componentHash " +
             "AND ocr_document.accessRevision = catalog_access_observation.processAccessRevision " +
             "AND catalog_access_observation.accessScope != 'None' " +
             "AND ocr_document.publicationEpoch <= :maximumPublicationEpoch " +
+            "AND NOT EXISTS (SELECT 1 FROM ocr_document AS newer " +
+            "WHERE newer.assetId = ocr_document.assetId " +
+            "AND newer.sourceFingerprint = ocr_document.sourceFingerprint " +
+            "AND newer.accessRevision = ocr_document.accessRevision " +
+            "AND newer.pipelineVersion = :pipelineVersion AND newer.componentHash = :componentHash " +
+            "AND newer.publicationEpoch <= :maximumPublicationEpoch " +
+            "AND newer.publicationEpoch > ocr_document.publicationEpoch) " +
             "ORDER BY ocr_document.assetId",
     )
     suspend fun eligibleDocuments(
@@ -171,8 +166,71 @@ interface OcrDao {
         maximumPublicationEpoch: Long,
     ): List<OcrDocumentEntity>
 
-    @Query("SELECT * FROM ocr_region WHERE assetId IN (:assetIds) ORDER BY assetId, ordinal")
-    suspend fun regionsForAssets(assetIds: List<Long>): List<OcrRegionEntity>
+    @Query(
+        "SELECT * FROM ocr_region WHERE publicationEpoch IN (:publicationEpochs) " +
+            "ORDER BY assetId, publicationEpoch, ordinal",
+    )
+    suspend fun regionsForPublications(publicationEpochs: List<Long>): List<OcrRegionEntity>
+
+    @Query(
+        "SELECT document.publicationEpoch FROM ocr_document AS document " +
+            "WHERE NOT EXISTS (SELECT 1 FROM index_channel_publication AS publicationRow " +
+            "WHERE publicationRow.channel = 'OCR' " +
+            "AND publicationRow.publicationToken = document.publicationToken) " +
+            "AND NOT EXISTS (SELECT 1 FROM activation_candidate AS candidateRow " +
+            "INNER JOIN activation_candidate_channel AS planRow " +
+            "ON planRow.candidateId = candidateRow.candidateId " +
+            "WHERE candidateRow.state IN ('BUILDING_SHADOW', 'READY_TO_ACTIVATE') " +
+            "AND planRow.channel = 'OCR' AND planRow.action = 'REBUILD_SHADOW' " +
+            "AND planRow.pipelineVersion = document.pipelineVersion " +
+            "AND planRow.componentHash = document.componentHash " +
+            "AND candidateRow.capturedAccessRevision = document.accessRevision) " +
+            "AND NOT EXISTS (SELECT 1 FROM activation_snapshot AS snapshotRow " +
+            "INNER JOIN activation_snapshot_channel AS channelRow " +
+            "ON channelRow.snapshotId = snapshotRow.snapshotId " +
+            "WHERE channelRow.channel = 'OCR' " +
+            "AND channelRow.pipelineVersion = document.pipelineVersion " +
+            "AND channelRow.componentHash = document.componentHash " +
+            "AND snapshotRow.capturedAccessRevision = document.accessRevision " +
+            "AND snapshotRow.lexicalPublicationEpoch >= document.publicationEpoch " +
+            "AND NOT EXISTS (SELECT 1 FROM ocr_document AS newer " +
+            "WHERE newer.assetId = document.assetId " +
+            "AND newer.sourceFingerprint = document.sourceFingerprint " +
+            "AND newer.accessRevision = document.accessRevision " +
+            "AND newer.pipelineVersion = document.pipelineVersion " +
+            "AND newer.componentHash = document.componentHash " +
+            "AND newer.publicationEpoch > document.publicationEpoch " +
+            "AND newer.publicationEpoch <= snapshotRow.lexicalPublicationEpoch)) " +
+            "AND NOT EXISTS (SELECT 1 FROM ocr_semantic_chunk AS chunk " +
+            "INNER JOIN vector_segment_record AS record ON record.semanticChunkId = chunk.chunkId " +
+            "WHERE chunk.ocrPublicationToken = document.publicationToken) " +
+            "ORDER BY document.publicationEpoch LIMIT :limit",
+    )
+    suspend fun collectablePublicationEpochs(limit: Int): List<Long>
+
+    @Query(
+        "DELETE FROM ocr_semantic_chunk_line WHERE chunkId IN " +
+            "(SELECT chunkId FROM ocr_semantic_chunk WHERE ocrPublicationToken = :publicationToken)",
+    )
+    suspend fun deleteSemanticChunkLines(publicationToken: String): Int
+
+    @Query("DELETE FROM ocr_semantic_chunk WHERE ocrPublicationToken = :publicationToken")
+    suspend fun deleteSemanticChunks(publicationToken: String): Int
+
+    @Query("DELETE FROM ocr_semantic_chunk_set WHERE ocrPublicationToken = :publicationToken")
+    suspend fun deleteSemanticChunkSets(publicationToken: String): Int
+
+    @Query("DELETE FROM ocr_lexical_fts WHERE rowid = :publicationEpoch")
+    suspend fun deleteLexicalPublication(publicationEpoch: Long): Int
+
+    @Query("DELETE FROM ocr_trigram_fts WHERE rowid = :publicationEpoch")
+    suspend fun deleteTrigramPublication(publicationEpoch: Long): Int
+
+    @Query("DELETE FROM ocr_region WHERE publicationEpoch = :publicationEpoch")
+    suspend fun deleteRegionPublication(publicationEpoch: Long): Int
+
+    @Query("DELETE FROM ocr_document WHERE publicationEpoch = :publicationEpoch")
+    suspend fun deleteDocumentPublication(publicationEpoch: Long): Int
 
     @Transaction
     suspend fun commitOcrPublication(
@@ -226,23 +284,23 @@ interface OcrDao {
                 publicationEpoch = epoch,
                 publishedAtMillis = nowMillis,
             )
-        deleteLexical(work.assetId)
-        deleteTrigram(work.assetId)
-        deleteRegions(work.assetId)
-        deleteDocument(work.assetId)
         insertDocument(document.toEntity(publication, regions.size))
         if (regions.isNotEmpty()) {
-            insertRegions(regions.mapIndexed { ordinal, region -> region.toEntity(document.assetId, ordinal) })
+            insertRegions(
+                regions.mapIndexed { ordinal, region ->
+                    region.toEntity(publication.publicationEpoch, document.assetId, ordinal)
+                },
+            )
         }
         insertLexical(
             OcrLexicalFtsEntity(
-                assetId = document.assetId,
+                publicationEpoch = publication.publicationEpoch,
                 canonical = document.canonicalText,
                 stems = document.stemText,
                 identifiers = document.identifierText,
             ),
         )
-        insertTrigram(OcrTrigramFtsEntity(document.assetId, document.canonicalText))
+        insertTrigram(OcrTrigramFtsEntity(publication.publicationEpoch, document.canonicalText))
         replacePublication(publication)
         check(
             completeOcrWork(
@@ -258,6 +316,23 @@ interface OcrDao {
         )
         replacePublicationClock(IndexPublicationClockEntity(lastEpoch = epoch))
         return publication
+    }
+
+    @Transaction
+    suspend fun collectGarbage(limit: Int = MaximumGarbageCollectionBatch): Int {
+        require(limit in 1..MaximumGarbageCollectionBatch)
+        val epochs = collectablePublicationEpochs(limit)
+        epochs.forEach { epoch ->
+            val document = checkNotNull(documentByPublicationEpoch(epoch))
+            deleteSemanticChunkLines(document.publicationToken)
+            deleteSemanticChunks(document.publicationToken)
+            deleteSemanticChunkSets(document.publicationToken)
+            check(deleteLexicalPublication(epoch) == 1)
+            check(deleteTrigramPublication(epoch) == 1)
+            deleteRegionPublication(epoch)
+            check(deleteDocumentPublication(epoch) == 1)
+        }
+        return epochs.size
     }
 
     @Transaction
@@ -341,7 +416,7 @@ interface OcrDao {
             lexicalCandidates = filteredLexical,
             trigramCandidates = filteredTrigram,
             documents = documents,
-            regions = regionsForAssets(eligibleIds),
+            regions = regionsForPublications(documents.map(OcrDocumentEntity::publicationEpoch)),
         )
     }
 
@@ -356,7 +431,7 @@ interface OcrDao {
         val epoch = publicationClock()?.lastEpoch ?: 0
         val document = eligibleDocuments(listOf(assetId), pipelineVersion, componentHash, epoch).singleOrNull()
             ?: return null
-        return EligibleOcrAsset(document, regions(assetId))
+        return EligibleOcrAsset(document, regionsByPublicationEpoch(document.publicationEpoch))
     }
 
     private fun validateSearch(
@@ -404,8 +479,13 @@ interface OcrDao {
             publishedAtMillis = publication.publishedAtMillis,
         )
 
-    private fun OcrRegionDraft.toEntity(assetId: Long, ordinal: Int): OcrRegionEntity =
+    private fun OcrRegionDraft.toEntity(
+        publicationEpoch: Long,
+        assetId: Long,
+        ordinal: Int,
+    ): OcrRegionEntity =
         OcrRegionEntity(
+            publicationEpoch = publicationEpoch,
             assetId = assetId,
             ordinal = ordinal,
             rawText = rawText,
@@ -428,5 +508,6 @@ interface OcrDao {
         private val Sha256 = Regex("[0-9a-f]{64}")
         const val MaximumMatchCharacters = 1_024
         const val MaximumCandidates = 256
+        const val MaximumGarbageCollectionBatch = 256
     }
 }

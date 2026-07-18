@@ -5,14 +5,22 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.nayti.search.engine.fusion.MultimodalQueryIntent
 import app.nayti.search.engine.VectorSegmentV1Reader
+import app.nayti.storage.ActivationCandidateState
+import app.nayti.storage.ActivationCandidateChannelAction
 import app.nayti.storage.CatalogAssetEntity
 import app.nayti.storage.CatalogAvailability
 import app.nayti.storage.CatalogStorage
+import app.nayti.storage.CatalogWatermarkEntity
 import app.nayti.storage.IndexChannel
 import app.nayti.storage.IndexChannelWorkEntity
 import app.nayti.storage.IndexWorkState
 import app.nayti.storage.ModelPackEntity
 import app.nayti.storage.ModelPackStatus
+import app.nayti.storage.OcrDocumentDraft
+import app.nayti.storage.OcrPublicationCodec
+import app.nayti.storage.OcrRegionDraft
+import app.nayti.storage.PerceptualHashCodec
+import app.nayti.storage.PerceptualHashDraft
 import app.nayti.storage.QuerySnapshotLeaseEntity
 import app.nayti.storage.StorageContract
 import app.nayti.storage.VectorGenerationEntity
@@ -145,6 +153,560 @@ class VectorPublicationStoreInstrumentedTest {
         assertEquals(first.snapshotId, recovery.activeAfter)
         assertEquals(1, recovery.expiredQueryLeases)
         assertNull(storage.vectorIndexDao.queryLease("query-lease"))
+    }
+
+    @Test
+    fun readyCandidateActivatesAtomicallyWhileParentLeaseRemainsValidAndRollbackIsPointerOnly() = runBlocking {
+        val assetId = insertAsset(1)
+        val parent = store().publish(request(101, assetId, stageRunningWork(assetId, "activation-parent")))
+        now += 100
+        val activator = activator()
+        val candidate = activator.register("candidate-101", "candidate-snapshot-101", pack())
+        val persistedPlan = storage.vectorIndexDao.activationCandidateChannels(candidate.candidateId)
+        assertEquals(storage.vectorIndexDao.snapshotChannels(parent.snapshotId).size, persistedPlan.size)
+        assertTrue(persistedPlan.all { it.action == ActivationCandidateChannelAction.INHERIT })
+        val child =
+            parent.copy(
+                snapshotId = candidate.snapshotId,
+                parentSnapshotId = parent.snapshotId,
+                capturedAccessRevision = AccessRevision,
+                catalogWatermark = candidate.capturedCatalogWatermark,
+                createdAtMillis = now,
+            )
+        activator.markReady(candidate.candidateId, child)
+        assertFalse(VectorSnapshotGarbageCollector(root, storage.vectorIndexDao).collect(child.snapshotId, now))
+        storage.vectorIndexDao.acquireActiveSnapshotLease(
+            QuerySnapshotLeaseEntity(
+                leaseToken = "parent-query",
+                snapshotId = parent.snapshotId,
+                accessRevision = AccessRevision,
+                createdAtMillis = now,
+                expiresAtMillis = now + 60_000,
+            ),
+            now,
+        )
+        storage.vectorIndexDao.acquireActiveSnapshotLease(
+            QuerySnapshotLeaseEntity(
+                leaseToken = "parent-query-2",
+                snapshotId = parent.snapshotId,
+                accessRevision = AccessRevision,
+                createdAtMillis = now,
+                expiresAtMillis = now + 60_000,
+            ),
+            now,
+        )
+
+        val activated = activator.activate(candidate.candidateId)
+        val newQuery =
+            checkNotNull(
+                storage.vectorIndexDao.acquireCurrentSnapshotLease(
+                    leaseToken = "child-query",
+                    nowMillis = now,
+                    expiresAtMillis = now + 60_000,
+                ),
+            )
+
+        assertEquals(child.snapshotId, activated.snapshotId)
+        assertEquals(parent.snapshotId, activated.rollbackSnapshotId)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.queryLease("parent-query")?.snapshotId)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.queryLease("parent-query-2")?.snapshotId)
+        assertEquals(child.snapshotId, newQuery.snapshotId)
+        assertFalse(VectorSnapshotGarbageCollector(root, storage.vectorIndexDao).collect(parent.snapshotId, now))
+        assertEquals(ActivationCandidateState.ACTIVE, storage.vectorIndexDao.activationCandidate(candidate.candidateId)?.state)
+
+        val rolledBack = checkNotNull(activator.rollback())
+        assertEquals(parent.snapshotId, rolledBack.snapshotId)
+        assertEquals(ActivationCandidateState.ROLLED_BACK, storage.vectorIndexDao.activationCandidate(candidate.candidateId)?.state)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+    }
+
+    @Test
+    fun changedOcrPublicationStaysShadowedUntilCandidatePointerCommit() = runBlocking {
+        val assetId = insertAsset(111)
+        val inserted = checkNotNull(storage.catalogDao.asset(assetId))
+        assertEquals(1, storage.catalogDao.updateAsset(inserted.copy(sourceFingerprint = OcrSourceFingerprint)))
+        val parentOcrEpoch = publishOcr(assetId, "ocr-parent", ComponentHash, "parent invoice")
+        val visualLease =
+            stageRunningWork(
+                assetId,
+                "visual-parent-ocr-cutover",
+                sourceFingerprint = OcrSourceFingerprint,
+            )
+        val parentRequest =
+            request(111, assetId, visualLease).let { base ->
+                base.copy(
+                    lexicalPublicationEpoch = parentOcrEpoch,
+                    records = base.records.map { it.copy(sourceFingerprint = OcrSourceFingerprint) },
+                )
+            }
+        val parent =
+            store().publish(parentRequest)
+        now += 100
+        val changedPack =
+            pack().copy(
+                packVersion = "0.1.0-alpha.2",
+                manifestSha256 = ShadowComponentHash,
+                relativeDirectory = "model-packs/test-ocr-shadow",
+                installedAtMillis = now,
+            )
+        storage.modelPackDao.registerInstalledCandidate(changedPack)
+        val candidateSnapshotId = "candidate-snapshot-ocr"
+        val targetChannels =
+            storage.vectorIndexDao.snapshotChannels(parent.snapshotId).map { channel ->
+                if (channel.channel == IndexChannel.OCR) {
+                    channel.copy(
+                        snapshotId = candidateSnapshotId,
+                        componentHash = ShadowComponentHash,
+                        inheritedFromSnapshotId = null,
+                    )
+                } else {
+                    channel.copy(
+                        snapshotId = candidateSnapshotId,
+                        inheritedFromSnapshotId = parent.snapshotId,
+                    )
+                }
+            }
+        val activator = activator()
+        val candidate =
+            activator.register(
+                candidateId = "candidate-ocr",
+                snapshotId = candidateSnapshotId,
+                pack = changedPack,
+                targetChannels = targetChannels,
+            )
+        assertEquals(
+            ActivationCandidateChannelAction.REBUILD_SHADOW,
+            storage.vectorIndexDao.activationCandidateChannels(candidate.candidateId)
+                .single { it.channel == IndexChannel.OCR }.action,
+        )
+
+        val candidateOcrEpoch = publishOcr(assetId, "ocr-candidate", ShadowComponentHash, "candidate receipt")
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(0, storage.ocrDao.collectGarbage())
+        assertEquals(
+            listOf(assetId),
+            storage.ocrDao.candidateSnapshotAt(
+                lexicalMatchQuery = "parent",
+                trigramMatchQuery = null,
+                pipelineVersion = "ocr-v1",
+                componentHash = ComponentHash,
+                maximumPublicationEpoch = parentOcrEpoch,
+                limit = 10,
+            ).documents.map { it.assetId },
+        )
+
+        val child =
+            parent.copy(
+                snapshotId = candidate.snapshotId,
+                parentSnapshotId = parent.snapshotId,
+                packVersion = changedPack.packVersion,
+                packManifestSha256 = changedPack.manifestSha256,
+                lexicalPublicationEpoch = candidateOcrEpoch,
+                capturedAccessRevision = candidate.capturedAccessRevision,
+                catalogWatermark = candidate.capturedCatalogWatermark,
+                createdAtMillis = now,
+            )
+        activator.markReady(candidate.candidateId, child, targetChannels)
+        activator.activate(candidate.candidateId)
+
+        assertEquals(child.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(0, storage.ocrDao.collectGarbage())
+        assertEquals(
+            listOf(assetId),
+            storage.ocrDao.candidateSnapshotAt(
+                lexicalMatchQuery = "candidate",
+                trigramMatchQuery = null,
+                pipelineVersion = "ocr-v1",
+                componentHash = ShadowComponentHash,
+                maximumPublicationEpoch = child.lexicalPublicationEpoch,
+                limit = 10,
+            ).documents.map { it.assetId },
+        )
+    }
+
+    @Test
+    fun accessChangeRejectsReadyCandidateWithoutMovingActivePointer() = runBlocking {
+        val assetId = insertAsset(1)
+        val parent = store().publish(request(102, assetId, stageRunningWork(assetId, "activation-race")))
+        now += 100
+        val activator = activator()
+        val candidate = activator.register("candidate-102", "candidate-snapshot-102", pack())
+        activator.markReady(
+            candidate.candidateId,
+            parent.copy(
+                snapshotId = candidate.snapshotId,
+                parentSnapshotId = parent.snapshotId,
+                capturedAccessRevision = AccessRevision,
+                catalogWatermark = candidate.capturedCatalogWatermark,
+                createdAtMillis = now,
+            ),
+        )
+        storage.catalogDao.recordAccessObservation("Full", AccessRevision + 1, now + 1)
+
+        val failure = runCatching { activator.activate(candidate.candidateId) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(
+            ActivationCandidateState.READY_TO_ACTIVATE,
+            storage.vectorIndexDao.activationCandidate(candidate.candidateId)?.state,
+        )
+    }
+
+    @Test
+    fun catalogDeltaAfterCapturedCutoverRequiresReconciliationBeforeActivation() = runBlocking {
+        storage.catalogDao.replaceWatermark(CatalogWatermarkEntity(catalogRevision = 1, lastSuccessfulInventoryRunId = null, updatedAtMillis = now))
+        val assetId = insertAsset(1)
+        val parent = store().publish(request(105, assetId, stageRunningWork(assetId, "activation-cutover")))
+        now += 100
+        val activator = activator()
+        val candidate = activator.register("candidate-105", "candidate-snapshot-105", pack())
+        activator.markReady(
+            candidate.candidateId,
+            parent.copy(
+                snapshotId = candidate.snapshotId,
+                parentSnapshotId = parent.snapshotId,
+                capturedAccessRevision = AccessRevision,
+                catalogWatermark = candidate.capturedCatalogWatermark,
+                createdAtMillis = now,
+            ),
+        )
+        storage.catalogDao.replaceWatermark(
+            CatalogWatermarkEntity(catalogRevision = 2, lastSuccessfulInventoryRunId = null, updatedAtMillis = now + 1),
+        )
+
+        val failure = runCatching { activator.activate(candidate.candidateId) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(ActivationCandidateState.READY_TO_ACTIVATE, storage.vectorIndexDao.activationCandidate(candidate.candidateId)?.state)
+    }
+
+    @Test
+    fun activationFailpointsExposeEitherParentOrFullyCommittedChildAfterRestart() = runBlocking {
+        val assetId = insertAsset(1)
+        val parent = store().publish(request(103, assetId, stageRunningWork(assetId, "activation-failpoint")))
+        now += 100
+        val candidate = activator().register("candidate-103", "candidate-snapshot-103", pack())
+        val child =
+            parent.copy(
+                snapshotId = candidate.snapshotId,
+                parentSnapshotId = parent.snapshotId,
+                capturedAccessRevision = AccessRevision,
+                catalogWatermark = candidate.capturedCatalogWatermark,
+                createdAtMillis = now,
+            )
+        activator().markReady(candidate.candidateId, child)
+        val beforeCommit =
+            AtomicSnapshotActivator(
+                vectors = storage.vectorIndexDao,
+                verifier = ActivationCandidateVerifier { _, _ -> },
+                clock = { now },
+                boundaryObserver = { boundary ->
+                    if (boundary == ActivationBoundary.BEFORE_POINTER_COMMIT) throw SimulatedActivationDeath(boundary)
+                },
+            )
+
+        assertTrue(runCatching { beforeCommit.activate(candidate.candidateId) }.exceptionOrNull() is SimulatedActivationDeath)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(ActivationCandidateState.READY_TO_ACTIVATE, storage.vectorIndexDao.activationCandidate(candidate.candidateId)?.state)
+
+        val afterCommit =
+            AtomicSnapshotActivator(
+                vectors = storage.vectorIndexDao,
+                verifier = ActivationCandidateVerifier { _, _ -> },
+                clock = { now },
+                boundaryObserver = { boundary ->
+                    if (boundary == ActivationBoundary.AFTER_POINTER_COMMIT) throw SimulatedActivationDeath(boundary)
+                },
+            )
+        assertTrue(runCatching { afterCommit.activate(candidate.candidateId) }.exceptionOrNull() is SimulatedActivationDeath)
+        reopenStorage()
+        assertEquals(child.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(ActivationCandidateState.ACTIVE, storage.vectorIndexDao.activationCandidate(candidate.candidateId)?.state)
+
+        val recovery =
+            VectorIndexRecovery(root, storage.vectorIndexDao).recover(
+                nowMillis = now + 1,
+                orphanGraceMillis = 0,
+                deepVerifySegments = true,
+            )
+        assertEquals(child.snapshotId, recovery.activeAfter)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activePointer()?.rollbackSnapshotId)
+    }
+
+    @Test
+    fun futureSnapshotFormatAndChangedPackCannotReuseIncompatibleGeneration() = runBlocking {
+        val assetId = insertAsset(1)
+        val parent = store().publish(request(104, assetId, stageRunningWork(assetId, "activation-contract")))
+        now += 100
+        val future = activator().register("candidate-future", "candidate-snapshot-future", pack())
+        val futureFailure =
+            runCatching {
+                activator().markReady(
+                    future.candidateId,
+                    parent.copy(
+                        snapshotId = future.snapshotId,
+                        parentSnapshotId = parent.snapshotId,
+                        capturedAccessRevision = AccessRevision,
+                        catalogWatermark = future.capturedCatalogWatermark,
+                        createdAtMillis = now,
+                        formatVersion = 2,
+                    ),
+                )
+            }.exceptionOrNull()
+        assertTrue(futureFailure is IllegalStateException)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+
+        assertTrue(activator().reject(future.candidateId, "UNSUPPORTED_SNAPSHOT_FORMAT"))
+        val changedPack =
+            pack().copy(
+                packVersion = "0.1.0-alpha.2",
+                manifestSha256 = "e".repeat(64),
+                relativeDirectory = "model-packs/test-v2",
+                installedAtMillis = now,
+            )
+        storage.modelPackDao.registerInstalledCandidate(changedPack)
+        val changedSnapshotId = "candidate-snapshot-changed"
+        val targetChannels =
+            storage.vectorIndexDao.snapshotChannels(parent.snapshotId).map { component ->
+                component.copy(
+                    snapshotId = changedSnapshotId,
+                    componentHash =
+                        if (component.channel == IndexChannel.VISUAL) changedPack.manifestSha256 else component.componentHash,
+                    inheritedFromSnapshotId = null,
+                )
+            }
+        val changed =
+            activator().register(
+                "candidate-changed",
+                changedSnapshotId,
+                changedPack,
+                targetChannels,
+            )
+        val changedSnapshot =
+            parent.copy(
+                snapshotId = changed.snapshotId,
+                parentSnapshotId = parent.snapshotId,
+                packVersion = changedPack.packVersion,
+                packManifestSha256 = changedPack.manifestSha256,
+                capturedAccessRevision = AccessRevision,
+                catalogWatermark = changed.capturedCatalogWatermark,
+                createdAtMillis = now,
+            )
+        val implicitInheritanceFailure =
+            runCatching { activator().markReady(changed.candidateId, changedSnapshot) }.exceptionOrNull()
+        assertTrue(implicitInheritanceFailure is IllegalStateException)
+        val incompatibleChannels = targetChannels
+        val inheritedGenerationFailure =
+            runCatching {
+                activator().markReady(
+                    changed.candidateId,
+                    changedSnapshot,
+                    incompatibleChannels,
+                )
+            }.exceptionOrNull()
+        assertTrue(inheritedGenerationFailure is IllegalStateException)
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+    }
+
+    @Test
+    fun changedVisualChannelBuildsInShadowWithoutInterruptingParentSearch() = runBlocking {
+        val assetId = insertAsset(1)
+        val parent = store().publish(request(106, assetId, stageRunningWork(assetId, "shadow-parent")))
+        val parentManifestRevision = checkNotNull(parent.visualManifestRevision)
+        assertEquals(
+            1,
+            storage.vectorIndexDao.currentVisualEvidence(
+                parentManifestRevision,
+                listOf(assetId),
+                "visual-v1",
+                ComponentHash,
+            ).size,
+        )
+
+        now += 100
+        val changedPack =
+            pack().copy(
+                packVersion = "0.1.0-alpha.2",
+                manifestSha256 = ShadowComponentHash,
+                relativeDirectory = "model-packs/test-shadow",
+                installedAtMillis = now,
+            )
+        storage.modelPackDao.registerInstalledCandidate(changedPack)
+        val shadowGeneration =
+            generation().copy(
+                generationId = "visual-generation-shadow",
+                packVersion = changedPack.packVersion,
+                componentHash = ShadowComponentHash,
+                embeddingSpaceHash = ShadowEmbeddingHash,
+                createdAtMillis = now,
+            )
+        storage.vectorIndexDao.createGeneration(shadowGeneration)
+        val candidateSnapshotId = "candidate-snapshot-shadow"
+        val targetChannels =
+            storage.vectorIndexDao.snapshotChannels(parent.snapshotId).map { channel ->
+                if (channel.channel == IndexChannel.VISUAL) {
+                    channel.copy(
+                        snapshotId = candidateSnapshotId,
+                        componentHash = ShadowComponentHash,
+                        embeddingSpaceHash = ShadowEmbeddingHash,
+                        inheritedFromSnapshotId = null,
+                    )
+                } else {
+                    channel.copy(
+                        snapshotId = candidateSnapshotId,
+                        inheritedFromSnapshotId = parent.snapshotId,
+                    )
+                }
+            }
+        val candidate =
+            activator().register(
+                candidateId = "candidate-shadow",
+                snapshotId = candidateSnapshotId,
+                pack = changedPack,
+                targetChannels = targetChannels,
+            )
+        val plan = storage.vectorIndexDao.activationCandidateChannels(candidate.candidateId)
+        assertEquals(
+            ActivationCandidateChannelAction.REBUILD_SHADOW,
+            plan.single { it.channel == IndexChannel.VISUAL }.action,
+        )
+
+        val deltaAssetId = insertAsset(2)
+        storage.catalogDao.replaceWatermark(
+            CatalogWatermarkEntity(
+                catalogRevision = 1,
+                lastSuccessfulInventoryRunId = null,
+                updatedAtMillis = now,
+            ),
+        )
+
+        val shadowLease =
+            stageRunningWork(
+                assetId = assetId,
+                leaseToken = "shadow-visual-work",
+                componentHash = ShadowComponentHash,
+            )
+        assertEquals(
+            1,
+            storage.vectorIndexDao.currentVisualEvidence(
+                parentManifestRevision,
+                listOf(assetId),
+                "visual-v1",
+                ComponentHash,
+            ).size,
+        )
+        val shadowPublisher =
+            ShadowVectorStoreVisualPublisher(store(), storage.vectorIndexDao, candidate.snapshotId)
+        assertEquals(
+            VisualVectorPublicationResult.PUBLISHED,
+            shadowPublisher.publish(
+                request(107, assetId, shadowLease).copy(
+                    publicationToken = "publication-shadow",
+                    generationId = shadowGeneration.generationId,
+                    records =
+                        listOf(
+                            PublishedVectorRecord(
+                                recordId = assetId,
+                                assetId = assetId,
+                                chunkOrdinal = 0,
+                                sourceFingerprint = "source-$assetId",
+                                accessRevision = AccessRevision,
+                                vector = ByteArray(Dimension) { 99.toByte() },
+                            ),
+                        ),
+                ),
+            ),
+        )
+        val firstShadowManifest =
+            checkNotNull(
+                storage.vectorIndexDao.latestCompletedPublication(candidate.snapshotId, IndexChannel.VISUAL),
+            ).let { publication -> checkNotNull(storage.vectorIndexDao.manifest(publication.manifestRevision)) }
+        val deltaShadowLease =
+            stageRunningWork(
+                assetId = deltaAssetId,
+                leaseToken = "shadow-visual-delta",
+                componentHash = ShadowComponentHash,
+            )
+        assertEquals(
+            VisualVectorPublicationResult.PUBLISHED,
+            shadowPublisher.publish(
+                request(108, deltaAssetId, deltaShadowLease).copy(
+                    publicationToken = "publication-shadow-delta",
+                    generationId = shadowGeneration.generationId,
+                    records =
+                        listOf(
+                            PublishedVectorRecord(
+                                recordId = deltaAssetId,
+                                assetId = deltaAssetId,
+                                chunkOrdinal = 0,
+                                sourceFingerprint = "source-$deltaAssetId",
+                                accessRevision = AccessRevision,
+                                vector = ByteArray(Dimension) { 55.toByte() },
+                            ),
+                        ),
+                ),
+            ),
+        )
+        val shadowManifest =
+            checkNotNull(
+                storage.vectorIndexDao.latestCompletedPublication(candidate.snapshotId, IndexChannel.VISUAL),
+            ).let { publication -> checkNotNull(storage.vectorIndexDao.manifest(publication.manifestRevision)) }
+        assertEquals(firstShadowManifest.revision, shadowManifest.parentRevision)
+        val reconciled =
+            activator().reconcileCatalogWatermark(
+                candidateId = candidate.candidateId,
+                expectedWatermark = candidate.capturedCatalogWatermark,
+                nextWatermark = 1,
+            )
+        assertEquals(parent.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(
+            1,
+            storage.vectorIndexDao.currentVisualEvidence(
+                parentManifestRevision,
+                listOf(assetId),
+                "visual-v1",
+                ComponentHash,
+            ).size,
+        )
+
+        val preparedChannels =
+            targetChannels.map { channel ->
+                if (channel.channel == IndexChannel.VISUAL) {
+                    channel.copy(
+                        generationId = shadowGeneration.generationId,
+                        manifestRevision = shadowManifest.revision,
+                        inheritedFromSnapshotId = null,
+                    )
+                } else {
+                    channel
+                }
+            }
+        val child =
+            parent.copy(
+                snapshotId = candidate.snapshotId,
+                parentSnapshotId = parent.snapshotId,
+                packVersion = changedPack.packVersion,
+                packManifestSha256 = changedPack.manifestSha256,
+                visualManifestRevision = shadowManifest.revision,
+                catalogWatermark = reconciled.capturedCatalogWatermark,
+                capturedAccessRevision = candidate.capturedAccessRevision,
+                createdAtMillis = now,
+            )
+        activator().markReady(candidate.candidateId, child, preparedChannels)
+        activator().activate(candidate.candidateId)
+
+        assertEquals(child.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(
+            2,
+            storage.vectorIndexDao.currentVisualEvidence(
+                shadowManifest.revision,
+                listOf(assetId, deltaAssetId),
+                "visual-v1",
+                ShadowComponentHash,
+            ).size,
+        )
     }
 
     @Test
@@ -408,6 +970,81 @@ class VectorPublicationStoreInstrumentedTest {
     }
 
     @Test
+    fun perceptualHashSearchUsesActiveSnapshotEpochAndReleasesLease() = runBlocking {
+        val sourceAsset = insertAsset(1)
+        val similarAsset = insertAsset(2)
+        suspend fun publishHash(assetId: Long, bits: Long, suffix: String) {
+            val lease = "phash-$suffix"
+            storage.indexStateDao.replaceWork(
+                IndexChannelWorkEntity(
+                    assetId = assetId,
+                    channel = IndexChannel.PHASH,
+                    state = IndexWorkState.RUNNING,
+                    sourceFingerprint = "source-$assetId",
+                    accessRevision = AccessRevision,
+                    pipelineVersion = app.nayti.search.engine.similarity.PerceptualHashV1.PipelineVersion,
+                    componentHash = app.nayti.search.engine.similarity.PerceptualHashV1.ComponentHash,
+                    attempt = 1,
+                    leaseToken = lease,
+                    leaseExpiresAtMillis = now + 10_000,
+                    executionWindowId = null,
+                    publicationToken = null,
+                    stagedArtifactPath = null,
+                    stagedArtifactLength = null,
+                    stagedArtifactSha256 = null,
+                    nextEligibleAtMillis = null,
+                    errorCode = null,
+                    updatedAtMillis = now,
+                ),
+            )
+            val draft =
+                PerceptualHashDraft(
+                    assetId = assetId,
+                    sourceFingerprint = "source-$assetId",
+                    accessRevision = AccessRevision,
+                    pipelineVersion = app.nayti.search.engine.similarity.PerceptualHashV1.PipelineVersion,
+                    componentHash = app.nayti.search.engine.similarity.PerceptualHashV1.ComponentHash,
+                    hashBits = bits,
+                )
+            checkNotNull(
+                storage.perceptualHashDao.commit(
+                    leaseToken = lease,
+                    publicationToken = "phash-publication-$suffix",
+                    draft = draft,
+                    expectedIdentity = PerceptualHashCodec.identity(draft),
+                    nowMillis = now,
+                ),
+            )
+        }
+        publishHash(sourceAsset, 0x1234, "source")
+        publishHash(similarAsset, 0x1235, "similar")
+        val active =
+            store().publish(
+                request(2_051, sourceAsset, stageRunningWork(sourceAsset, "phash-active"))
+                    .copy(pHashPublicationEpoch = 2),
+            )
+        val search =
+            PerceptualHashSearch(
+                hashes = storage.perceptualHashDao,
+                vectors = storage.vectorIndexDao,
+                clock = { now },
+                leaseTokens = { "phash-query-test" },
+            )
+
+        val result = search.nearDuplicates(sourceAsset)
+
+        assertEquals(PerceptualHashSearchStatus.READY, result.status)
+        assertEquals(active.snapshotId, result.snapshotId)
+        assertEquals(AccessRevision, result.accessRevision)
+        assertEquals(listOf(similarAsset), result.hits.map { it.assetId })
+        assertNull(storage.vectorIndexDao.queryLease("phash-query-test"))
+
+        storage.catalogDao.recordAccessObservation("Full", AccessRevision + 1, now + 1)
+        assertEquals(PerceptualHashSearchStatus.SOURCE_NOT_INDEXED, search.nearDuplicates(sourceAsset).status)
+        assertNull(storage.vectorIndexDao.queryLease("phash-query-test"))
+    }
+
+    @Test
     fun textToImageSearchUsesActiveEmbeddingContractAndReleasesResources() = runBlocking {
         val firstAsset = insertAsset(1)
         store().publish(
@@ -548,6 +1185,8 @@ class VectorPublicationStoreInstrumentedTest {
                 vectors = storage.vectorIndexDao,
                 text = OcrHybridSearch(storage.ocrDao, storage.vectorIndexDao, semantic),
                 visual = visual,
+                clock = { now },
+                leaseTokens = { "unified-query-session" },
             )
 
         val scene =
@@ -561,6 +1200,9 @@ class VectorPublicationStoreInstrumentedTest {
         assertEquals(listOf(firstAsset, secondAsset), scene.hits.map { it.assetId })
         assertEquals(UnifiedSearchReason.VISUAL_CONTENT, scene.hits.first().reason)
         assertEquals(1, visualSessionsOpened)
+        assertEquals(scene.snapshotId, storage.vectorIndexDao.activeSnapshotId())
+        assertEquals(AccessRevision, scene.accessRevision)
+        assertNull(storage.vectorIndexDao.queryLease("unified-query-session"))
         assertNull(storage.vectorIndexDao.queryLease("unified-semantic-query"))
         assertNull(storage.vectorIndexDao.queryLease("unified-visual-query"))
 
@@ -613,6 +1255,18 @@ class VectorPublicationStoreInstrumentedTest {
     private fun store(observer: (VectorPublicationBoundary) -> Unit = {}) =
         VectorPublicationStore(root, storage.vectorIndexDao, { now }, observer)
 
+    private fun activator() =
+        AtomicSnapshotActivator(
+            vectors = storage.vectorIndexDao,
+            verifier = ActivationCandidateVerifier { snapshot, channels ->
+                check(
+                    VectorSnapshotIntegrityVerifier(root, storage.vectorIndexDao)
+                        .verify(snapshot, deepVerifySegments = true, candidateChannels = channels),
+                )
+            },
+            clock = { now },
+        )
+
     private suspend fun publishSingle(iteration: Int, mediaStoreId: Long): app.nayti.storage.ActivationSnapshotEntity {
         now += 100
         val assetId = insertAsset(mediaStoreId)
@@ -647,6 +1301,7 @@ class VectorPublicationStoreInstrumentedTest {
                     assetId = assetId,
                     chunkOrdinal = 0,
                     sourceFingerprint = "source-$assetId",
+                    accessRevision = AccessRevision,
                     vector = ByteArray(Dimension) { index -> ((assetId + index) % 127).toByte() },
                 ),
             ),
@@ -689,16 +1344,21 @@ class VectorPublicationStoreInstrumentedTest {
             ),
         )
 
-    private suspend fun stageRunningWork(assetId: Long, leaseToken: String): String {
+    private suspend fun stageRunningWork(
+        assetId: Long,
+        leaseToken: String,
+        componentHash: String = ComponentHash,
+        sourceFingerprint: String = "source-$assetId",
+    ): String {
         storage.indexStateDao.replaceWork(
             IndexChannelWorkEntity(
                 assetId = assetId,
                 channel = IndexChannel.VISUAL,
                 state = IndexWorkState.RUNNING,
-                sourceFingerprint = "source-$assetId",
+                sourceFingerprint = sourceFingerprint,
                 accessRevision = AccessRevision,
                 pipelineVersion = "visual-v1",
-                componentHash = ComponentHash,
+                componentHash = componentHash,
                 attempt = 1,
                 leaseToken = leaseToken,
                 leaseExpiresAtMillis = now + 10_000,
@@ -713,6 +1373,83 @@ class VectorPublicationStoreInstrumentedTest {
             ),
         )
         return leaseToken
+    }
+
+    private suspend fun publishOcr(
+        assetId: Long,
+        publicationToken: String,
+        componentHash: String,
+        text: String,
+    ): Long {
+        val leaseToken = "lease-$publicationToken"
+        val sourceFingerprint = checkNotNull(storage.catalogDao.asset(assetId)).sourceFingerprint
+        storage.indexStateDao.replaceWork(
+            IndexChannelWorkEntity(
+                assetId = assetId,
+                channel = IndexChannel.OCR,
+                state = IndexWorkState.RUNNING,
+                sourceFingerprint = sourceFingerprint,
+                accessRevision = AccessRevision,
+                pipelineVersion = "ocr-v1",
+                componentHash = componentHash,
+                attempt = 1,
+                leaseToken = leaseToken,
+                leaseExpiresAtMillis = now + 10_000,
+                executionWindowId = null,
+                publicationToken = null,
+                stagedArtifactPath = null,
+                stagedArtifactLength = null,
+                stagedArtifactSha256 = null,
+                nextEligibleAtMillis = null,
+                errorCode = null,
+                updatedAtMillis = now,
+            ),
+        )
+        val document =
+            OcrDocumentDraft(
+                assetId = assetId,
+                sourceFingerprint = sourceFingerprint,
+                accessRevision = AccessRevision,
+                pipelineVersion = "ocr-v1",
+                componentHash = componentHash,
+                sourceWidth = 10,
+                sourceHeight = 10,
+                rawText = text,
+                displayText = text,
+                canonicalText = text,
+                stemText = text,
+                identifierText = "",
+                normalizerVersion = "normalizer-v1",
+                stemmerVersion = "stemmer-v1",
+                identifierVersion = "identifier-v1",
+            )
+        val regions =
+            listOf(
+                OcrRegionDraft(
+                    rawText = text,
+                    displayText = text,
+                    canonicalText = text,
+                    confidenceMicros = 900_000,
+                    x0Micros = 0,
+                    y0Micros = 0,
+                    x1Micros = 1_000_000,
+                    y1Micros = 0,
+                    x2Micros = 1_000_000,
+                    y2Micros = 1_000_000,
+                    x3Micros = 0,
+                    y3Micros = 1_000_000,
+                ),
+            )
+        return checkNotNull(
+            storage.ocrDao.commitOcrPublication(
+                leaseToken = leaseToken,
+                publicationToken = publicationToken,
+                expectedIdentity = OcrPublicationCodec.identity(document, regions),
+                document = document,
+                regions = regions,
+                nowMillis = now,
+            ),
+        ).publicationEpoch
     }
 
     private fun reopenStorage() {
@@ -748,6 +1485,7 @@ class VectorPublicationStoreInstrumentedTest {
         )
 
     private class SimulatedProcessDeath(val boundary: VectorPublicationBoundary) : RuntimeException()
+    private class SimulatedActivationDeath(val boundary: ActivationBoundary) : RuntimeException()
     private class SimulatedGcDeath : RuntimeException()
     private class SimulatedCompactionDeath : RuntimeException()
 
@@ -762,6 +1500,9 @@ class VectorPublicationStoreInstrumentedTest {
         const val EmbeddingHash = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
         const val SecondEmbeddingHash = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
         const val PackManifestHash = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        const val ShadowComponentHash = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        const val ShadowEmbeddingHash = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        const val OcrSourceFingerprint = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         const val CrashIterations = 100
         val Boundaries = VectorPublicationBoundary.entries
     }

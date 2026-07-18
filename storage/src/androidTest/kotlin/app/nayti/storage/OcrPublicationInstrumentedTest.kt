@@ -108,6 +108,102 @@ class OcrPublicationInstrumentedTest {
     }
 
     @Test
+    fun changedOcrContractPublishesBesidePinnedParentEpoch() = runBlocking {
+        val assetId = insertAsset(SourceFingerprint)
+        val parentClaim = claimOcr(assetId)
+        val parent = document(assetId, "Parent invoice", "parent invoice", "parent invoic", "")
+        val parentRegions = listOf(region("Parent invoice", "parent invoice"))
+        checkNotNull(
+            ocr.commitOcrPublication(
+                checkNotNull(parentClaim.leaseToken),
+                "ocr-parent",
+                OcrPublicationCodec.identity(parent, parentRegions),
+                parent,
+                parentRegions,
+                20,
+            ),
+        )
+
+        index.ensureWork(assetId, IndexChannel.OCR, AccessRevision, PipelineVersion, NewComponentHash, 21)
+        val candidateClaim = index.claimBatch(WindowId, IndexChannel.OCR, "claim-candidate", 22, 100, 1).single()
+        val candidate =
+            document(assetId, "Candidate receipt", "candidate receipt", "candidat receipt", "")
+                .copy(componentHash = NewComponentHash)
+        val candidateRegions = listOf(region("Candidate receipt", "candidate receipt"))
+        checkNotNull(
+            ocr.commitOcrPublication(
+                checkNotNull(candidateClaim.leaseToken),
+                "ocr-candidate",
+                OcrPublicationCodec.identity(candidate, candidateRegions),
+                candidate,
+                candidateRegions,
+                23,
+            ),
+        )
+
+        assertEquals(
+            listOf(assetId),
+            ocr.lexicalCandidates("parent", PipelineVersion, ComponentHash, 1, 10).map { it.assetId },
+        )
+        assertTrue(ocr.lexicalCandidates("candidate", PipelineVersion, NewComponentHash, 1, 10).isEmpty())
+        assertEquals(
+            listOf(assetId),
+            ocr.lexicalCandidates("candidate", PipelineVersion, NewComponentHash, 2, 10).map { it.assetId },
+        )
+        assertEquals("Parent invoice", semantic.ocrDocument("ocr-parent")?.displayText)
+        assertEquals("Candidate receipt", semantic.ocrDocument("ocr-candidate")?.displayText)
+        assertEquals("Candidate receipt", ocr.document(assetId)?.displayText)
+        assertEquals(2L, ocr.publicationClock()?.lastEpoch)
+    }
+
+    @Test
+    fun garbageCollectionRemovesOnlySupersededUnrootedPublication() = runBlocking {
+        val assetId = insertAsset(SourceFingerprint)
+        val firstClaim = claimOcr(assetId)
+        val first = document(assetId, "Old unrooted text", "old unrooted text", "old unroot text", "")
+        val firstRegions = listOf(region("Old unrooted text", "old unrooted text"))
+        checkNotNull(
+            ocr.commitOcrPublication(
+                checkNotNull(firstClaim.leaseToken),
+                "ocr-gc-old",
+                OcrPublicationCodec.identity(first, firstRegions),
+                first,
+                firstRegions,
+                20,
+            ),
+        )
+        val currentWork = checkNotNull(index.work(assetId, IndexChannel.OCR))
+        index.replaceWork(
+            currentWork.copy(
+                state = IndexWorkState.RUNNING,
+                attempt = currentWork.attempt + 1,
+                leaseToken = "ocr-gc-new-lease",
+                leaseExpiresAtMillis = 1_000,
+                publicationToken = null,
+                updatedAtMillis = 21,
+            ),
+        )
+        val current = document(assetId, "Current protected text", "current protected text", "current protect text", "")
+        val currentRegions = listOf(region("Current protected text", "current protected text"))
+        checkNotNull(
+            ocr.commitOcrPublication(
+                "ocr-gc-new-lease",
+                "ocr-gc-current",
+                OcrPublicationCodec.identity(current, currentRegions),
+                current,
+                currentRegions,
+                22,
+            ),
+        )
+
+        assertEquals(1, ocr.collectGarbage())
+        assertNull(ocr.documentByPublicationEpoch(1))
+        assertTrue(ocr.regionsByPublicationEpoch(1).isEmpty())
+        assertEquals("Current protected text", ocr.documentByPublicationEpoch(2)?.displayText)
+        assertEquals(0, ocr.collectGarbage())
+    }
+
+    @Test
     fun staleSourceIsImmediatelyIneligibleAndRejectedReplacementPreservesOldEvidence() = runBlocking {
         val assetId = insertAsset(SourceFingerprint)
         val firstClaim = claimOcr(assetId)
@@ -417,6 +513,7 @@ class OcrPublicationInstrumentedTest {
         const val SourceFingerprint = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         const val NewSourceFingerprint = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
         const val ComponentHash = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        const val NewComponentHash = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
         const val InvalidHash = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
     }
 }

@@ -55,6 +55,7 @@ class OcrSemanticChunkMaterializerTest {
 
     private fun region(ordinal: Int) =
         OcrRegionEntity(
+            publicationEpoch = 1,
             assetId = AssetId,
             ordinal = ordinal,
             rawText = if (ordinal == 0) "Quarterly product report" else "Revenue increased",

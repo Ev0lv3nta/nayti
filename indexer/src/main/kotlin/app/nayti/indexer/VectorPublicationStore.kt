@@ -23,6 +23,7 @@ data class PublishedVectorRecord(
     val assetId: Long,
     val chunkOrdinal: Int,
     val sourceFingerprint: String,
+    val accessRevision: Long,
     val vector: ByteArray,
     val semanticChunkId: String? = null,
 )
@@ -62,7 +63,24 @@ class VectorPublicationStore(
 ) {
     private val files = ImmutableVectorFiles(rootDirectory, fileFaultInjector)
 
-    suspend fun publish(request: VectorPublicationRequest): ActivationSnapshotEntity {
+    suspend fun publish(request: VectorPublicationRequest): ActivationSnapshotEntity =
+        checkNotNull(publishInternal(request, activatesSnapshot = true, shadowParentManifestRevision = null).snapshot)
+
+    suspend fun publishShadow(
+        request: VectorPublicationRequest,
+        parentManifestRevision: String?,
+    ): VectorManifestEntity =
+        publishInternal(
+            request = request,
+            activatesSnapshot = false,
+            shadowParentManifestRevision = parentManifestRevision,
+        ).manifest
+
+    private suspend fun publishInternal(
+        request: VectorPublicationRequest,
+        activatesSnapshot: Boolean,
+        shadowParentManifestRevision: String?,
+    ): PublicationResult {
         require(request.records.isNotEmpty())
         require(request.leaseTokens.size == request.records.map(PublishedVectorRecord::assetId).distinct().size)
         val generation = checkNotNull(dao.generation(request.generationId))
@@ -123,11 +141,16 @@ class VectorPublicationStore(
 
         val parentSnapshotId = dao.activeSnapshotId()
         val parentSnapshot = parentSnapshotId?.let { checkNotNull(dao.snapshot(it)) }
-        val candidateParentManifestRevision = when (generation.channel) {
-            IndexChannel.VISUAL -> parentSnapshot?.visualManifestRevision
-            IndexChannel.OCR_SEMANTIC -> parentSnapshot?.semanticManifestRevision
-            else -> error("Unsupported vector channel ${generation.channel}")
-        }
+        val candidateParentManifestRevision =
+            if (activatesSnapshot) {
+                when (generation.channel) {
+                    IndexChannel.VISUAL -> parentSnapshot?.visualManifestRevision
+                    IndexChannel.OCR_SEMANTIC -> parentSnapshot?.semanticManifestRevision
+                    else -> error("Unsupported vector channel ${generation.channel}")
+                }
+            } else {
+                shadowParentManifestRevision
+            }
         val parentManifestRevision = candidateParentManifestRevision?.let { revision ->
             revision.takeIf { checkNotNull(dao.manifest(revision)).generationId == generation.generationId }
         }
@@ -188,6 +211,7 @@ class VectorPublicationStore(
                 recordId = record.recordId,
                 assetId = record.assetId,
                 sourceFingerprint = record.sourceFingerprint,
+                accessRevision = record.accessRevision,
                 chunkOrdinal = record.chunkOrdinal,
                 semanticChunkId = record.semanticChunkId,
             )
@@ -216,34 +240,54 @@ class VectorPublicationStore(
                 ),
             )
         }
-        val pack = checkNotNull(dao.modelPack(generation.packId, generation.packVersion))
-        val snapshot = ActivationSnapshotEntity(
-            snapshotId = request.snapshotId,
-            parentSnapshotId = parentSnapshotId,
-            packId = generation.packId,
-            packVersion = generation.packVersion,
-            packManifestSha256 = pack.manifestSha256,
-            engineContractVersion = NativeVectorIndex.contractVersion(),
-            rankingConfigVersion = request.rankingConfigVersion,
-            lexicalPublicationEpoch = request.lexicalPublicationEpoch,
-            pHashPublicationEpoch = request.pHashPublicationEpoch,
-            semanticManifestRevision = if (generation.channel == IndexChannel.OCR_SEMANTIC) request.manifestRevision else parentSnapshot?.semanticManifestRevision,
-            visualManifestRevision = if (generation.channel == IndexChannel.VISUAL) request.manifestRevision else parentSnapshot?.visualManifestRevision,
-            catalogWatermark = request.catalogWatermark,
-            createdAtMillis = stagedAt,
-        )
+        val snapshot =
+            if (activatesSnapshot) {
+                val pack = checkNotNull(dao.modelPack(generation.packId, generation.packVersion))
+                val accessRevision = checkNotNull(dao.accessObservation()).processAccessRevision
+                ActivationSnapshotEntity(
+                    snapshotId = request.snapshotId,
+                    parentSnapshotId = parentSnapshotId,
+                    packId = generation.packId,
+                    packVersion = generation.packVersion,
+                    packManifestSha256 = pack.manifestSha256,
+                    engineContractVersion = NativeVectorIndex.contractVersion(),
+                    rankingConfigVersion = request.rankingConfigVersion,
+                    lexicalPublicationEpoch = request.lexicalPublicationEpoch,
+                    pHashPublicationEpoch = request.pHashPublicationEpoch,
+                    semanticManifestRevision = if (generation.channel == IndexChannel.OCR_SEMANTIC) request.manifestRevision else parentSnapshot?.semanticManifestRevision,
+                    visualManifestRevision = if (generation.channel == IndexChannel.VISUAL) request.manifestRevision else parentSnapshot?.visualManifestRevision,
+                    catalogWatermark = request.catalogWatermark,
+                    createdAtMillis = stagedAt,
+                    capturedAccessRevision = accessRevision,
+                )
+            } else {
+                null
+            }
         boundaryObserver(VectorPublicationBoundary.BEFORE_DB_COMMIT)
-        val committed = dao.commitVectorPublication(
-            publicationToken = request.publicationToken,
-            segment = segment,
-            records = recordEntities,
-            manifest = manifest,
-            manifestEntries = manifestEntries,
-            snapshot = snapshot,
-            nowMillis = nowMillis(),
-        )
+        val committed =
+            if (snapshot != null) {
+                dao.commitVectorPublication(
+                    publicationToken = request.publicationToken,
+                    segment = segment,
+                    records = recordEntities,
+                    manifest = manifest,
+                    manifestEntries = manifestEntries,
+                    snapshot = snapshot,
+                    nowMillis = nowMillis(),
+                )
+            } else {
+                dao.commitShadowVectorPublication(
+                    publicationToken = request.publicationToken,
+                    segment = segment,
+                    records = recordEntities,
+                    manifest = manifest,
+                    manifestEntries = manifestEntries,
+                    nowMillis = nowMillis(),
+                )
+                null
+            }
         boundaryObserver(VectorPublicationBoundary.AFTER_DB_COMMIT)
-        return committed
+        return PublicationResult(manifest, committed)
     }
 
     private fun decodeSha256(value: String): ByteArray =
@@ -254,4 +298,9 @@ class VectorPublicationStore(
         IndexChannel.OCR_SEMANTIC -> VectorSegmentChannel.OCR_SEMANTIC
         else -> error("Unsupported vector channel $this")
     }
+
+    private data class PublicationResult(
+        val manifest: VectorManifestEntity,
+        val snapshot: ActivationSnapshotEntity?,
+    )
 }

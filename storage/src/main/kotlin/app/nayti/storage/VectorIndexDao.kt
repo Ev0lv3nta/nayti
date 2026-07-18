@@ -56,6 +56,30 @@ interface VectorIndexDao {
     @Query("SELECT * FROM catalog_access_observation WHERE singletonId = 1")
     suspend fun accessObservation(): CatalogAccessObservationEntity?
 
+    @Query("SELECT * FROM index_publication_clock WHERE singletonId = 1")
+    suspend fun publicationClock(): IndexPublicationClockEntity?
+
+    @Query("SELECT COUNT(*) FROM catalog_asset WHERE availability = 'AVAILABLE'")
+    suspend fun availableAssetCount(): Int
+
+    @Query(
+        "SELECT COUNT(*) FROM catalog_asset AS asset " +
+            "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
+            "WHERE asset.availability = 'AVAILABLE' AND access.accessScope != 'None' " +
+            "AND EXISTS (SELECT 1 FROM ocr_document AS document " +
+            "WHERE document.assetId = asset.assetId " +
+            "AND document.sourceFingerprint = asset.sourceFingerprint " +
+            "AND document.accessRevision = access.processAccessRevision " +
+            "AND document.pipelineVersion = :pipelineVersion " +
+            "AND document.componentHash = :componentHash " +
+            "AND document.publicationEpoch <= :maximumPublicationEpoch)",
+    )
+    suspend fun coveredOcrAssetCount(
+        pipelineVersion: String,
+        componentHash: String,
+        maximumPublicationEpoch: Long,
+    ): Int
+
     @Query("SELECT * FROM model_pack WHERE packId = :packId AND packVersion = :packVersion")
     suspend fun modelPack(packId: String, packVersion: String): ModelPackEntity?
 
@@ -83,35 +107,28 @@ interface VectorIndexDao {
             "FROM vector_segment_record AS vectorRecord " +
             "INNER JOIN vector_manifest_segment AS manifestSegment " +
             "ON manifestSegment.segmentSha256 = vectorRecord.segmentSha256 " +
+            "INNER JOIN vector_manifest AS vectorManifest ON vectorManifest.revision = manifestSegment.manifestRevision " +
+            "INNER JOIN vector_generation AS generation ON generation.generationId = vectorManifest.generationId " +
             "INNER JOIN ocr_semantic_chunk AS chunk ON chunk.chunkId = vectorRecord.semanticChunkId " +
-            "INNER JOIN ocr_document AS document ON document.assetId = chunk.assetId " +
+            "INNER JOIN ocr_document AS document ON document.publicationToken = chunk.ocrPublicationToken " +
             "INNER JOIN catalog_asset AS asset ON asset.assetId = chunk.assetId " +
-            "INNER JOIN index_channel_work AS semanticWork " +
-            "ON semanticWork.assetId = chunk.assetId AND semanticWork.channel = 'OCR_SEMANTIC' " +
-            "INNER JOIN index_channel_work AS ocrWork " +
-            "ON ocrWork.assetId = chunk.assetId AND ocrWork.channel = 'OCR' " +
             "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
             "WHERE manifestSegment.manifestRevision = :manifestRevision " +
             "AND vectorRecord.recordId IN (:recordIds) " +
             "AND vectorRecord.assetId = chunk.assetId " +
+            "AND document.assetId = chunk.assetId " +
             "AND vectorRecord.sourceFingerprint = chunk.sourceFingerprint " +
+            "AND vectorRecord.accessRevision = access.processAccessRevision " +
             "AND vectorRecord.chunkOrdinal = chunk.ordinal " +
             "AND chunk.ocrPublicationToken = document.publicationToken " +
             "AND chunk.sourceFingerprint = document.sourceFingerprint " +
             "AND asset.availability = 'AVAILABLE' " +
             "AND asset.sourceFingerprint = document.sourceFingerprint " +
-            "AND semanticWork.state = 'DONE' " +
-            "AND semanticWork.sourceFingerprint = document.sourceFingerprint " +
-            "AND semanticWork.accessRevision = access.processAccessRevision " +
-            "AND semanticWork.pipelineVersion = :semanticPipelineVersion " +
-            "AND semanticWork.componentHash = :componentHash " +
-            "AND ocrWork.state = 'DONE' " +
-            "AND ocrWork.sourceFingerprint = document.sourceFingerprint " +
-            "AND ocrWork.accessRevision = document.accessRevision " +
-            "AND ocrWork.pipelineVersion = document.pipelineVersion " +
-            "AND ocrWork.componentHash = document.componentHash " +
+            "AND generation.pipelineVersion = :semanticPipelineVersion " +
+            "AND generation.componentHash = :componentHash " +
             "AND document.accessRevision = access.processAccessRevision " +
-            "AND document.componentHash = :componentHash " +
+            "AND document.pipelineVersion = :ocrPipelineVersion " +
+            "AND document.componentHash = :ocrComponentHash " +
             "AND document.publicationEpoch <= :maximumPublicationEpoch " +
             "AND access.accessScope != 'None' " +
             "ORDER BY vectorRecord.recordId, vectorRecord.segmentSha256",
@@ -121,6 +138,8 @@ interface VectorIndexDao {
         recordIds: List<Long>,
         semanticPipelineVersion: String,
         componentHash: String,
+        ocrPipelineVersion: String,
+        ocrComponentHash: String,
         maximumPublicationEpoch: Long,
     ): List<SemanticVectorEvidence>
 
@@ -128,35 +147,28 @@ interface VectorIndexDao {
         "SELECT vectorRecord.recordId FROM vector_segment_record AS vectorRecord " +
             "INNER JOIN vector_manifest_segment AS manifestSegment " +
             "ON manifestSegment.segmentSha256 = vectorRecord.segmentSha256 " +
+            "INNER JOIN vector_manifest AS vectorManifest ON vectorManifest.revision = manifestSegment.manifestRevision " +
+            "INNER JOIN vector_generation AS generation ON generation.generationId = vectorManifest.generationId " +
             "INNER JOIN ocr_semantic_chunk AS chunk ON chunk.chunkId = vectorRecord.semanticChunkId " +
-            "INNER JOIN ocr_document AS document ON document.assetId = chunk.assetId " +
+            "INNER JOIN ocr_document AS document ON document.publicationToken = chunk.ocrPublicationToken " +
             "INNER JOIN catalog_asset AS asset ON asset.assetId = chunk.assetId " +
-            "INNER JOIN index_channel_work AS semanticWork " +
-            "ON semanticWork.assetId = chunk.assetId AND semanticWork.channel = 'OCR_SEMANTIC' " +
-            "INNER JOIN index_channel_work AS ocrWork " +
-            "ON ocrWork.assetId = chunk.assetId AND ocrWork.channel = 'OCR' " +
             "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
             "WHERE manifestSegment.manifestRevision = :manifestRevision " +
             "AND vectorRecord.segmentSha256 = :segmentSha256 " +
             "AND vectorRecord.assetId = chunk.assetId " +
+            "AND document.assetId = chunk.assetId " +
             "AND vectorRecord.sourceFingerprint = chunk.sourceFingerprint " +
+            "AND vectorRecord.accessRevision = access.processAccessRevision " +
             "AND vectorRecord.chunkOrdinal = chunk.ordinal " +
             "AND chunk.ocrPublicationToken = document.publicationToken " +
             "AND chunk.sourceFingerprint = document.sourceFingerprint " +
             "AND asset.availability = 'AVAILABLE' " +
             "AND asset.sourceFingerprint = document.sourceFingerprint " +
-            "AND semanticWork.state = 'DONE' " +
-            "AND semanticWork.sourceFingerprint = document.sourceFingerprint " +
-            "AND semanticWork.accessRevision = access.processAccessRevision " +
-            "AND semanticWork.pipelineVersion = :semanticPipelineVersion " +
-            "AND semanticWork.componentHash = :componentHash " +
-            "AND ocrWork.state = 'DONE' " +
-            "AND ocrWork.sourceFingerprint = document.sourceFingerprint " +
-            "AND ocrWork.accessRevision = document.accessRevision " +
-            "AND ocrWork.pipelineVersion = document.pipelineVersion " +
-            "AND ocrWork.componentHash = document.componentHash " +
+            "AND generation.pipelineVersion = :semanticPipelineVersion " +
+            "AND generation.componentHash = :componentHash " +
             "AND document.accessRevision = access.processAccessRevision " +
-            "AND document.componentHash = :componentHash " +
+            "AND document.pipelineVersion = :ocrPipelineVersion " +
+            "AND document.componentHash = :ocrComponentHash " +
             "AND document.publicationEpoch <= :maximumPublicationEpoch " +
             "AND access.accessScope != 'None' " +
             "ORDER BY vectorRecord.recordId",
@@ -166,6 +178,8 @@ interface VectorIndexDao {
         segmentSha256: String,
         semanticPipelineVersion: String,
         componentHash: String,
+        ocrPipelineVersion: String,
+        ocrComponentHash: String,
         maximumPublicationEpoch: Long,
     ): List<Long>
 
@@ -176,9 +190,9 @@ interface VectorIndexDao {
             "FROM vector_segment_record AS vectorRecord " +
             "INNER JOIN vector_manifest_segment AS manifestSegment " +
             "ON manifestSegment.segmentSha256 = vectorRecord.segmentSha256 " +
+            "INNER JOIN vector_manifest AS vectorManifest ON vectorManifest.revision = manifestSegment.manifestRevision " +
+            "INNER JOIN vector_generation AS generation ON generation.generationId = vectorManifest.generationId " +
             "INNER JOIN catalog_asset AS asset ON asset.assetId = vectorRecord.assetId " +
-            "INNER JOIN index_channel_work AS visualWork " +
-            "ON visualWork.assetId = vectorRecord.assetId AND visualWork.channel = 'VISUAL' " +
             "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
             "WHERE manifestSegment.manifestRevision = :manifestRevision " +
             "AND vectorRecord.recordId IN (:recordIds) " +
@@ -186,11 +200,9 @@ interface VectorIndexDao {
             "AND vectorRecord.chunkOrdinal = 0 AND vectorRecord.semanticChunkId IS NULL " +
             "AND asset.availability = 'AVAILABLE' " +
             "AND asset.sourceFingerprint = vectorRecord.sourceFingerprint " +
-            "AND visualWork.state = 'DONE' " +
-            "AND visualWork.sourceFingerprint = vectorRecord.sourceFingerprint " +
-            "AND visualWork.accessRevision = access.processAccessRevision " +
-            "AND visualWork.pipelineVersion = :visualPipelineVersion " +
-            "AND visualWork.componentHash = :componentHash " +
+            "AND vectorRecord.accessRevision = access.processAccessRevision " +
+            "AND generation.pipelineVersion = :visualPipelineVersion " +
+            "AND generation.componentHash = :componentHash " +
             "AND access.accessScope != 'None' " +
             "ORDER BY vectorRecord.recordId, vectorRecord.segmentSha256",
     )
@@ -205,9 +217,9 @@ interface VectorIndexDao {
         "SELECT vectorRecord.recordId FROM vector_segment_record AS vectorRecord " +
             "INNER JOIN vector_manifest_segment AS manifestSegment " +
             "ON manifestSegment.segmentSha256 = vectorRecord.segmentSha256 " +
+            "INNER JOIN vector_manifest AS vectorManifest ON vectorManifest.revision = manifestSegment.manifestRevision " +
+            "INNER JOIN vector_generation AS generation ON generation.generationId = vectorManifest.generationId " +
             "INNER JOIN catalog_asset AS asset ON asset.assetId = vectorRecord.assetId " +
-            "INNER JOIN index_channel_work AS visualWork " +
-            "ON visualWork.assetId = vectorRecord.assetId AND visualWork.channel = 'VISUAL' " +
             "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
             "WHERE manifestSegment.manifestRevision = :manifestRevision " +
             "AND vectorRecord.segmentSha256 = :segmentSha256 " +
@@ -215,11 +227,9 @@ interface VectorIndexDao {
             "AND vectorRecord.chunkOrdinal = 0 AND vectorRecord.semanticChunkId IS NULL " +
             "AND asset.availability = 'AVAILABLE' " +
             "AND asset.sourceFingerprint = vectorRecord.sourceFingerprint " +
-            "AND visualWork.state = 'DONE' " +
-            "AND visualWork.sourceFingerprint = vectorRecord.sourceFingerprint " +
-            "AND visualWork.accessRevision = access.processAccessRevision " +
-            "AND visualWork.pipelineVersion = :visualPipelineVersion " +
-            "AND visualWork.componentHash = :componentHash " +
+            "AND vectorRecord.accessRevision = access.processAccessRevision " +
+            "AND generation.pipelineVersion = :visualPipelineVersion " +
+            "AND generation.componentHash = :componentHash " +
             "AND access.accessScope != 'None' " +
             "ORDER BY vectorRecord.recordId",
     )
@@ -248,8 +258,19 @@ interface VectorIndexDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertSnapshot(snapshot: ActivationSnapshotEntity)
 
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertSnapshotChannels(channels: List<ActivationSnapshotChannelEntity>)
+
     @Query("SELECT * FROM activation_snapshot WHERE snapshotId = :snapshotId")
     suspend fun snapshot(snapshotId: String): ActivationSnapshotEntity?
+
+    @Query("SELECT * FROM activation_snapshot_channel WHERE snapshotId = :snapshotId ORDER BY channel")
+    suspend fun snapshotChannels(snapshotId: String): List<ActivationSnapshotChannelEntity>
+
+    @Query(
+        "SELECT * FROM activation_snapshot_channel WHERE snapshotId = :snapshotId AND channel = :channel",
+    )
+    suspend fun snapshotChannel(snapshotId: String, channel: String): ActivationSnapshotChannelEntity?
 
     @Query("SELECT * FROM activation_snapshot ORDER BY createdAtMillis, snapshotId")
     suspend fun snapshots(): List<ActivationSnapshotEntity>
@@ -260,8 +281,62 @@ interface VectorIndexDao {
     @Query("SELECT snapshotId FROM active_snapshot_pointer WHERE singletonId = 1")
     suspend fun activeSnapshotId(): String?
 
+    @Query("SELECT * FROM active_snapshot_pointer WHERE singletonId = 1")
+    suspend fun activePointer(): ActiveSnapshotPointerEntity?
+
     @Upsert
     suspend fun replaceActivePointer(pointer: ActiveSnapshotPointerEntity)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertActivationCandidate(candidate: ActivationCandidateEntity)
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertActivationCandidateChannels(channels: List<ActivationCandidateChannelEntity>)
+
+    @Query("SELECT * FROM activation_candidate WHERE candidateId = :candidateId")
+    suspend fun activationCandidate(candidateId: String): ActivationCandidateEntity?
+
+    @Query("SELECT * FROM activation_candidate WHERE snapshotId = :snapshotId")
+    suspend fun activationCandidateBySnapshot(snapshotId: String): ActivationCandidateEntity?
+
+    @Query("SELECT * FROM activation_candidate ORDER BY createdAtMillis, candidateId")
+    suspend fun activationCandidates(): List<ActivationCandidateEntity>
+
+    @Query("SELECT * FROM activation_candidate_channel WHERE candidateId = :candidateId ORDER BY channel")
+    suspend fun activationCandidateChannels(candidateId: String): List<ActivationCandidateChannelEntity>
+
+    @Query(
+        "SELECT COUNT(*) FROM activation_candidate WHERE snapshotId = :snapshotId " +
+            "AND state IN ('BUILDING_SHADOW', 'READY_TO_ACTIVATE', 'ACTIVE')",
+    )
+    suspend fun activationRootCount(snapshotId: String): Int
+
+    @Query(
+        "UPDATE activation_candidate SET state = :newState, updatedAtMillis = :nowMillis, " +
+            "failureCode = :failureCode WHERE candidateId = :candidateId AND state = :expectedState",
+    )
+    suspend fun transitionActivationCandidateRow(
+        candidateId: String,
+        expectedState: String,
+        newState: String,
+        nowMillis: Long,
+        failureCode: String?,
+    ): Int
+
+    @Query(
+        "UPDATE activation_candidate SET capturedCatalogWatermark = :nextWatermark, " +
+            "updatedAtMillis = :nowMillis WHERE candidateId = :candidateId " +
+            "AND state = 'BUILDING_SHADOW' AND capturedCatalogWatermark = :expectedWatermark",
+    )
+    suspend fun advanceActivationCandidateWatermarkRow(
+        candidateId: String,
+        expectedWatermark: Long,
+        nextWatermark: Long,
+        nowMillis: Long,
+    ): Int
+
+    @Query("SELECT * FROM catalog_watermark WHERE singletonId = 1")
+    suspend fun catalogWatermark(): CatalogWatermarkEntity?
 
     @Query(
         "UPDATE index_channel_work SET state = 'DONE', leaseToken = NULL, leaseExpiresAtMillis = NULL, " +
@@ -294,6 +369,19 @@ interface VectorIndexDao {
 
     @Query("SELECT * FROM vector_publication WHERE state = 'STAGED' ORDER BY createdAtMillis")
     suspend fun stagedPublications(): List<VectorPublicationEntity>
+
+    @Query(
+        "SELECT publication.* FROM vector_publication AS publication " +
+            "INNER JOIN vector_manifest AS manifest ON manifest.revision = publication.manifestRevision " +
+            "WHERE publication.snapshotId = :snapshotId AND publication.channel = :channel " +
+            "AND publication.state = 'DONE' " +
+            "ORDER BY manifest.segmentCount DESC, publication.createdAtMillis DESC, publication.publicationToken DESC " +
+            "LIMIT 1",
+    )
+    suspend fun latestCompletedPublication(
+        snapshotId: String,
+        channel: String,
+    ): VectorPublicationEntity?
 
     @Upsert
     suspend fun replaceQueryLease(lease: QuerySnapshotLeaseEntity)
@@ -369,6 +457,9 @@ interface VectorIndexDao {
 
     @Query("DELETE FROM activation_snapshot WHERE snapshotId = :snapshotId")
     suspend fun deleteSnapshot(snapshotId: String): Int
+
+    @Query("DELETE FROM activation_snapshot_channel WHERE snapshotId = :snapshotId")
+    suspend fun deleteSnapshotChannels(snapshotId: String): Int
 
     @Transaction
     suspend fun createGeneration(generation: VectorGenerationEntity) {
@@ -477,7 +568,11 @@ interface VectorIndexDao {
             val asset = checkNotNull(catalogAsset(item.assetId))
             check(asset.availability == CatalogAvailability.AVAILABLE)
             check(asset.sourceFingerprint == item.sourceFingerprint)
-            check(records.filter { it.assetId == item.assetId }.all { it.sourceFingerprint == item.sourceFingerprint })
+            check(
+                records.filter { it.assetId == item.assetId }.all {
+                    it.sourceFingerprint == item.sourceFingerprint && it.accessRevision == item.accessRevision
+                },
+            )
         }
 
         insertSegmentIfAbsent(segment)
@@ -496,10 +591,86 @@ interface VectorIndexDao {
         insertManifestSegments(manifestEntries)
         validateSnapshot(snapshot, generation, manifest)
         insertSnapshot(snapshot)
-        replaceActivePointer(ActiveSnapshotPointerEntity(snapshotId = snapshot.snapshotId))
+        insertSnapshotChannels(buildPublishedSnapshotChannels(snapshot, generation, manifest))
+        advanceActivePointer(snapshot.snapshotId, nowMillis)
         check(completePublicationWork(publicationToken, nowMillis) == work.size)
         check(completePublicationRow(publicationToken, nowMillis) == 1)
         return snapshot
+    }
+
+    @Transaction
+    suspend fun commitShadowVectorPublication(
+        publicationToken: String,
+        segment: VectorSegmentArtifactEntity,
+        records: List<VectorSegmentRecordEntity>,
+        manifest: VectorManifestEntity,
+        manifestEntries: List<VectorManifestSegmentEntity>,
+        nowMillis: Long,
+    ): VectorManifestEntity {
+        val publication = checkNotNull(publication(publicationToken))
+        check(publication.state == VectorPublicationState.STAGED)
+        check(publication.segmentSha256 == segment.sha256)
+        check(publication.manifestRevision == manifest.revision)
+        val candidate = checkNotNull(activationCandidateBySnapshot(publication.snapshotId))
+        check(candidate.state == ActivationCandidateState.BUILDING_SHADOW)
+        val generation = checkNotNull(generation(publication.generationId))
+        check(generation.packId == candidate.packId && generation.packVersion == candidate.packVersion)
+        val planned = activationCandidateChannels(candidate.candidateId).single { it.channel == generation.channel }
+        check(planned.action == ActivationCandidateChannelAction.REBUILD_SHADOW)
+        check(
+            planned.pipelineVersion == generation.pipelineVersion &&
+                planned.componentHash == generation.componentHash &&
+                planned.embeddingSpaceHash == generation.embeddingSpaceHash,
+        )
+        validateSegment(generation, segment, records)
+        validateSemanticRecordReferences(generation, records)
+
+        val work = publicationWork(publicationToken)
+        check(work.isNotEmpty() && work.all { item ->
+            item.state == IndexWorkState.STAGED &&
+                item.channel == publication.channel &&
+                item.pipelineVersion == generation.pipelineVersion &&
+                item.componentHash == generation.componentHash &&
+                item.stagedArtifactPath == segment.relativePath &&
+                item.stagedArtifactLength == segment.byteLength &&
+                item.stagedArtifactSha256 == segment.sha256
+        })
+        check(work.map(IndexChannelWorkEntity::assetId).toSet() == records.map(VectorSegmentRecordEntity::assetId).toSet())
+        val access = checkNotNull(accessObservation())
+        check(
+            access.accessScope != "None" &&
+                access.processAccessRevision == candidate.capturedAccessRevision &&
+                (catalogWatermark()?.catalogRevision ?: 0) >= candidate.capturedCatalogWatermark,
+        )
+        work.forEach { item ->
+            check(item.accessRevision == access.processAccessRevision)
+            val asset = checkNotNull(catalogAsset(item.assetId))
+            check(asset.availability == CatalogAvailability.AVAILABLE)
+            check(asset.sourceFingerprint == item.sourceFingerprint)
+            check(
+                records.filter { it.assetId == item.assetId }.all {
+                    it.sourceFingerprint == item.sourceFingerprint && it.accessRevision == item.accessRevision
+                },
+            )
+        }
+
+        insertSegmentIfAbsent(segment)
+        check(segment(segment.sha256) == segment)
+        if (records.isNotEmpty()) insertSegmentRecordsIfAbsent(records)
+        check(segmentRecords(segment.sha256) == records.sortedBy(VectorSegmentRecordEntity::ordinal))
+        validateManifest(generation, manifest, manifestEntries)
+        check(manifestEntries.any { it.segmentSha256 == segment.sha256 })
+        manifestEntries.forEach { entry ->
+            val artifact = checkNotNull(segment(entry.segmentSha256))
+            check(artifact.channel == generation.channel)
+            check(artifact.embeddingSpaceHash == generation.embeddingSpaceHash)
+            check(artifact.dimension == generation.dimension)
+        }
+        insertManifest(manifest)
+        insertManifestSegments(manifestEntries)
+        check(completePublicationWork(publicationToken, nowMillis) == work.size)
+        check(completePublicationRow(publicationToken, nowMillis) == 1)
+        return manifest
     }
 
     @Transaction
@@ -546,7 +717,8 @@ interface VectorIndexDao {
         insertManifestSegments(manifestEntries)
         validateSnapshot(candidateSnapshot, generation, manifest)
         insertSnapshot(candidateSnapshot)
-        replaceActivePointer(ActiveSnapshotPointerEntity(snapshotId = candidateSnapshot.snapshotId))
+        insertSnapshotChannels(buildPublishedSnapshotChannels(candidateSnapshot, generation, manifest))
+        advanceActivePointer(candidateSnapshot.snapshotId, nowMillis)
         return candidateSnapshot
     }
 
@@ -564,6 +736,173 @@ interface VectorIndexDao {
         check(revision == expectedActiveManifestRevision)
         check(manifest(expectedActiveManifestRevision)?.generationId == generationId)
         check(sealGenerationRow(generationId, nowMillis) == 1)
+    }
+
+    @Transaction
+    suspend fun registerActivationCandidate(
+        candidate: ActivationCandidateEntity,
+        channels: List<ActivationCandidateChannelEntity>,
+    ) {
+        require(identifier(candidate.candidateId) && identifier(candidate.snapshotId))
+        require(candidate.parentSnapshotId == null || identifier(candidate.parentSnapshotId))
+        require(identifier(candidate.packId) && contractValue(candidate.packVersion))
+        require(sha256(candidate.packManifestSha256))
+        require(candidate.capturedAccessRevision > 0 && candidate.capturedCatalogWatermark >= 0)
+        require(candidate.state == ActivationCandidateState.BUILDING_SHADOW)
+        require(candidate.createdAtMillis >= 0 && candidate.updatedAtMillis == candidate.createdAtMillis)
+        require(candidate.failureCode == null)
+        val pack = checkNotNull(modelPack(candidate.packId, candidate.packVersion))
+        check(pack.manifestSha256 == candidate.packManifestSha256)
+        check(activeSnapshotId() == candidate.parentSnapshotId)
+        val access = checkNotNull(accessObservation())
+        check(access.accessScope != "None" && access.processAccessRevision == candidate.capturedAccessRevision)
+        check((catalogWatermark()?.catalogRevision ?: 0) == candidate.capturedCatalogWatermark)
+        check(snapshot(candidate.snapshotId) == null)
+        validateActivationCandidatePlan(candidate, channels)
+        insertActivationCandidate(candidate)
+        insertActivationCandidateChannels(channels)
+    }
+
+    @Transaction
+    suspend fun markActivationCandidateReady(
+        candidateId: String,
+        snapshot: ActivationSnapshotEntity,
+        channels: List<ActivationSnapshotChannelEntity>,
+        nowMillis: Long,
+    ): ActivationSnapshotEntity {
+        val candidate = checkNotNull(activationCandidate(candidateId))
+        check(candidate.state == ActivationCandidateState.BUILDING_SHADOW)
+        check(activeSnapshotId() == candidate.parentSnapshotId)
+        require(snapshot.createdAtMillis in candidate.createdAtMillis..nowMillis)
+        validateActivationCandidateSnapshot(
+            candidate,
+            activationCandidateChannels(candidate.candidateId),
+            snapshot,
+            channels,
+        )
+        insertSnapshot(snapshot)
+        insertSnapshotChannels(channels)
+        check(
+            transitionActivationCandidateRow(
+                candidateId = candidateId,
+                expectedState = ActivationCandidateState.BUILDING_SHADOW,
+                newState = ActivationCandidateState.READY_TO_ACTIVATE,
+                nowMillis = nowMillis,
+                failureCode = null,
+            ) == 1,
+        )
+        return snapshot
+    }
+
+    @Transaction
+    suspend fun reconcileActivationCandidateWatermark(
+        candidateId: String,
+        expectedWatermark: Long,
+        nextWatermark: Long,
+        nowMillis: Long,
+    ): ActivationCandidateEntity {
+        require(expectedWatermark >= 0 && nextWatermark >= expectedWatermark)
+        val candidate = checkNotNull(activationCandidate(candidateId))
+        check(candidate.state == ActivationCandidateState.BUILDING_SHADOW)
+        check(candidate.capturedCatalogWatermark == expectedWatermark)
+        check(activeSnapshotId() == candidate.parentSnapshotId)
+        val access = checkNotNull(accessObservation())
+        check(access.accessScope != "None" && access.processAccessRevision == candidate.capturedAccessRevision)
+        check((catalogWatermark()?.catalogRevision ?: 0) == nextWatermark)
+        check(
+            advanceActivationCandidateWatermarkRow(
+                candidateId = candidateId,
+                expectedWatermark = expectedWatermark,
+                nextWatermark = nextWatermark,
+                nowMillis = nowMillis,
+            ) == 1,
+        )
+        return checkNotNull(activationCandidate(candidateId))
+    }
+
+    @Transaction
+    suspend fun activateReadyCandidate(candidateId: String, nowMillis: Long): ActiveSnapshotPointerEntity {
+        val candidate = checkNotNull(activationCandidate(candidateId))
+        check(candidate.state == ActivationCandidateState.READY_TO_ACTIVATE)
+        val pointer = activePointer()
+        check(pointer?.snapshotId == candidate.parentSnapshotId)
+        val access = checkNotNull(accessObservation())
+        check(access.accessScope != "None" && access.processAccessRevision == candidate.capturedAccessRevision)
+        check((catalogWatermark()?.catalogRevision ?: 0) == candidate.capturedCatalogWatermark)
+        val snapshot = checkNotNull(snapshot(candidate.snapshotId))
+        validateActivationCandidateSnapshot(
+            candidate,
+            activationCandidateChannels(candidate.candidateId),
+            snapshot,
+            snapshotChannels(snapshot.snapshotId),
+        )
+        check(deleteIntentCount(snapshot.snapshotId) == 0)
+        val activated =
+            ActiveSnapshotPointerEntity(
+                snapshotId = snapshot.snapshotId,
+                rollbackSnapshotId = candidate.parentSnapshotId,
+                activationSequence = Math.addExact(pointer?.activationSequence ?: 0, 1),
+                updatedAtMillis = nowMillis,
+            )
+        replaceActivePointer(activated)
+        check(
+            transitionActivationCandidateRow(
+                candidateId = candidateId,
+                expectedState = ActivationCandidateState.READY_TO_ACTIVATE,
+                newState = ActivationCandidateState.ACTIVE,
+                nowMillis = nowMillis,
+                failureCode = null,
+            ) == 1,
+        )
+        return activated
+    }
+
+    @Transaction
+    suspend fun rollbackActiveCandidate(nowMillis: Long): ActiveSnapshotPointerEntity? {
+        val pointer = activePointer() ?: return null
+        val activeId = pointer.snapshotId ?: return null
+        val rollbackId = pointer.rollbackSnapshotId ?: return null
+        check(snapshot(rollbackId) != null && deleteIntentCount(rollbackId) == 0)
+        val candidate = activationCandidateBySnapshot(activeId)
+        if (candidate != null && candidate.state == ActivationCandidateState.ACTIVE) {
+            check(
+                transitionActivationCandidateRow(
+                    candidateId = candidate.candidateId,
+                    expectedState = ActivationCandidateState.ACTIVE,
+                    newState = ActivationCandidateState.ROLLED_BACK,
+                    nowMillis = nowMillis,
+                    failureCode = "ACTIVE_ROLLBACK",
+                ) == 1,
+            )
+        }
+        val rolledBack = ActiveSnapshotPointerEntity(
+            snapshotId = rollbackId,
+            rollbackSnapshotId = snapshot(rollbackId)?.parentSnapshotId,
+            activationSequence = Math.addExact(pointer.activationSequence, 1),
+            updatedAtMillis = nowMillis,
+        )
+        replaceActivePointer(rolledBack)
+        return rolledBack
+    }
+
+    @Transaction
+    suspend fun rejectActivationCandidate(candidateId: String, failureCode: String, nowMillis: Long): Boolean {
+        require(contractValue(failureCode))
+        val candidate = activationCandidate(candidateId) ?: return false
+        if (candidate.state !in setOf(
+                ActivationCandidateState.BUILDING_SHADOW,
+                ActivationCandidateState.READY_TO_ACTIVATE,
+            )
+        ) {
+            return false
+        }
+        return transitionActivationCandidateRow(
+            candidateId = candidateId,
+            expectedState = candidate.state,
+            newState = ActivationCandidateState.REJECTED,
+            nowMillis = nowMillis,
+            failureCode = failureCode,
+        ) == 1
     }
 
     @Transaction
@@ -632,11 +971,18 @@ interface VectorIndexDao {
         semanticPipelineVersion: String,
         componentHash: String,
         maximumPublicationEpoch: Long,
+        ocrPipelineVersion: String = "ocr-v1",
+        ocrComponentHash: String = componentHash,
     ): List<SemanticVectorEvidence> {
         require(identifier(manifestRevision))
         require(recordIds.isNotEmpty() && recordIds.size <= MaximumSemanticCandidates)
         require(recordIds.all { it > 0 } && recordIds.distinct().size == recordIds.size)
-        require(contractValue(semanticPipelineVersion) && sha256(componentHash))
+        require(
+            contractValue(semanticPipelineVersion) &&
+                sha256(componentHash) &&
+                contractValue(ocrPipelineVersion) &&
+                sha256(ocrComponentHash),
+        )
         require(maximumPublicationEpoch >= 0)
         val manifest = checkNotNull(manifest(manifestRevision))
         check(manifest.channel == IndexChannel.OCR_SEMANTIC)
@@ -645,6 +991,8 @@ interface VectorIndexDao {
             recordIds = recordIds,
             semanticPipelineVersion = semanticPipelineVersion,
             componentHash = componentHash,
+            ocrPipelineVersion = ocrPipelineVersion,
+            ocrComponentHash = ocrComponentHash,
             maximumPublicationEpoch = maximumPublicationEpoch,
         ).also { evidence ->
             check(evidence.all { row ->
@@ -664,9 +1012,16 @@ interface VectorIndexDao {
         semanticPipelineVersion: String,
         componentHash: String,
         maximumPublicationEpoch: Long,
+        ocrPipelineVersion: String = "ocr-v1",
+        ocrComponentHash: String = componentHash,
     ): List<Long> {
         require(identifier(manifestRevision) && sha256(segmentSha256))
-        require(contractValue(semanticPipelineVersion) && sha256(componentHash))
+        require(
+            contractValue(semanticPipelineVersion) &&
+                sha256(componentHash) &&
+                contractValue(ocrPipelineVersion) &&
+                sha256(ocrComponentHash),
+        )
         require(maximumPublicationEpoch >= 0)
         val manifest = checkNotNull(manifest(manifestRevision))
         check(manifest.channel == IndexChannel.OCR_SEMANTIC)
@@ -675,6 +1030,8 @@ interface VectorIndexDao {
             segmentSha256 = segmentSha256,
             semanticPipelineVersion = semanticPipelineVersion,
             componentHash = componentHash,
+            ocrPipelineVersion = ocrPipelineVersion,
+            ocrComponentHash = ocrComponentHash,
             maximumPublicationEpoch = maximumPublicationEpoch,
         ).also { recordIds ->
             check(recordIds.size <= MaximumSegmentRecords)
@@ -733,13 +1090,40 @@ interface VectorIndexDao {
     }
 
     @Transaction
-    suspend fun replaceActiveAfterRecovery(expectedActiveSnapshotId: String?, recoveredSnapshotId: String?): Boolean {
+    suspend fun replaceActiveAfterRecovery(
+        expectedActiveSnapshotId: String?,
+        recoveredSnapshotId: String?,
+        nowMillis: Long,
+    ): Boolean {
         if (activeSnapshotId() != expectedActiveSnapshotId) return false
         if (recoveredSnapshotId != null) {
             check(snapshot(recoveredSnapshotId) != null)
             if (deleteIntentCount(recoveredSnapshotId) != 0) return false
         }
-        replaceActivePointer(ActiveSnapshotPointerEntity(snapshotId = recoveredSnapshotId))
+        val current = activePointer()
+        val activeCandidate = expectedActiveSnapshotId?.let { activationCandidateBySnapshot(it) }
+        if (
+            expectedActiveSnapshotId != recoveredSnapshotId &&
+            activeCandidate?.state == ActivationCandidateState.ACTIVE
+        ) {
+            check(
+                transitionActivationCandidateRow(
+                    candidateId = activeCandidate.candidateId,
+                    expectedState = ActivationCandidateState.ACTIVE,
+                    newState = ActivationCandidateState.ROLLED_BACK,
+                    nowMillis = nowMillis,
+                    failureCode = "STARTUP_AUDIT_FAILED",
+                ) == 1,
+            )
+        }
+        replaceActivePointer(
+            ActiveSnapshotPointerEntity(
+                snapshotId = recoveredSnapshotId,
+                rollbackSnapshotId = recoveredSnapshotId?.let { snapshot(it)?.parentSnapshotId },
+                activationSequence = Math.addExact(current?.activationSequence ?: 0, 1),
+                updatedAtMillis = nowMillis,
+            ),
+        )
         return true
     }
 
@@ -749,9 +1133,10 @@ interface VectorIndexDao {
         val candidate = snapshot(snapshotId) ?: return emptyList()
         val activeId = activeSnapshotId()
         check(snapshotId != activeId)
-        val activeParentId = activeId?.let { snapshot(it)?.parentSnapshotId }
-        check(snapshotId != activeParentId)
+        val rollbackId = activePointer()?.rollbackSnapshotId ?: activeId?.let { snapshot(it)?.parentSnapshotId }
+        check(snapshotId != rollbackId)
         check(liveQueryLeaseCount(snapshotId, nowMillis) == 0)
+        check(activationRootCount(snapshotId) == 0)
         val revisions = listOfNotNull(candidate.semanticManifestRevision, candidate.visualManifestRevision).distinct()
         val intents = mutableListOf<ArtifactDeleteIntentEntity>()
         revisions.forEach { revision ->
@@ -792,8 +1177,11 @@ interface VectorIndexDao {
         check(intents.all { it.state == ArtifactDeleteState.CONFIRMED })
         val activeId = activeSnapshotId()
         check(snapshotId != activeId)
-        check(snapshotId != activeId?.let { snapshot(it)?.parentSnapshotId })
+        val rollbackId = activePointer()?.rollbackSnapshotId ?: activeId?.let { snapshot(it)?.parentSnapshotId }
+        check(snapshotId != rollbackId)
+        check(activationRootCount(snapshotId) == 0)
         val revisions = listOfNotNull(candidate.semanticManifestRevision, candidate.visualManifestRevision).distinct()
+        deleteSnapshotChannels(snapshotId)
         check(deleteSnapshot(snapshotId) == 1)
         revisions.forEach { revision ->
             if (otherSnapshotManifestReferenceCount(revision, snapshotId) == 0) {
@@ -851,6 +1239,7 @@ interface VectorIndexDao {
         require(contractValue(candidate.rankingConfigVersion))
         require(candidate.lexicalPublicationEpoch >= 0 && candidate.pHashPublicationEpoch >= 0)
         require(candidate.catalogWatermark >= 0 && candidate.createdAtMillis >= 0)
+        require(candidate.formatVersion == ActivationSnapshotFormat.Current)
         val pack = checkNotNull(modelPack(candidate.packId, candidate.packVersion))
         check(pack.manifestSha256 == candidate.packManifestSha256)
         val activeId = activeSnapshotId()
@@ -867,6 +1256,210 @@ interface VectorIndexDao {
             check(candidate.pHashPublicationEpoch >= parent.pHashPublicationEpoch)
             check(candidate.catalogWatermark >= parent.catalogWatermark)
         }
+    }
+
+    private suspend fun validateActivationCandidatePlan(
+        candidate: ActivationCandidateEntity,
+        channels: List<ActivationCandidateChannelEntity>,
+    ) {
+        require(channels.isNotEmpty() && channels.map { it.channel }.distinct().size == channels.size)
+        require(channels.all { component ->
+            component.candidateId == candidate.candidateId &&
+                component.channel in IndexChannel.all &&
+                contractValue(component.pipelineVersion) &&
+                sha256(component.componentHash) &&
+                (component.embeddingSpaceHash == null || sha256(component.embeddingSpaceHash)) &&
+                component.action in ActivationCandidateChannelAction.all &&
+                contractValue(component.reason)
+        })
+        val parentChannels = candidate.parentSnapshotId?.let { snapshotChannels(it) }.orEmpty()
+        val parentByChannel = parentChannels.associateBy(ActivationSnapshotChannelEntity::channel)
+        channels.forEach { planned ->
+            val parent = parentByChannel[planned.channel]
+            if (planned.action == ActivationCandidateChannelAction.INHERIT) {
+                check(parent != null)
+                check(
+                    parent.pipelineVersion == planned.pipelineVersion &&
+                        parent.componentHash == planned.componentHash &&
+                        parent.embeddingSpaceHash == planned.embeddingSpaceHash,
+                )
+            }
+        }
+    }
+
+    private suspend fun validateActivationCandidateSnapshot(
+        candidate: ActivationCandidateEntity,
+        plan: List<ActivationCandidateChannelEntity>,
+        snapshot: ActivationSnapshotEntity,
+        channels: List<ActivationSnapshotChannelEntity>,
+    ) {
+        require(snapshot.formatVersion == ActivationSnapshotFormat.Current)
+        require(identifier(snapshot.snapshotId) && snapshot.snapshotId == candidate.snapshotId)
+        require(snapshot.parentSnapshotId == candidate.parentSnapshotId)
+        require(snapshot.packId == candidate.packId && snapshot.packVersion == candidate.packVersion)
+        require(snapshot.packManifestSha256 == candidate.packManifestSha256)
+        require(snapshot.engineContractVersion > 0 && contractValue(snapshot.rankingConfigVersion))
+        require(snapshot.lexicalPublicationEpoch >= 0 && snapshot.pHashPublicationEpoch >= 0)
+        require(snapshot.catalogWatermark == candidate.capturedCatalogWatermark)
+        require(snapshot.capturedAccessRevision == candidate.capturedAccessRevision)
+        require(snapshot.createdAtMillis >= candidate.createdAtMillis)
+        check(modelPack(snapshot.packId, snapshot.packVersion)?.manifestSha256 == snapshot.packManifestSha256)
+        validateActivationCandidatePlan(candidate, plan)
+        require(channels.isNotEmpty() && channels.map { it.channel }.distinct().size == channels.size)
+        val expectedChannels =
+            buildSet {
+                add(IndexChannel.OCR)
+                add(IndexChannel.PHASH)
+                if (snapshot.semanticManifestRevision != null) add(IndexChannel.OCR_SEMANTIC)
+                if (snapshot.visualManifestRevision != null) add(IndexChannel.VISUAL)
+            }
+        require(channels.map(ActivationSnapshotChannelEntity::channel).toSet() == expectedChannels)
+        require(plan.map(ActivationCandidateChannelEntity::channel).toSet() == expectedChannels)
+        require(channels.all { component ->
+            component.snapshotId == snapshot.snapshotId &&
+                component.channel in IndexChannel.all &&
+                contractValue(component.pipelineVersion) &&
+                sha256(component.componentHash) &&
+                (component.embeddingSpaceHash == null || sha256(component.embeddingSpaceHash)) &&
+                (component.generationId == null || identifier(component.generationId)) &&
+                (component.manifestRevision == null || identifier(component.manifestRevision)) &&
+                (component.inheritedFromSnapshotId == null || identifier(component.inheritedFromSnapshotId))
+        })
+        val plannedByChannel = plan.associateBy(ActivationCandidateChannelEntity::channel)
+        channels.forEach { component ->
+            val planned = checkNotNull(plannedByChannel[component.channel])
+            check(
+                component.pipelineVersion == planned.pipelineVersion &&
+                    component.componentHash == planned.componentHash &&
+                    component.embeddingSpaceHash == planned.embeddingSpaceHash,
+            )
+            if (planned.action == ActivationCandidateChannelAction.INHERIT) {
+                check(component.inheritedFromSnapshotId == candidate.parentSnapshotId)
+            } else {
+                check(component.inheritedFromSnapshotId == null)
+            }
+            validateActivationComponent(snapshot, component)
+        }
+        val parentSnapshot = candidate.parentSnapshotId?.let { checkNotNull(snapshot(it)) }
+        if (parentSnapshot != null) {
+            check(snapshot.lexicalPublicationEpoch >= parentSnapshot.lexicalPublicationEpoch)
+            check(snapshot.pHashPublicationEpoch >= parentSnapshot.pHashPublicationEpoch)
+        }
+        val ocrPlan = checkNotNull(plannedByChannel[IndexChannel.OCR])
+        if (ocrPlan.action == ActivationCandidateChannelAction.REBUILD_SHADOW) {
+            check(snapshot.lexicalPublicationEpoch <= (publicationClock()?.lastEpoch ?: 0))
+            check(
+                coveredOcrAssetCount(
+                    pipelineVersion = ocrPlan.pipelineVersion,
+                    componentHash = ocrPlan.componentHash,
+                    maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
+                ) == availableAssetCount(),
+            ) { "Changed OCR candidate does not cover the accessible cutover set" }
+        }
+        check(snapshot.semanticManifestRevision != null || snapshot.visualManifestRevision != null)
+    }
+
+    private suspend fun validateActivationComponent(
+        snapshot: ActivationSnapshotEntity,
+        component: ActivationSnapshotChannelEntity,
+    ) {
+        if (component.inheritedFromSnapshotId != null) {
+            check(component.inheritedFromSnapshotId == snapshot.parentSnapshotId)
+            val parent = checkNotNull(snapshotChannel(component.inheritedFromSnapshotId, component.channel))
+            check(
+                parent.pipelineVersion == component.pipelineVersion &&
+                    parent.componentHash == component.componentHash &&
+                    parent.embeddingSpaceHash == component.embeddingSpaceHash &&
+                    parent.generationId == component.generationId &&
+                    parent.manifestRevision == component.manifestRevision,
+            )
+        }
+        if (component.channel !in setOf(IndexChannel.OCR_SEMANTIC, IndexChannel.VISUAL)) {
+            check(
+                component.embeddingSpaceHash == null &&
+                    component.generationId == null &&
+                    component.manifestRevision == null,
+            )
+            return
+        }
+        val expectedRevision =
+            if (component.channel == IndexChannel.VISUAL) snapshot.visualManifestRevision else snapshot.semanticManifestRevision
+        check(component.manifestRevision == expectedRevision)
+        val manifest = checkNotNull(component.manifestRevision?.let { manifest(it) })
+        val generation = checkNotNull(generation(manifest.generationId))
+        check(component.generationId == generation.generationId)
+        check(manifest.channel == component.channel && generation.channel == component.channel)
+        check(generation.pipelineVersion == component.pipelineVersion)
+        check(generation.componentHash == component.componentHash)
+        check(generation.embeddingSpaceHash == component.embeddingSpaceHash)
+        check(generation.state in setOf(VectorGenerationState.BUILDING, VectorGenerationState.SEALED))
+        check(manifestSegments(manifest.revision).size == manifest.segmentCount)
+    }
+
+    private suspend fun buildPublishedSnapshotChannels(
+        snapshot: ActivationSnapshotEntity,
+        generation: VectorGenerationEntity,
+        manifest: VectorManifestEntity,
+    ): List<ActivationSnapshotChannelEntity> {
+        val parentChannels = snapshot.parentSnapshotId?.let { snapshotChannels(it) }.orEmpty()
+        val channels = parentChannels.associateBy(ActivationSnapshotChannelEntity::channel).toMutableMap()
+        if (IndexChannel.OCR !in channels) {
+            channels[IndexChannel.OCR] =
+                ActivationSnapshotChannelEntity(
+                    snapshotId = snapshot.snapshotId,
+                    channel = IndexChannel.OCR,
+                    pipelineVersion = "ocr-v1",
+                    componentHash = snapshot.packManifestSha256,
+                    embeddingSpaceHash = null,
+                    generationId = null,
+                    manifestRevision = null,
+                    inheritedFromSnapshotId = null,
+                )
+        }
+        if (IndexChannel.PHASH !in channels) {
+            channels[IndexChannel.PHASH] =
+                ActivationSnapshotChannelEntity(
+                    snapshotId = snapshot.snapshotId,
+                    channel = IndexChannel.PHASH,
+                    pipelineVersion = "phash-v1",
+                    componentHash = PerceptualHashComponentHash,
+                    embeddingSpaceHash = null,
+                    generationId = null,
+                    manifestRevision = null,
+                    inheritedFromSnapshotId = null,
+                )
+        }
+        parentChannels.forEach { parent ->
+            channels[parent.channel] =
+                parent.copy(
+                    snapshotId = snapshot.snapshotId,
+                    inheritedFromSnapshotId = snapshot.parentSnapshotId,
+                )
+        }
+        channels[generation.channel] =
+            ActivationSnapshotChannelEntity(
+                snapshotId = snapshot.snapshotId,
+                channel = generation.channel,
+                pipelineVersion = generation.pipelineVersion,
+                componentHash = generation.componentHash,
+                embeddingSpaceHash = generation.embeddingSpaceHash,
+                generationId = generation.generationId,
+                manifestRevision = manifest.revision,
+                inheritedFromSnapshotId = null,
+            )
+        return channels.values.sortedBy(ActivationSnapshotChannelEntity::channel)
+    }
+
+    private suspend fun advanceActivePointer(snapshotId: String, nowMillis: Long) {
+        val current = activePointer()
+        replaceActivePointer(
+            ActiveSnapshotPointerEntity(
+                snapshotId = snapshotId,
+                rollbackSnapshotId = current?.snapshotId,
+                activationSequence = Math.addExact(current?.activationSequence ?: 0, 1),
+                updatedAtMillis = nowMillis,
+            ),
+        )
     }
 
     private fun validateSegment(
@@ -888,7 +1481,7 @@ interface VectorIndexDao {
         require(records.map(VectorSegmentRecordEntity::ordinal) == records.indices.toList())
         require(records.all { record ->
             record.segmentSha256 == segment.sha256 &&
-                record.recordId > 0 && record.assetId > 0 && record.chunkOrdinal >= 0 &&
+                record.recordId > 0 && record.assetId > 0 && record.accessRevision > 0 && record.chunkOrdinal >= 0 &&
                 record.sourceFingerprint.isNotBlank() && record.sourceFingerprint.length <= 128
         })
         require(records.map(VectorSegmentRecordEntity::recordId).distinct().size == records.size)
@@ -932,6 +1525,8 @@ interface VectorIndexDao {
         private val ContractValue = Regex("[A-Za-z0-9][A-Za-z0-9._:+/-]*")
         private val Sha256 = Regex("[0-9a-f]{64}")
         private val ArtifactPath = Regex("[A-Za-z0-9][A-Za-z0-9._/-]*")
+        private const val PerceptualHashComponentHash =
+            "b88379e5ff4d030a0193e528514079b18d5c0619d4500357381d0b4ec82b656a"
         const val MaximumVectorDimension = 4096
         const val MaximumSegmentRecords = 256
         const val MaximumManifestSegments = 65_536

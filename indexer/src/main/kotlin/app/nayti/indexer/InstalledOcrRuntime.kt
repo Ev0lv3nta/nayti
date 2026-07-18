@@ -172,6 +172,7 @@ class OcrSemanticExecutionSession private constructor(
             semantic: OcrSemanticDao,
             vectors: VectorIndexDao,
             vectorRoot: File,
+            candidateSnapshotId: String? = null,
             clock: OcrExecutorClock = OcrExecutorClock(System::currentTimeMillis),
         ): OcrSemanticExecutionSession {
             val pack = resolver.resolve(packId, packVersion)
@@ -221,13 +222,17 @@ class OcrSemanticExecutionSession private constructor(
                         semantic = semantic,
                         embedding = User2SemanticEmbeddingEngine(runtime),
                         publisher =
-                            VectorStoreSemanticPublisher(
-                                VectorPublicationStore(
-                                    rootDirectory = vectorRoot,
-                                    dao = vectors,
-                                    nowMillis = clock::nowMillis,
-                                ),
-                            ),
+                            VectorPublicationStore(
+                                rootDirectory = vectorRoot,
+                                dao = vectors,
+                                nowMillis = clock::nowMillis,
+                            ).let { store ->
+                                if (candidateSnapshotId == null) {
+                                    VectorStoreSemanticPublisher(store)
+                                } else {
+                                    ShadowVectorStoreSemanticPublisher(store, vectors, candidateSnapshotId)
+                                }
+                            },
                         generationId = generation.generationId,
                         clock = clock,
                     ),
@@ -257,6 +262,7 @@ class VisualExecutionSession private constructor(
             vectors: VectorIndexDao,
             decoder: BoundedMediaDecoder,
             vectorRoot: File,
+            candidateSnapshotId: String? = null,
             clock: OcrExecutorClock = OcrExecutorClock(System::currentTimeMillis),
         ): VisualExecutionSession {
             val pack = resolver.resolve(packId, packVersion)
@@ -308,13 +314,17 @@ class VisualExecutionSession private constructor(
                         decoder = decoder,
                         embedding = Siglip2VisualEmbeddingEngine(runtime),
                         publisher =
-                            VectorStoreVisualPublisher(
-                                VectorPublicationStore(
-                                    rootDirectory = vectorRoot,
-                                    dao = vectors,
-                                    nowMillis = clock::nowMillis,
-                                ),
-                            ),
+                            VectorPublicationStore(
+                                rootDirectory = vectorRoot,
+                                dao = vectors,
+                                nowMillis = clock::nowMillis,
+                            ).let { store ->
+                                if (candidateSnapshotId == null) {
+                                    VectorStoreVisualPublisher(store)
+                                } else {
+                                    ShadowVectorStoreVisualPublisher(store, vectors, candidateSnapshotId)
+                                }
+                            },
                         generationId = generation.generationId,
                         componentHash = pack.componentHash,
                         clock = clock,

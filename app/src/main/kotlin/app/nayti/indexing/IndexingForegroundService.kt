@@ -11,6 +11,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import app.nayti.MainActivity
 import app.nayti.R
+import app.nayti.indexer.ModelPackActivationRuntime
 import app.nayti.indexer.ModelPackRuntime
 import app.nayti.indexer.ModelPackRuntimeStatus
 import app.nayti.indexer.OcrIndexingRuntime
@@ -30,6 +31,7 @@ import kotlinx.coroutines.launch
 @AndroidEntryPoint
 class IndexingForegroundService : Service() {
     @Inject lateinit var indexing: OcrIndexingRuntime
+    @Inject lateinit var packActivation: ModelPackActivationRuntime
     @Inject lateinit var modelPacks: ModelPackRuntime
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -95,7 +97,7 @@ class IndexingForegroundService : Service() {
                         state.status != ModelPackRuntimeStatus.Loading &&
                             state.status != ModelPackRuntimeStatus.Installing
                     }
-                val pack = packState.installed
+                val pack = packState.candidate ?: packState.installed
                 if (pack == null) {
                     notifications.notify(NotificationId, notification(indexing.state.value, modelMissing = true))
                     delay(ModelMissingNoticeMillis)
@@ -103,15 +105,27 @@ class IndexingForegroundService : Service() {
                     stopSelfResult(startId)
                     return@launch
                 }
-                indexing.runForeground(pack)
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelfResult(startId)
+                try {
+                    if (packState.candidate != null) {
+                        packActivation.runForeground(pack)
+                        modelPacks.refresh()
+                    } else {
+                        indexing.runForeground(pack)
+                    }
+                } finally {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelfResult(startId)
+                }
             }
     }
 
     private fun control(startId: Int, command: suspend () -> Unit) {
         serviceScope.launch {
-            command()
+            if (packActivation.isRunning()) {
+                packActivation.requestStop()
+            } else {
+                command()
+            }
             executionJob?.cancel()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelfResult(startId)

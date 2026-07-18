@@ -22,6 +22,7 @@ enum class ModelPackRuntimeStatus {
 data class ModelPackRuntimeState(
     val status: ModelPackRuntimeStatus,
     val installed: ModelPackEntity?,
+    val candidate: ModelPackEntity?,
     val errorCode: String?,
 )
 
@@ -29,15 +30,20 @@ class ModelPackRuntime(
     private val installer: RegisteredModelPackInstaller,
     private val registry: ModelPackDao,
     private val scope: CoroutineScope,
+    private val activePack: suspend () -> ModelPackEntity? = { null },
 ) {
     private val installing = AtomicBoolean(false)
     private val mutableState =
-        MutableStateFlow(ModelPackRuntimeState(ModelPackRuntimeStatus.Loading, null, null))
+        MutableStateFlow(ModelPackRuntimeState(ModelPackRuntimeStatus.Loading, null, null, null))
 
     val state: StateFlow<ModelPackRuntimeState> = mutableState.asStateFlow()
 
     fun start() {
-        scope.launch { refresh() }
+        refresh()
+    }
+
+    fun refresh() {
+        scope.launch { refreshState() }
     }
 
     fun install(source: ModelPackSource) {
@@ -46,19 +52,28 @@ class ModelPackRuntime(
         scope.launch {
             try {
                 val installed = installer.install(source)
-                mutableState.value = ModelPackRuntimeState(ModelPackRuntimeStatus.Ready, installed, null)
+                val active = activePack()
+                mutableState.value =
+                    ModelPackRuntimeState(
+                        status = ModelPackRuntimeStatus.Ready,
+                        installed = active ?: installed,
+                        candidate = installed.takeIf { active != null && it != active },
+                        errorCode = null,
+                    )
             } catch (failure: Exception) {
                 mutableState.value =
                     ModelPackRuntimeState(
                         status = ModelPackRuntimeStatus.Failed,
-                        installed = newestInstalled(),
+                        installed = activePack() ?: newestInstalled(),
+                        candidate = null,
                         errorCode = failure::class.java.simpleName.uppercase(),
                     )
             } catch (_: LinkageError) {
                 mutableState.value =
                     ModelPackRuntimeState(
                         status = ModelPackRuntimeStatus.Failed,
-                        installed = newestInstalled(),
+                        installed = activePack() ?: newestInstalled(),
+                        candidate = null,
                         errorCode = "RUNTIME_UNAVAILABLE",
                     )
             } finally {
@@ -67,12 +82,15 @@ class ModelPackRuntime(
         }
     }
 
-    private suspend fun refresh() {
-        val installed = newestInstalled()
+    private suspend fun refreshState() {
+        val active = activePack()
+        val newest = newestInstalled()
+        val installed = active ?: newest
         mutableState.value =
             ModelPackRuntimeState(
                 status = if (installed == null) ModelPackRuntimeStatus.Missing else ModelPackRuntimeStatus.Ready,
                 installed = installed,
+                candidate = newest.takeIf { active != null && it != active },
                 errorCode = null,
             )
     }

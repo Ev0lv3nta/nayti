@@ -25,6 +25,7 @@ import app.nayti.platform.media.DecodedMediaImage
 import app.nayti.ml.runtime.pack.SafModelPackSource
 import app.nayti.storage.CatalogAssetEntity
 import app.nayti.storage.CatalogStorage
+import app.nayti.storage.IndexChannel
 import app.nayti.storage.OcrRegionEntity
 import app.nayti.search.engine.similarity.PerceptualHashMatch
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -164,15 +165,18 @@ class CatalogViewModel @Inject constructor(
                 try {
                     val image = runtime.decode(assetId, accessPin)
                     try {
-                        val pack = modelPack.value.installed
+                        val activeSnapshotId = storage.vectorIndexDao.activeSnapshotId()
+                        val ocrComponent = activeSnapshotId?.let { snapshotId ->
+                            storage.vectorIndexDao.snapshotChannel(snapshotId, IndexChannel.OCR)
+                        }
                         val evidence =
-                            if (pack == null) {
+                            if (ocrComponent == null) {
                                 null
                             } else {
                                 storage.ocrDao.eligibleAsset(
                                     assetId,
-                                    OcrIndexingRuntime.PipelineVersion,
-                                    pack.manifestSha256,
+                                    ocrComponent.pipelineVersion,
+                                    ocrComponent.componentHash,
                                 )
                             }
                         val matched =

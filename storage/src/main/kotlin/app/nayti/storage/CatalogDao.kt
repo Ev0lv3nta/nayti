@@ -21,6 +21,19 @@ interface CatalogDao {
     @Query("SELECT * FROM catalog_asset ORDER BY assetId")
     suspend fun allAssets(): List<CatalogAssetEntity>
 
+    @Query(
+        "SELECT bucketId AS bucketId, COALESCE(NULLIF(TRIM(bucketDisplayName), ''), 'Без названия') AS displayName, " +
+            "COUNT(*) AS assetCount FROM catalog_asset WHERE availability = 'AVAILABLE' AND bucketId IS NOT NULL " +
+            "GROUP BY bucketId, displayName ORDER BY displayName COLLATE NOCASE, bucketId",
+    )
+    suspend fun availableAlbumFacets(): List<SearchAlbumFacet>
+
+    @Query(
+        "SELECT mimeType AS mimeType, COUNT(*) AS assetCount FROM catalog_asset " +
+            "WHERE availability = 'AVAILABLE' GROUP BY mimeType ORDER BY assetCount DESC, mimeType",
+    )
+    suspend fun availableMimeFacets(): List<SearchMimeFacet>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAsset(asset: CatalogAssetEntity): Long
 
@@ -266,4 +279,11 @@ interface CatalogDao {
     suspend fun counts(): CatalogCounts =
         countsOrNull()
             ?: CatalogCounts(0, 0, 0, 0, 0, 0, 0, 0)
+
+    @Transaction
+    suspend fun searchFilterFacets(): SearchFilterFacets =
+        SearchFilterFacets(
+            albums = availableAlbumFacets(),
+            mimeTypes = availableMimeFacets(),
+        )
 }

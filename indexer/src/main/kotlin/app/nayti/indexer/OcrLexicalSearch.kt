@@ -42,6 +42,7 @@ class OcrLexicalSearch(
         pipelineVersion: String,
         componentHash: String,
         limit: Int = DefaultLimit,
+        filter: SearchFilter = SearchFilter.None,
     ): OcrLexicalSearchResult {
         require(limit in 1..MaximumResultLimit)
         val plan = planner.plan(query)
@@ -55,6 +56,10 @@ class OcrLexicalSearch(
                 pipelineVersion = pipelineVersion,
                 componentHash = componentHash,
                 limit = OcrDao.MaximumCandidates,
+                takenFromMillis = filter.takenFromMillis,
+                takenBeforeMillis = filter.takenBeforeMillis,
+                bucketId = filter.bucketId,
+                mimeType = filter.mimeType,
             )
         return assemble(plan, snapshot, limit)
     }
@@ -65,6 +70,7 @@ class OcrLexicalSearch(
         componentHash: String,
         maximumPublicationEpoch: Long,
         limit: Int = DefaultLimit,
+        filter: SearchFilter = SearchFilter.None,
     ): OcrLexicalSearchResult {
         require(limit in 1..MaximumResultLimit)
         require(maximumPublicationEpoch >= 0)
@@ -80,6 +86,10 @@ class OcrLexicalSearch(
                 componentHash = componentHash,
                 maximumPublicationEpoch = maximumPublicationEpoch,
                 limit = OcrDao.MaximumCandidates,
+                takenFromMillis = filter.takenFromMillis,
+                takenBeforeMillis = filter.takenBeforeMillis,
+                bucketId = filter.bucketId,
+                mimeType = filter.mimeType,
             )
         return assemble(plan, snapshot, limit)
     }

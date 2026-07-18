@@ -163,6 +163,12 @@ interface VectorIndexDao {
             "AND chunk.ocrPublicationToken = document.publicationToken " +
             "AND chunk.sourceFingerprint = document.sourceFingerprint " +
             "AND asset.availability = 'AVAILABLE' " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(asset.dateTakenMillis, " +
+            "asset.dateModifiedSeconds * 1000) >= :takenFromMillis) " +
+            "AND (:takenBeforeMillis IS NULL OR COALESCE(asset.dateTakenMillis, " +
+            "asset.dateModifiedSeconds * 1000) < :takenBeforeMillis) " +
+            "AND (:bucketId IS NULL OR asset.bucketId = :bucketId) " +
+            "AND (:mimeType IS NULL OR asset.mimeType = :mimeType) " +
             "AND asset.sourceFingerprint = document.sourceFingerprint " +
             "AND generation.pipelineVersion = :semanticPipelineVersion " +
             "AND generation.componentHash = :componentHash " +
@@ -181,6 +187,10 @@ interface VectorIndexDao {
         ocrPipelineVersion: String,
         ocrComponentHash: String,
         maximumPublicationEpoch: Long,
+        takenFromMillis: Long?,
+        takenBeforeMillis: Long?,
+        bucketId: Long?,
+        mimeType: String?,
     ): List<Long>
 
     @Query(
@@ -226,6 +236,12 @@ interface VectorIndexDao {
             "AND vectorRecord.recordId = vectorRecord.assetId " +
             "AND vectorRecord.chunkOrdinal = 0 AND vectorRecord.semanticChunkId IS NULL " +
             "AND asset.availability = 'AVAILABLE' " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(asset.dateTakenMillis, " +
+            "asset.dateModifiedSeconds * 1000) >= :takenFromMillis) " +
+            "AND (:takenBeforeMillis IS NULL OR COALESCE(asset.dateTakenMillis, " +
+            "asset.dateModifiedSeconds * 1000) < :takenBeforeMillis) " +
+            "AND (:bucketId IS NULL OR asset.bucketId = :bucketId) " +
+            "AND (:mimeType IS NULL OR asset.mimeType = :mimeType) " +
             "AND asset.sourceFingerprint = vectorRecord.sourceFingerprint " +
             "AND vectorRecord.accessRevision = access.processAccessRevision " +
             "AND generation.pipelineVersion = :visualPipelineVersion " +
@@ -238,6 +254,10 @@ interface VectorIndexDao {
         segmentSha256: String,
         visualPipelineVersion: String,
         componentHash: String,
+        takenFromMillis: Long?,
+        takenBeforeMillis: Long?,
+        bucketId: Long?,
+        mimeType: String?,
     ): List<Long>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
@@ -1014,6 +1034,10 @@ interface VectorIndexDao {
         maximumPublicationEpoch: Long,
         ocrPipelineVersion: String = "ocr-v1",
         ocrComponentHash: String = componentHash,
+        takenFromMillis: Long? = null,
+        takenBeforeMillis: Long? = null,
+        bucketId: Long? = null,
+        mimeType: String? = null,
     ): List<Long> {
         require(identifier(manifestRevision) && sha256(segmentSha256))
         require(
@@ -1023,6 +1047,7 @@ interface VectorIndexDao {
                 sha256(ocrComponentHash),
         )
         require(maximumPublicationEpoch >= 0)
+        validateSearchFilters(takenFromMillis, takenBeforeMillis, bucketId, mimeType)
         val manifest = checkNotNull(manifest(manifestRevision))
         check(manifest.channel == IndexChannel.OCR_SEMANTIC)
         return semanticEligibleRecordIds(
@@ -1033,6 +1058,10 @@ interface VectorIndexDao {
             ocrPipelineVersion = ocrPipelineVersion,
             ocrComponentHash = ocrComponentHash,
             maximumPublicationEpoch = maximumPublicationEpoch,
+            takenFromMillis = takenFromMillis,
+            takenBeforeMillis = takenBeforeMillis,
+            bucketId = bucketId,
+            mimeType = mimeType,
         ).also { recordIds ->
             check(recordIds.size <= MaximumSegmentRecords)
             check(recordIds.all { it > 0 } && recordIds.zipWithNext().all { (left, right) -> left < right })
@@ -1073,9 +1102,14 @@ interface VectorIndexDao {
         segmentSha256: String,
         visualPipelineVersion: String,
         componentHash: String,
+        takenFromMillis: Long? = null,
+        takenBeforeMillis: Long? = null,
+        bucketId: Long? = null,
+        mimeType: String? = null,
     ): List<Long> {
         require(identifier(manifestRevision) && sha256(segmentSha256))
         require(contractValue(visualPipelineVersion) && sha256(componentHash))
+        validateSearchFilters(takenFromMillis, takenBeforeMillis, bucketId, mimeType)
         val manifest = checkNotNull(manifest(manifestRevision))
         check(manifest.channel == IndexChannel.VISUAL)
         return visualEligibleRecordIds(
@@ -1083,10 +1117,27 @@ interface VectorIndexDao {
             segmentSha256 = segmentSha256,
             visualPipelineVersion = visualPipelineVersion,
             componentHash = componentHash,
+            takenFromMillis = takenFromMillis,
+            takenBeforeMillis = takenBeforeMillis,
+            bucketId = bucketId,
+            mimeType = mimeType,
         ).also { recordIds ->
             check(recordIds.size <= MaximumSegmentRecords)
             check(recordIds.all { it > 0 } && recordIds.zipWithNext().all { (left, right) -> left < right })
         }
+    }
+
+    private fun validateSearchFilters(
+        takenFromMillis: Long?,
+        takenBeforeMillis: Long?,
+        bucketId: Long?,
+        mimeType: String?,
+    ) {
+        require(takenFromMillis == null || takenFromMillis >= 0)
+        require(takenBeforeMillis == null || takenBeforeMillis >= 0)
+        require(takenFromMillis == null || takenBeforeMillis == null || takenFromMillis < takenBeforeMillis)
+        require(bucketId == null || bucketId >= 0)
+        require(mimeType == null || MimeType.matches(mimeType))
     }
 
     @Transaction
@@ -1525,6 +1576,7 @@ interface VectorIndexDao {
         private val ContractValue = Regex("[A-Za-z0-9][A-Za-z0-9._:+/-]*")
         private val Sha256 = Regex("[0-9a-f]{64}")
         private val ArtifactPath = Regex("[A-Za-z0-9][A-Za-z0-9._/-]*")
+        private val MimeType = Regex("[a-z0-9][a-z0-9.+-]*/[a-z0-9][a-z0-9.+-]*")
         private const val PerceptualHashComponentHash =
             "b88379e5ff4d030a0193e528514079b18d5c0619d4500357381d0b4ec82b656a"
         const val MaximumVectorDimension = 4096

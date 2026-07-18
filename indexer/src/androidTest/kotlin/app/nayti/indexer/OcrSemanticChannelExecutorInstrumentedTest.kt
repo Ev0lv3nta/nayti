@@ -84,6 +84,30 @@ class OcrSemanticChannelExecutorInstrumentedTest {
                 maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
             ),
         )
+        assertEquals(
+            records.map { it.recordId }.sorted(),
+            storage.vectorIndexDao.currentEligibleSemanticRecordIds(
+                manifestRevision = manifest.revision,
+                segmentSha256 = segment.sha256,
+                semanticPipelineVersion = OcrSemanticChannelExecutor.PipelineVersion,
+                componentHash = ComponentHash,
+                maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
+                takenFromMillis = 4_000,
+                takenBeforeMillis = 6_000,
+                bucketId = 200,
+                mimeType = "image/jpeg",
+            ),
+        )
+        assertTrue(
+            storage.vectorIndexDao.currentEligibleSemanticRecordIds(
+                manifestRevision = manifest.revision,
+                segmentSha256 = segment.sha256,
+                semanticPipelineVersion = OcrSemanticChannelExecutor.PipelineVersion,
+                componentHash = ComponentHash,
+                maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
+                bucketId = 201,
+            ).isEmpty(),
+        )
         assertEquals(2, engine.encodedTexts.size)
         assertEquals(1L, snapshot.lexicalPublicationEpoch)
 
@@ -111,6 +135,7 @@ class OcrSemanticChannelExecutorInstrumentedTest {
         assertEquals(1, searchResult.hits.size)
         assertEquals(AssetId, searchResult.hits.single().assetId)
         assertTrue(searchResult.hits.single().matchedLineOrdinals.isNotEmpty())
+        assertTrue(search.search("European revenue", filter = SearchFilter(bucketId = 201)).hits.isEmpty())
         assertNull(storage.vectorIndexDao.queryLease("semantic-query-test"))
         val hybrid = OcrHybridSearch(storage.ocrDao, storage.vectorIndexDao, search)
         val hybridResult =
@@ -384,11 +409,11 @@ class OcrSemanticChannelExecutorInstrumentedTest {
             orientationDegrees = 0,
             generationAdded = 1,
             generationModified = 1,
-            dateTakenMillis = null,
+            dateTakenMillis = 5_000,
             dateModifiedSeconds = 1,
             displayName = null,
-            bucketId = null,
-            bucketDisplayName = null,
+            bucketId = 200,
+            bucketDisplayName = "Documents",
             relativePath = null,
             sourceFingerprint = Fingerprint,
             availability = CatalogAvailability.AVAILABLE,

@@ -50,6 +50,13 @@
     <string name="search_title">Найди то, что помнишь</string>
     <string name="search_subtitle">Текст на фото, номера, имена и документы — локально, без облака.</string>
     <string name="search_hint">Например, «чек из кофейни»</string>
+    <string name="search_filters_title">Где искать</string>
+    <string name="search_date_any">За всё время</string>
+    <string name="search_date_month">30 дней</string>
+    <string name="search_date_year">Год</string>
+    <string name="search_album_all">Все альбомы</string>
+    <string name="search_type_all">Все форматы</string>
+    <string name="search_filters_reset">Сбросить</string>
     <string name="search_catalog_ready">Каталог подключён. Поиск видит только уже обработанные фотографии.</string>
     <string name="search_waiting_access">Сначала подключите медиатеку на вкладке «Готовность».</string>
     <string name="search_waiting_model_pack">Импортируйте подписанный model pack на вкладке «Данные».</string>

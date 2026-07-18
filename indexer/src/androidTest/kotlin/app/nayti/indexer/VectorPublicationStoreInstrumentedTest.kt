@@ -156,6 +156,49 @@ class VectorPublicationStoreInstrumentedTest {
     }
 
     @Test
+    fun visualEligibilityAppliesCatalogFiltersBeforeNativeScan() = runBlocking {
+        val assetId = insertAsset(5)
+        val snapshot = store().publish(request(5, assetId, stageRunningWork(assetId, "filter-lease")))
+        val manifestRevision = checkNotNull(snapshot.visualManifestRevision)
+        val segmentSha256 = storage.vectorIndexDao.manifestSegments(manifestRevision).single().segmentSha256
+        val current = checkNotNull(storage.catalogDao.asset(assetId))
+        assertEquals(
+            1,
+            storage.catalogDao.updateAsset(
+                current.copy(
+                    mimeType = "image/png",
+                    dateTakenMillis = 5_000,
+                    bucketId = 200,
+                    bucketDisplayName = "Documents",
+                ),
+            ),
+        )
+
+        assertEquals(
+            listOf(assetId),
+            storage.vectorIndexDao.currentEligibleVisualRecordIds(
+                manifestRevision = manifestRevision,
+                segmentSha256 = segmentSha256,
+                visualPipelineVersion = "visual-v1",
+                componentHash = ComponentHash,
+                takenFromMillis = 4_000,
+                takenBeforeMillis = 6_000,
+                bucketId = 200,
+                mimeType = "image/png",
+            ),
+        )
+        assertTrue(
+            storage.vectorIndexDao.currentEligibleVisualRecordIds(
+                manifestRevision = manifestRevision,
+                segmentSha256 = segmentSha256,
+                visualPipelineVersion = "visual-v1",
+                componentHash = ComponentHash,
+                mimeType = "image/jpeg",
+            ).isEmpty(),
+        )
+    }
+
+    @Test
     fun readyCandidateActivatesAtomicallyWhileParentLeaseRemainsValidAndRollbackIsPointerOnly() = runBlocking {
         val assetId = insertAsset(1)
         val parent = store().publish(request(101, assetId, stageRunningWork(assetId, "activation-parent")))

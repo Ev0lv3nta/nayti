@@ -109,6 +109,22 @@ data class CatalogCounts(
     val deleted: Long,
 )
 
+data class SearchAlbumFacet(
+    val bucketId: Long,
+    val displayName: String,
+    val assetCount: Long,
+)
+
+data class SearchMimeFacet(
+    val mimeType: String,
+    val assetCount: Long,
+)
+
+data class SearchFilterFacets(
+    val albums: List<SearchAlbumFacet>,
+    val mimeTypes: List<SearchMimeFacet>,
+)
+
 object CatalogAvailability {
     const val AVAILABLE = "AVAILABLE"
     const val OUT_OF_SCOPE = "OUT_OF_SCOPE"

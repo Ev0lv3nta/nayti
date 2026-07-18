@@ -43,12 +43,13 @@ class OcrHybridSearch(
         pipelineVersion: String,
         fallbackComponentHash: String,
         limit: Int = DefaultLimit,
+        filter: SearchFilter = SearchFilter.None,
     ): OcrHybridSearchResult {
         require(limit in 1..MaximumResultLimit)
         var accessFailure: SemanticAccessChangedException? = null
         repeat(MaximumAccessAttempts) {
             try {
-                return searchOnce(query, pipelineVersion, fallbackComponentHash, limit)
+                return searchOnce(query, pipelineVersion, fallbackComponentHash, limit, filter)
             } catch (failure: SemanticAccessChangedException) {
                 accessFailure = failure
             }
@@ -61,6 +62,7 @@ class OcrHybridSearch(
         pipelineVersion: String,
         limit: Int,
         lease: QuerySnapshotLeaseEntity,
+        filter: SearchFilter = SearchFilter.None,
     ): OcrHybridSearchResult {
         require(limit in 1..MaximumResultLimit)
         val snapshot = checkNotNull(vectors.snapshot(lease.snapshotId))
@@ -72,10 +74,11 @@ class OcrHybridSearch(
                 componentHash = ocrComponent.componentHash,
                 maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
                 limit = MaximumRetrieverCandidates,
+                filter = filter,
             )
         val semanticResult =
             if (lexicalResult.intent == LexicalIntent.ORDINARY_TEXT) {
-                semantic.searchLeased(query.trim(), MaximumRetrieverCandidates, lease)
+                semantic.searchLeased(query.trim(), MaximumRetrieverCandidates, lease, filter)
             } else {
                 null
             }
@@ -94,6 +97,7 @@ class OcrHybridSearch(
         pipelineVersion: String,
         fallbackComponentHash: String,
         limit: Int,
+        filter: SearchFilter,
     ): OcrHybridSearchResult {
         val activeSnapshot = vectors.activeSnapshotId()?.let { snapshotId -> vectors.snapshot(snapshotId) }
         val activeOcrComponent = activeSnapshot?.let { snapshot ->
@@ -101,7 +105,13 @@ class OcrHybridSearch(
         }
         var lexicalResult =
             if (activeSnapshot == null) {
-                lexical.search(query, pipelineVersion, fallbackComponentHash, MaximumRetrieverCandidates)
+                lexical.search(
+                    query,
+                    pipelineVersion,
+                    fallbackComponentHash,
+                    MaximumRetrieverCandidates,
+                    filter,
+                )
             } else {
                 lexical.searchAtEpoch(
                     query = query,
@@ -109,11 +119,12 @@ class OcrHybridSearch(
                     componentHash = activeOcrComponent ?: activeSnapshot.packManifestSha256,
                     maximumPublicationEpoch = activeSnapshot.lexicalPublicationEpoch,
                     limit = MaximumRetrieverCandidates,
+                    filter = filter,
                 )
             }
         val semanticResult =
             if (lexicalResult.intent == LexicalIntent.ORDINARY_TEXT) {
-                semantic.search(query, MaximumRetrieverCandidates)
+                semantic.search(query, MaximumRetrieverCandidates, filter)
             } else {
                 null
             }
@@ -127,6 +138,7 @@ class OcrHybridSearch(
                         componentHash = activeOcrComponent ?: activeSnapshot?.packManifestSha256 ?: fallbackComponentHash,
                         maximumPublicationEpoch = semanticEpoch,
                         limit = MaximumRetrieverCandidates,
+                        filter = filter,
                     )
             }
             val access = vectors.accessObservation()

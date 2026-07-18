@@ -46,6 +46,13 @@
     <string name="search_title">Find what you remember</string>
     <string name="search_subtitle">Text in photos, identifiers, names, and documents — locally, without the cloud.</string>
     <string name="search_hint">For example, “coffee shop receipt”</string>
+    <string name="search_filters_title">Search within</string>
+    <string name="search_date_any">Any time</string>
+    <string name="search_date_month">30 days</string>
+    <string name="search_date_year">One year</string>
+    <string name="search_album_all">All albums</string>
+    <string name="search_type_all">All formats</string>
+    <string name="search_filters_reset">Reset</string>
     <string name="search_catalog_ready">The catalog is connected. Search covers only photos already processed.</string>
     <string name="search_waiting_access">Connect your library on the Readiness tab first.</string>
     <string name="search_waiting_model_pack">Import a signed model pack on the Data tab.</string>

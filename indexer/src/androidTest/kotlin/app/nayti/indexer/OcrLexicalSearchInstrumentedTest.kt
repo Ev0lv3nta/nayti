@@ -90,6 +90,61 @@ class OcrLexicalSearchInstrumentedTest {
         assertTrue(storage.ocrDao.eligibleAsset(receiptId, PipelineVersion, ComponentHash) == null)
     }
 
+    @Test
+    fun catalogFiltersAreAppliedBeforeCandidateLimit() = runBlocking {
+        val excludedId =
+            insertAsset(
+                mediaStoreId = 10,
+                fingerprint = FingerprintA,
+                mimeType = "image/jpeg",
+                dateTakenMillis = 1_000,
+                bucketId = 100,
+            )
+        val includedId =
+            insertAsset(
+                mediaStoreId = 11,
+                fingerprint = FingerprintB,
+                mimeType = "image/png",
+                dateTakenMillis = 5_000,
+                bucketId = 200,
+            )
+        val claims = startAndClaim(listOf(excludedId, includedId))
+        publish(claims.getValue(excludedId), "Invoice")
+        publish(claims.getValue(includedId), "Invoice")
+
+        val snapshot =
+            storage.ocrDao.candidateSnapshotAt(
+                lexicalMatchQuery = "canonical : invoice",
+                trigramMatchQuery = null,
+                pipelineVersion = PipelineVersion,
+                componentHash = ComponentHash,
+                maximumPublicationEpoch = 2,
+                limit = 1,
+                takenFromMillis = 4_000,
+                takenBeforeMillis = 6_000,
+                bucketId = 200,
+                mimeType = "image/png",
+            )
+
+        assertEquals(listOf(includedId), snapshot.lexicalCandidates.map { it.assetId })
+        assertEquals(listOf(includedId), snapshot.documents.map { it.assetId })
+        val result =
+            OcrLexicalSearch(storage.ocrDao).search(
+                query = "invoice",
+                pipelineVersion = PipelineVersion,
+                componentHash = ComponentHash,
+                limit = 1,
+                filter =
+                    SearchFilter(
+                        takenFromMillis = 4_000,
+                        takenBeforeMillis = 6_000,
+                        bucketId = 200,
+                        mimeType = "image/png",
+                    ),
+            )
+        assertEquals(listOf(includedId), result.hits.map { it.assetId })
+    }
+
     private suspend fun startAndClaim(assetIds: List<Long>): Map<Long, IndexChannelWorkEntity> {
         val catalog = storage.catalogDao
         val index = storage.indexStateDao
@@ -176,22 +231,28 @@ class OcrLexicalSearchInstrumentedTest {
         )
     }
 
-    private suspend fun insertAsset(mediaStoreId: Long, fingerprint: String): Long =
+    private suspend fun insertAsset(
+        mediaStoreId: Long,
+        fingerprint: String,
+        mimeType: String = "image/jpeg",
+        dateTakenMillis: Long? = null,
+        bucketId: Long? = null,
+    ): Long =
         storage.catalogDao.insertAsset(
             CatalogAssetEntity(
                 volumeName = "external_primary",
                 mediaStoreId = mediaStoreId,
-                mimeType = "image/jpeg",
+                mimeType = mimeType,
                 sizeBytes = 100,
                 width = 1_440,
                 height = 1_080,
                 orientationDegrees = 0,
                 generationAdded = 1,
                 generationModified = 1,
-                dateTakenMillis = null,
+                dateTakenMillis = dateTakenMillis,
                 dateModifiedSeconds = 1,
                 displayName = "image-$mediaStoreId.jpg",
-                bucketId = null,
+                bucketId = bucketId,
                 bucketDisplayName = null,
                 relativePath = null,
                 sourceFingerprint = fingerprint,

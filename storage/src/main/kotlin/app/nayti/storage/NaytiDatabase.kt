@@ -56,6 +56,7 @@ abstract class NaytiDatabase : RoomDatabase() {
     abstract fun ocrSemanticDao(): OcrSemanticDao
     abstract fun vectorIndexDao(): VectorIndexDao
     abstract fun perceptualHashDao(): PerceptualHashDao
+    abstract fun searchDataResetDao(): SearchDataResetDao
 
     companion object {
         fun open(context: Context): NaytiDatabase =
@@ -82,6 +83,7 @@ class CatalogStorage private constructor(
     val ocrSemanticDao: OcrSemanticDao = database.ocrSemanticDao()
     val vectorIndexDao: VectorIndexDao = database.vectorIndexDao()
     val perceptualHashDao: PerceptualHashDao = database.perceptualHashDao()
+    val searchDataResetDao: SearchDataResetDao = database.searchDataResetDao()
 
     override fun close() {
         database.close()

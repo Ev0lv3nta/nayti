@@ -136,13 +136,17 @@ object CatalogRuntimeModule {
     ): ModelPackActivationRuntime {
         val vectorRoot = context.noBackupFilesDir.resolve(StorageContract.VectorIndexDirectory)
         val continueExecution = AtomicBoolean(false)
+        val integrityVerifier = VectorSnapshotIntegrityVerifier(vectorRoot, storage.vectorIndexDao)
         val activation =
             AtomicSnapshotActivator(
                 vectors = storage.vectorIndexDao,
                 verifier = ActivationCandidateVerifier { snapshot, channels ->
                     check(
-                        VectorSnapshotIntegrityVerifier(vectorRoot, storage.vectorIndexDao)
-                            .verify(snapshot, deepVerifySegments = true, candidateChannels = channels),
+                        integrityVerifier.verify(
+                            snapshot,
+                            deepVerifySegments = true,
+                            candidateChannels = channels,
+                        ),
                     )
                 },
             )
@@ -167,6 +171,13 @@ object CatalogRuntimeModule {
                 ),
             continueExecution = continueExecution,
             executionGate = executionGate,
+            rollbackAction = rollback@{
+                val pointer = storage.vectorIndexDao.activePointer() ?: return@rollback null
+                val rollbackId = pointer.rollbackSnapshotId ?: return@rollback null
+                val rollbackSnapshot = storage.vectorIndexDao.snapshot(rollbackId) ?: return@rollback null
+                check(integrityVerifier.verify(rollbackSnapshot, deepVerifySegments = true))
+                activation.rollback()
+            },
         )
     }
 

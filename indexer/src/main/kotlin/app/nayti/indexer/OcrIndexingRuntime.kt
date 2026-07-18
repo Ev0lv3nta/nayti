@@ -5,7 +5,6 @@ import app.nayti.platform.media.BoundedMediaDecoder
 import app.nayti.search.engine.similarity.PerceptualHashV1
 import app.nayti.storage.CatalogStorage
 import app.nayti.storage.IndexChannel
-import app.nayti.storage.IndexChannelCoverage
 import app.nayti.storage.IndexOperationEntity
 import app.nayti.storage.IndexOperationState
 import app.nayti.storage.ModelPackEntity
@@ -30,6 +29,21 @@ enum class OcrIndexingStatus {
     Failed,
 }
 
+enum class SearchCapability {
+    TEXT,
+    MEANING,
+    VISUAL,
+    DUPLICATES,
+}
+
+data class SearchCapabilityCoverage(
+    val capability: SearchCapability,
+    val accessible: Long,
+    val committed: Long,
+    val permanentGaps: Long,
+    val outstanding: Long,
+)
+
 data class OcrIndexingState(
     val status: OcrIndexingStatus,
     val accessible: Long,
@@ -41,6 +55,7 @@ data class OcrIndexingState(
     val operationId: String? = null,
     val operationState: String? = null,
     val hostType: String? = null,
+    val capabilities: List<SearchCapabilityCoverage> = emptyList(),
 )
 
 object OcrExecutionHost {
@@ -48,7 +63,9 @@ object OcrExecutionHost {
     const val UserForegroundService = "USER_FGS"
 }
 
-class IndexExecutionGate(internal val mutex: Mutex = Mutex())
+class IndexExecutionGate(internal val mutex: Mutex = Mutex()) {
+    suspend fun <T> exclusive(block: suspend () -> T): T = mutex.withLock { block() }
+}
 
 class OcrIndexingRuntime(
     private val storage: CatalogStorage,
@@ -126,6 +143,18 @@ class OcrIndexingRuntime(
     suspend fun cancel() {
         requestStop()
         transitionAndPublish(IndexOperationState.CANCELLED, autoResume = false)
+    }
+
+    suspend fun retryPermanentGaps(): Boolean = executionMutex.withLock {
+        val pack = currentPack.get() ?: return@withLock false
+        val catalogRevision = storage.catalogDao.watermark()?.catalogRevision ?: 0
+        val operationId = mutableState.value.operationId ?: operationId(pack, catalogRevision)
+        val operation = storage.indexStateDao.operation(operationId) ?: return@withLock false
+        if (operation.state != IndexOperationState.COMPLETED_WITH_GAPS) return@withLock false
+        storage.indexStateDao.retryPermanentGaps(operationId, System.currentTimeMillis())
+        currentOperationId.set(operationId)
+        publishCoverage(pack, lastSlicePublished = 0, operationId = operationId)
+        true
     }
 
     suspend fun resume() {
@@ -568,18 +597,62 @@ class OcrIndexingRuntime(
         mutableState.value = coverage.toState(operation, lastSlicePublished, hostType)
     }
 
-    private suspend fun coverage(pack: ModelPackEntity): IndexChannelCoverage? {
+    private suspend fun coverage(pack: ModelPackEntity): PreparationCoverage? {
         val access = storage.catalogDao.accessObservation() ?: return null
         if (access.accessScope == "None") return null
-        return storage.indexStateDao.channelCoverage(
-            channel = IndexChannel.VISUAL,
-            accessRevision = access.processAccessRevision,
-            pipelineVersion = Siglip2Contract.PipelineVersion,
-            componentHash = pack.manifestSha256,
+        suspend fun channel(
+            capability: SearchCapability,
+            channel: String,
+            pipelineVersion: String,
+            componentHash: String,
+        ): SearchCapabilityCoverage {
+            val coverage = storage.indexStateDao.channelCoverage(
+                channel = channel,
+                accessRevision = access.processAccessRevision,
+                pipelineVersion = pipelineVersion,
+                componentHash = componentHash,
+            )
+            return SearchCapabilityCoverage(
+                capability = capability,
+                accessible = coverage.accessibleAssetCount,
+                committed = coverage.committedAssetCount,
+                permanentGaps = coverage.permanentGapCount,
+                outstanding = coverage.outstandingAssetCount,
+            )
+        }
+        val capabilities = listOf(
+            channel(
+                SearchCapability.TEXT,
+                IndexChannel.OCR,
+                PipelineVersion,
+                pack.manifestSha256,
+            ),
+            channel(
+                SearchCapability.MEANING,
+                IndexChannel.OCR_SEMANTIC,
+                OcrSemanticChannelExecutor.PipelineVersion,
+                pack.manifestSha256,
+            ),
+            channel(
+                SearchCapability.VISUAL,
+                IndexChannel.VISUAL,
+                Siglip2Contract.PipelineVersion,
+                pack.manifestSha256,
+            ),
+            channel(
+                SearchCapability.DUPLICATES,
+                IndexChannel.PHASH,
+                PerceptualHashV1.PipelineVersion,
+                PerceptualHashV1.ComponentHash,
+            ),
+        )
+        return PreparationCoverage(
+            completion = capabilities.first { it.capability == SearchCapability.VISUAL },
+            capabilities = capabilities,
         )
     }
 
-    private fun IndexChannelCoverage.toState(
+    private fun PreparationCoverage.toState(
         operation: IndexOperationEntity?,
         lastSlicePublished: Int,
         hostType: String?,
@@ -594,15 +667,16 @@ class OcrIndexingRuntime(
                     running.get() -> OcrIndexingStatus.Running
                     else -> OcrIndexingStatus.Ready
                 },
-            accessible = accessibleAssetCount,
-            committed = committedAssetCount,
-            permanentGaps = permanentGapCount,
-            outstanding = outstandingAssetCount,
+            accessible = completion.accessible,
+            committed = completion.committed,
+            permanentGaps = completion.permanentGaps,
+            outstanding = completion.outstanding,
             lastSlicePublished = lastSlicePublished,
             errorCode = null,
             operationId = operation?.operationId,
             operationState = operation?.state,
             hostType = hostType,
+            capabilities = capabilities,
         )
 
     private fun operationId(pack: ModelPackEntity, catalogRevision: Long): String =
@@ -614,6 +688,14 @@ class OcrIndexingRuntime(
         val visualPublished: Int,
         val saturated: Boolean,
     )
+
+    private data class PreparationCoverage(
+        val completion: SearchCapabilityCoverage,
+        val capabilities: List<SearchCapabilityCoverage>,
+    ) {
+        val outstandingAssetCount: Long
+            get() = completion.outstanding
+    }
 
     companion object {
         const val PipelineVersion = "ocr-v1"

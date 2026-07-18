@@ -1,6 +1,7 @@
 package app.nayti.ui
 
 import android.Manifest
+import android.graphics.Bitmap
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -10,17 +11,26 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -31,6 +41,7 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -38,10 +49,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -53,10 +67,12 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -64,6 +80,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -73,11 +91,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import app.nayti.BuildConfig
 import app.nayti.R
 import app.nayti.indexer.CatalogItem
 import app.nayti.indexer.CatalogRuntimeState
@@ -89,15 +109,19 @@ import app.nayti.indexer.OcrIndexingState
 import app.nayti.indexer.OcrIndexingStatus
 import app.nayti.indexer.OcrSemanticSearchStatus
 import app.nayti.indexer.PerceptualHashSearchStatus
+import app.nayti.indexer.SearchCapability
+import app.nayti.indexer.SearchCapabilityCoverage
 import app.nayti.indexer.UnifiedSearchReason
 import app.nayti.indexer.VisualSimilaritySearchStatus
 import app.nayti.indexer.VisualTextSearchStatus
 import app.nayti.platform.media.AccessRevision
 import app.nayti.platform.media.MediaAccessScope
+import app.nayti.platform.media.MediaKey
 import app.nayti.platform.media.MediaPermissionEvaluator
 import app.nayti.platform.media.MediaPermissionSnapshot
 import app.nayti.storage.OcrRegionEntity
 import app.nayti.storage.IndexOperationState
+import app.nayti.ui.theme.NaytiSpacing
 import app.nayti.ui.theme.NaytiTheme
 
 private enum class RootDestination(
@@ -111,6 +135,7 @@ private enum class RootDestination(
 }
 
 private const val ViewerRoute = "viewer/{assetId}"
+private val NavigationRailBreakpoint = 700.dp
 
 @Composable
 fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
@@ -121,6 +146,11 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
     val similar by viewModel.similar.collectAsStateWithLifecycle()
     val duplicates by viewModel.duplicates.collectAsStateWithLifecycle()
     val viewerProbe by viewModel.viewerProbe.collectAsStateWithLifecycle()
+    val onboardingCompleted by viewModel.onboardingCompleted.collectAsStateWithLifecycle()
+    val localStorage by viewModel.localStorage.collectAsStateWithLifecycle()
+    val diagnosticsExport by viewModel.diagnosticsExport.collectAsStateWithLifecycle()
+    val searchDataReset by viewModel.searchDataReset.collectAsStateWithLifecycle()
+    val modelPackRollback by viewModel.modelPackRollback.collectAsStateWithLifecycle()
     val permissionLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
             viewModel.onPermissionResult()
@@ -129,39 +159,67 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) viewModel.importModelPack(uri)
         }
+    val diagnosticsLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+            if (uri != null) viewModel.exportDiagnostics(uri)
+        }
     val notificationPermissionLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) viewModel.startIndexing()
         }
-    NaytiAppContent(
-        catalog = catalog,
-        modelPack = modelPack,
-        indexing = indexing,
-        search = search,
-        similar = similar,
-        duplicates = duplicates,
-        viewerProbe = viewerProbe,
-        onRequestAccess = {
-            permissionLauncher.launch(
-                MediaPermissionEvaluator.requestPermissions(Build.VERSION.SDK_INT),
-            )
-        },
-        onRefresh = { viewModel.refresh(forceFull = true) },
-        onImportModelPack = { modelPackLauncher.launch(arrayOf("application/octet-stream")) },
-        onSearch = viewModel::search,
-        onFindSimilar = viewModel::findSimilar,
-        onFindDuplicates = viewModel::findDuplicates,
-        onStartIndexing = {
-            if (!viewModel.startIndexing() && Build.VERSION.SDK_INT >= 33) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        },
-        onPauseIndexing = viewModel::pauseIndexing,
-        onStopIndexing = viewModel::stopIndexingForNow,
-        onCancelIndexing = viewModel::cancelIndexing,
-        onProbe = viewModel::probe,
-        onClearProbe = viewModel::clearProbe,
-    )
+    val requestAccess = {
+        permissionLauncher.launch(
+            MediaPermissionEvaluator.requestPermissions(Build.VERSION.SDK_INT),
+        )
+    }
+    val startIndexing = {
+        if (!viewModel.startIndexing() && Build.VERSION.SDK_INT >= 33) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    if (!onboardingCompleted) {
+        SetupScreen(
+            catalog = catalog,
+            modelPack = modelPack,
+            indexing = indexing,
+            onImportModelPack = { modelPackLauncher.launch(arrayOf("application/octet-stream")) },
+            onRequestAccess = requestAccess,
+            onStartIndexing = startIndexing,
+            onComplete = viewModel::completeOnboarding,
+        )
+    } else {
+        NaytiAppContent(
+            catalog = catalog,
+            modelPack = modelPack,
+            indexing = indexing,
+            search = search,
+            similar = similar,
+            duplicates = duplicates,
+            viewerProbe = viewerProbe,
+            onLoadThumbnail = viewModel::loadThumbnail,
+            localStorage = localStorage,
+            diagnosticsExport = diagnosticsExport,
+            searchDataReset = searchDataReset,
+            modelPackRollback = modelPackRollback,
+            onRequestAccess = requestAccess,
+            onRefresh = { viewModel.refresh(forceFull = true) },
+            onImportModelPack = { modelPackLauncher.launch(arrayOf("application/octet-stream")) },
+            onSearch = viewModel::search,
+            onFindSimilar = viewModel::findSimilar,
+            onFindDuplicates = viewModel::findDuplicates,
+            onStartIndexing = startIndexing,
+            onPauseIndexing = viewModel::pauseIndexing,
+            onStopIndexing = viewModel::stopIndexingForNow,
+            onCancelIndexing = viewModel::cancelIndexing,
+            onRetryIndexingGaps = viewModel::retryIndexingGaps,
+            onProbe = viewModel::probe,
+            onClearProbe = viewModel::clearProbe,
+            onRefreshStorage = viewModel::refreshLocalStorage,
+            onExportDiagnostics = { diagnosticsLauncher.launch("nayti-diagnostics.json") },
+            onResetSearchData = viewModel::resetSearchData,
+            onRollbackModelPack = viewModel::rollbackModelPack,
+        )
+    }
 }
 
 @Composable
@@ -173,6 +231,11 @@ private fun NaytiAppContent(
     similar: SimilarUiState,
     duplicates: DuplicateUiState,
     viewerProbe: ViewerProbeState,
+    onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
+    localStorage: LocalStorageSummary,
+    diagnosticsExport: DiagnosticsExportState,
+    searchDataReset: SearchDataResetState,
+    modelPackRollback: ModelPackRollbackState,
     onRequestAccess: () -> Unit,
     onRefresh: () -> Unit,
     onImportModelPack: () -> Unit,
@@ -183,52 +246,205 @@ private fun NaytiAppContent(
     onPauseIndexing: () -> Unit,
     onStopIndexing: () -> Unit,
     onCancelIndexing: () -> Unit,
+    onRetryIndexingGaps: () -> Unit,
     onProbe: (Long) -> Unit,
     onClearProbe: () -> Unit,
+    onRefreshStorage: () -> Unit,
+    onExportDiagnostics: () -> Unit,
+    onResetSearchData: () -> Unit,
+    onRollbackModelPack: () -> Unit,
 ) {
     val navController = rememberNavController()
     val currentEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentEntry?.destination?.route
-    val showBottomBar = RootDestination.entries.any { it.route == currentRoute }
+    val showRootNavigation = RootDestination.entries.any { it.route == currentRoute }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            if (showBottomBar) {
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                    RootDestination.entries.forEach { destination ->
-                        NavigationBarItem(
-                            selected = currentRoute == destination.route,
-                            onClick = {
-                                navController.navigate(destination.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = { Icon(destination.icon, contentDescription = null) },
-                            label = { Text(stringResource(destination.title)) },
-                            colors = NavigationBarItemDefaults.colors(
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                            ),
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val useNavigationRail = maxWidth >= NavigationRailBreakpoint
+        if (useNavigationRail && showRootNavigation) {
+            Row(
+                modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+            ) {
+                RootNavigationRail(
+                    currentRoute = currentRoute,
+                    onNavigate = navController::navigateToRoot,
+                )
+                RootNavHost(
+                    navController = navController,
+                    catalog = catalog,
+                    modelPack = modelPack,
+                    indexing = indexing,
+                    search = search,
+                    similar = similar,
+                    duplicates = duplicates,
+                    viewerProbe = viewerProbe,
+                    onLoadThumbnail = onLoadThumbnail,
+                    localStorage = localStorage,
+                    diagnosticsExport = diagnosticsExport,
+                    searchDataReset = searchDataReset,
+                    modelPackRollback = modelPackRollback,
+                    onRequestAccess = onRequestAccess,
+                    onRefresh = onRefresh,
+                    onImportModelPack = onImportModelPack,
+                    onSearch = onSearch,
+                    onFindSimilar = onFindSimilar,
+                    onFindDuplicates = onFindDuplicates,
+                    onStartIndexing = onStartIndexing,
+                    onPauseIndexing = onPauseIndexing,
+                    onStopIndexing = onStopIndexing,
+                    onCancelIndexing = onCancelIndexing,
+                    onRetryIndexingGaps = onRetryIndexingGaps,
+                    onProbe = onProbe,
+                    onClearProbe = onClearProbe,
+                    onRefreshStorage = onRefreshStorage,
+                    onExportDiagnostics = onExportDiagnostics,
+                    onResetSearchData = onResetSearchData,
+                    onRollbackModelPack = onRollbackModelPack,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        } else {
+            Scaffold(
+                containerColor = MaterialTheme.colorScheme.background,
+                bottomBar = {
+                    if (showRootNavigation) {
+                        RootNavigationBar(
+                            currentRoute = currentRoute,
+                            onNavigate = navController::navigateToRoot,
                         )
                     }
-                }
+                },
+            ) { innerPadding ->
+                RootNavHost(
+                    navController = navController,
+                    catalog = catalog,
+                    modelPack = modelPack,
+                    indexing = indexing,
+                    search = search,
+                    similar = similar,
+                    duplicates = duplicates,
+                    viewerProbe = viewerProbe,
+                    onLoadThumbnail = onLoadThumbnail,
+                    localStorage = localStorage,
+                    diagnosticsExport = diagnosticsExport,
+                    searchDataReset = searchDataReset,
+                    modelPackRollback = modelPackRollback,
+                    onRequestAccess = onRequestAccess,
+                    onRefresh = onRefresh,
+                    onImportModelPack = onImportModelPack,
+                    onSearch = onSearch,
+                    onFindSimilar = onFindSimilar,
+                    onFindDuplicates = onFindDuplicates,
+                    onStartIndexing = onStartIndexing,
+                    onPauseIndexing = onPauseIndexing,
+                    onStopIndexing = onStopIndexing,
+                    onCancelIndexing = onCancelIndexing,
+                    onRetryIndexingGaps = onRetryIndexingGaps,
+                    onProbe = onProbe,
+                    onClearProbe = onClearProbe,
+                    onRefreshStorage = onRefreshStorage,
+                    onExportDiagnostics = onExportDiagnostics,
+                    onResetSearchData = onResetSearchData,
+                    onRollbackModelPack = onRollbackModelPack,
+                    modifier = Modifier.padding(innerPadding),
+                )
             }
-        },
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = RootDestination.Search.route,
-            modifier = Modifier.padding(innerPadding),
-        ) {
+        }
+    }
+}
+
+@Composable
+private fun RootNavigationBar(
+    currentRoute: String?,
+    onNavigate: (String) -> Unit,
+) {
+    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+        RootDestination.entries.forEach { destination ->
+            NavigationBarItem(
+                selected = currentRoute == destination.route,
+                onClick = { onNavigate(destination.route) },
+                icon = { Icon(destination.icon, contentDescription = null) },
+                label = { Text(stringResource(destination.title)) },
+                colors = NavigationBarItemDefaults.colors(
+                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RootNavigationRail(
+    currentRoute: String?,
+    onNavigate: (String) -> Unit,
+) {
+    NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
+        RootDestination.entries.forEach { destination ->
+            NavigationRailItem(
+                selected = currentRoute == destination.route,
+                onClick = { onNavigate(destination.route) },
+                icon = { Icon(destination.icon, contentDescription = null) },
+                label = { Text(stringResource(destination.title)) },
+            )
+        }
+    }
+}
+
+private fun NavHostController.navigateToRoot(route: String) {
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) {
+            saveState = true
+        }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
+
+@Composable
+private fun RootNavHost(
+    navController: NavHostController,
+    catalog: CatalogRuntimeState,
+    modelPack: ModelPackRuntimeState,
+    indexing: OcrIndexingState,
+    search: SearchUiState,
+    similar: SimilarUiState,
+    duplicates: DuplicateUiState,
+    viewerProbe: ViewerProbeState,
+    onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
+    localStorage: LocalStorageSummary,
+    diagnosticsExport: DiagnosticsExportState,
+    searchDataReset: SearchDataResetState,
+    modelPackRollback: ModelPackRollbackState,
+    onRequestAccess: () -> Unit,
+    onRefresh: () -> Unit,
+    onImportModelPack: () -> Unit,
+    onSearch: (String) -> Unit,
+    onFindSimilar: (Long) -> Unit,
+    onFindDuplicates: (Long) -> Unit,
+    onStartIndexing: () -> Unit,
+    onPauseIndexing: () -> Unit,
+    onStopIndexing: () -> Unit,
+    onCancelIndexing: () -> Unit,
+    onRetryIndexingGaps: () -> Unit,
+    onProbe: (Long) -> Unit,
+    onClearProbe: () -> Unit,
+    onRefreshStorage: () -> Unit,
+    onExportDiagnostics: () -> Unit,
+    onResetSearchData: () -> Unit,
+    onRollbackModelPack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    NavHost(
+        navController = navController,
+        startDestination = RootDestination.Search.route,
+        modifier = modifier,
+    ) {
             composable(RootDestination.Search.route) {
                 SearchScreen(
                     catalog = catalog,
                     modelPack = modelPack,
                     search = search,
+                    onLoadThumbnail = onLoadThumbnail,
                     onSearch = onSearch,
                     onOpenAsset = { assetId -> navController.navigate("viewer/$assetId") },
                 )
@@ -238,27 +454,42 @@ private fun NaytiAppContent(
                     catalog = catalog,
                     modelPack = modelPack,
                     indexing = indexing,
+                    onLoadThumbnail = onLoadThumbnail,
                     onRequestAccess = onRequestAccess,
                     onRefresh = onRefresh,
                     onStartIndexing = onStartIndexing,
                     onPauseIndexing = onPauseIndexing,
                     onStopIndexing = onStopIndexing,
                     onCancelIndexing = onCancelIndexing,
+                    onRetryIndexingGaps = onRetryIndexingGaps,
                     onOpenItem = { item -> navController.navigate("viewer/${item.assetId}") },
                 )
             }
             composable(RootDestination.Data.route) {
-                DataScreen(catalog, modelPack, onImportModelPack)
+                DataScreen(
+                    catalog = catalog,
+                    modelPack = modelPack,
+                    localStorage = localStorage,
+                    diagnosticsExport = diagnosticsExport,
+                    searchDataReset = searchDataReset,
+                    modelPackRollback = modelPackRollback,
+                    onRequestAccess = onRequestAccess,
+                    onImportModelPack = onImportModelPack,
+                    onRefreshStorage = onRefreshStorage,
+                    onExportDiagnostics = onExportDiagnostics,
+                    onResetSearchData = onResetSearchData,
+                    onRollbackModelPack = onRollbackModelPack,
+                )
             }
             composable(
                 route = ViewerRoute,
                 arguments = listOf(navArgument("assetId") { type = NavType.LongType }),
             ) { entry ->
                 val assetId = checkNotNull(entry.arguments?.getLong("assetId"))
+                val searchResult = (search as? SearchUiState.Ready)?.results
+                    ?.firstOrNull { result -> result.asset.assetId == assetId }
                 val item = catalog.recentItems.firstOrNull { it.assetId == assetId }
-                    ?: (search as? SearchUiState.Ready)?.results
-                        ?.firstOrNull { result -> result.asset.assetId == assetId }
-                        ?.toCatalogItem()
+                    ?: searchResult?.toCatalogItem()
                     ?: (similar as? SimilarUiState.Ready)?.results
                         ?.firstOrNull { result -> result.asset.assetId == assetId }
                         ?.asset?.toCatalogItem()
@@ -267,10 +498,12 @@ private fun NaytiAppContent(
                         ?.asset?.toCatalogItem()
                 ViewerScreen(
                     item = item,
+                    searchProvenance = searchResult?.hit,
                     accessRevision = catalog.access.value,
                     probeState = viewerProbe,
                     similarState = similar,
                     duplicateState = duplicates,
+                    onLoadThumbnail = onLoadThumbnail,
                     onBack = navController::popBackStack,
                     onProbe = { onProbe(assetId) },
                     onFindSimilar = { onFindSimilar(assetId) },
@@ -280,11 +513,10 @@ private fun NaytiAppContent(
                 )
             }
         }
-    }
 }
 
 @Composable
-private fun ScreenHeader(eyebrow: String, title: String, subtitle: String) {
+internal fun ScreenHeader(eyebrow: String, title: String, subtitle: String) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = eyebrow.uppercase(),
@@ -297,6 +529,7 @@ private fun ScreenHeader(eyebrow: String, title: String, subtitle: String) {
             text = title,
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.semantics { heading() },
         )
         Text(
             text = subtitle,
@@ -312,6 +545,7 @@ private fun SearchScreen(
     catalog: CatalogRuntimeState,
     modelPack: ModelPackRuntimeState,
     search: SearchUiState,
+    onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
     onSearch: (String) -> Unit,
     onOpenAsset: (Long) -> Unit,
 ) {
@@ -321,20 +555,25 @@ private fun SearchScreen(
             modelPack.installed != null &&
             modelPack.status != ModelPackRuntimeStatus.Installing
 
-    LazyColumn(
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 168.dp),
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
+        contentPadding = PaddingValues(
+            horizontal = NaytiSpacing.ScreenHorizontal,
+            vertical = NaytiSpacing.ScreenVertical,
+        ),
         verticalArrangement = Arrangement.spacedBy(22.dp),
+        horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Item),
     ) {
-        item { AppIdentity() }
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) { AppIdentity() }
+        item(span = { GridItemSpan(maxLineSpan) }) {
             ScreenHeader(
                 eyebrow = stringResource(R.string.search_eyebrow),
                 title = stringResource(R.string.search_title),
                 subtitle = stringResource(R.string.search_subtitle),
             )
         }
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
@@ -359,7 +598,7 @@ private fun SearchScreen(
                 singleLine = true,
             )
         }
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             Button(
                 onClick = { onSearch(query) },
                 enabled = canSearch && query.isNotBlank() && search !is SearchUiState.Searching,
@@ -372,19 +611,19 @@ private fun SearchScreen(
                 }
             }
         }
-        item { LibraryStatusCard(catalog) }
+        item(span = { GridItemSpan(maxLineSpan) }) { LibraryStatusCard(catalog) }
         when (search) {
             SearchUiState.Idle,
             SearchUiState.Searching,
             -> Unit
-            is SearchUiState.Failed -> item {
+            is SearchUiState.Failed -> item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
-                    text = stringResource(R.string.search_failed, search.code),
+                    text = stringResource(R.string.search_failed),
                     color = MaterialTheme.colorScheme.error,
                 )
             }
             is SearchUiState.Ready -> {
-                item {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
                         text = pluralStringResource(
                             R.plurals.search_result_count,
@@ -399,7 +638,7 @@ private fun SearchScreen(
                     search.semanticStatus == OcrSemanticSearchStatus.NO_ACTIVE_SNAPSHOT ||
                     search.semanticStatus == OcrSemanticSearchStatus.NO_SEMANTIC_MANIFEST
                 ) {
-                    item {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
                         Text(
                             text = stringResource(R.string.search_lexical_only),
                             style = MaterialTheme.typography.bodySmall,
@@ -411,7 +650,7 @@ private fun SearchScreen(
                     search.visualStatus == VisualTextSearchStatus.NO_ACTIVE_SNAPSHOT ||
                     search.visualStatus == VisualTextSearchStatus.NO_VISUAL_MANIFEST
                 ) {
-                    item {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
                         Text(
                             text = stringResource(R.string.search_visual_pending),
                             style = MaterialTheme.typography.bodySmall,
@@ -419,8 +658,28 @@ private fun SearchScreen(
                         )
                     }
                 }
-                items(search.results, key = { result -> result.asset.assetId }) { result ->
-                    SearchResultCard(result, onClick = { onOpenAsset(result.asset.assetId) })
+                if (search.results.isEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        SearchEmptyState(
+                            partial =
+                                search.semanticStatus in setOf(
+                                    OcrSemanticSearchStatus.NO_ACTIVE_SNAPSHOT,
+                                    OcrSemanticSearchStatus.NO_SEMANTIC_MANIFEST,
+                                ) ||
+                                    search.visualStatus in setOf(
+                                        VisualTextSearchStatus.NO_ACTIVE_SNAPSHOT,
+                                        VisualTextSearchStatus.NO_VISUAL_MANIFEST,
+                                    ),
+                        )
+                    }
+                }
+                gridItems(search.results, key = { result -> result.asset.assetId }) { result ->
+                    SearchResultCard(
+                        result = result,
+                        accessRevision = catalog.access.value,
+                        onLoadThumbnail = onLoadThumbnail,
+                        onClick = { onOpenAsset(result.asset.assetId) },
+                    )
                 }
             }
         }
@@ -428,34 +687,116 @@ private fun SearchScreen(
 }
 
 @Composable
-private fun SearchResultCard(result: SearchResultItem, onClick: () -> Unit) {
+private fun SearchResultCard(
+    result: SearchResultItem,
+    accessRevision: Long,
+    onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
+    onClick: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
     ) {
+        Column {
+            Box(modifier = Modifier.fillMaxWidth().aspectRatio(1f)) {
+                PhotoThumbnail(
+                    key = MediaKey(result.asset.volumeName, result.asset.mediaStoreId),
+                    accessRevision = accessRevision,
+                    description = result.asset.displayName,
+                    onLoad = onLoadThumbnail,
+                )
+                Surface(
+                    modifier = Modifier.align(Alignment.BottomStart).padding(10.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    Text(
+                        text = evidenceLabel(result.hit.reason),
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = result.asset.displayName ?: stringResource(
+                        R.string.catalog_unnamed_photo,
+                        result.asset.assetId,
+                    ),
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = result.hit.displaySnippet ?: stringResource(R.string.search_visual_result),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhotoThumbnail(
+    key: MediaKey,
+    accessRevision: Long,
+    description: String?,
+    onLoad: suspend (MediaKey, Long) -> Bitmap?,
+) {
+    val bitmap by produceState<Bitmap?>(
+        initialValue = null,
+        key1 = key,
+        key2 = accessRevision,
+    ) {
+        value = null
+        value = onLoad(key, accessRevision)
+    }
+    if (bitmap != null) {
+        Image(
+            bitmap = checkNotNull(bitmap).asImageBitmap(),
+            contentDescription = description,
+            modifier = Modifier.fillMaxSize().clip(MaterialTheme.shapes.large),
+            contentScale = ContentScale.Crop,
+        )
+    } else {
+        Box(
+            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.outline,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SearchEmptyState(partial: Boolean) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = MaterialTheme.shapes.large,
+    ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Card),
+            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Compact),
         ) {
             Text(
-                text = result.asset.displayName ?: stringResource(
-                    R.string.catalog_unnamed_photo,
-                    result.asset.assetId,
+                text = stringResource(R.string.search_empty_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = stringResource(
+                    if (partial) R.string.search_empty_partial else R.string.search_empty_ready,
                 ),
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = result.hit.displaySnippet ?: stringResource(R.string.search_visual_result),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = evidenceLabel(result.hit.reason),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
             )
         }
     }
@@ -564,12 +905,14 @@ private fun ReadinessScreen(
     catalog: CatalogRuntimeState,
     modelPack: ModelPackRuntimeState,
     indexing: OcrIndexingState,
+    onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
     onRequestAccess: () -> Unit,
     onRefresh: () -> Unit,
     onStartIndexing: () -> Unit,
     onPauseIndexing: () -> Unit,
     onStopIndexing: () -> Unit,
     onCancelIndexing: () -> Unit,
+    onRetryIndexingGaps: () -> Unit,
     onOpenItem: (CatalogItem) -> Unit,
 ) {
     LazyColumn(
@@ -594,7 +937,26 @@ private fun ReadinessScreen(
                 onPauseIndexing = onPauseIndexing,
                 onStopIndexing = onStopIndexing,
                 onCancelIndexing = onCancelIndexing,
+                onRetryIndexingGaps = onRetryIndexingGaps,
             )
+        }
+        item {
+            Text(
+                text = stringResource(R.string.capability_section_title),
+                style = MaterialTheme.typography.titleLarge,
+            )
+        }
+        if (indexing.capabilities.isEmpty()) {
+            item {
+                Text(
+                    text = stringResource(R.string.capability_unavailable),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            items(indexing.capabilities, key = { coverage -> coverage.capability }) { coverage ->
+                CapabilityCoverageCard(coverage)
+            }
         }
         item {
             MetricCard(
@@ -632,14 +994,92 @@ private fun ReadinessScreen(
             }
         } else {
             items(catalog.recentItems, key = CatalogItem::assetId) { item ->
-                CatalogItemCard(item, onClick = { onOpenItem(item) })
+                CatalogItemCard(
+                    item = item,
+                    accessRevision = catalog.access.value,
+                    onLoadThumbnail = onLoadThumbnail,
+                    onClick = { onOpenItem(item) },
+                )
             }
         }
     }
 }
 
 @Composable
-private fun OcrReadinessCard(
+private fun CapabilityCoverageCard(coverage: SearchCapabilityCoverage) {
+    val progress =
+        if (coverage.accessible == 0L) {
+            0f
+        } else {
+            (coverage.committed.toDouble() / coverage.accessible.toDouble()).toFloat()
+                .coerceIn(0f, 1f)
+        }
+    Card(shape = MaterialTheme.shapes.large) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Card),
+            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Compact),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = capabilityTitle(coverage.capability),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = capabilityDescription(coverage.capability),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    text = "${(progress * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                text = stringResource(
+                    R.string.capability_counts,
+                    coverage.committed,
+                    coverage.accessible,
+                    coverage.permanentGaps,
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun capabilityTitle(capability: SearchCapability): String = stringResource(
+    when (capability) {
+        SearchCapability.TEXT -> R.string.capability_text_title
+        SearchCapability.MEANING -> R.string.capability_meaning_title
+        SearchCapability.VISUAL -> R.string.capability_visual_title
+        SearchCapability.DUPLICATES -> R.string.capability_duplicates_title
+    },
+)
+
+@Composable
+private fun capabilityDescription(capability: SearchCapability): String = stringResource(
+    when (capability) {
+        SearchCapability.TEXT -> R.string.capability_text_body
+        SearchCapability.MEANING -> R.string.capability_meaning_body
+        SearchCapability.VISUAL -> R.string.capability_visual_body
+        SearchCapability.DUPLICATES -> R.string.capability_duplicates_body
+    },
+)
+
+@Composable
+internal fun OcrReadinessCard(
     catalog: CatalogRuntimeState,
     modelPack: ModelPackRuntimeState,
     indexing: OcrIndexingState,
@@ -647,6 +1087,7 @@ private fun OcrReadinessCard(
     onPauseIndexing: () -> Unit,
     onStopIndexing: () -> Unit,
     onCancelIndexing: () -> Unit,
+    onRetryIndexingGaps: () -> Unit,
 ) {
     val canStart =
         catalog.summary.available > 0 &&
@@ -707,9 +1148,14 @@ private fun OcrReadinessCard(
                     Text(stringResource(R.string.ocr_cancel))
                 }
             }
+            if (indexing.permanentGaps > 0 && indexing.status != OcrIndexingStatus.Running) {
+                OutlinedButton(onClick = onRetryIndexingGaps) {
+                    Text(stringResource(R.string.ocr_retry_gaps))
+                }
+            }
             indexing.errorCode?.let { code ->
                 Text(
-                    text = stringResource(R.string.ocr_index_failed, code),
+                    text = preparationIssue(code),
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.labelMedium,
                 )
@@ -765,7 +1211,7 @@ private fun AccessCard(
             }
             catalog.lastErrorCode?.let {
                 Text(
-                    text = stringResource(R.string.catalog_retryable_error, it),
+                    text = stringResource(R.string.catalog_retryable_error),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -791,7 +1237,12 @@ private fun accessDescription(scope: MediaAccessScope): String =
     }
 
 @Composable
-private fun CatalogItemCard(item: CatalogItem, onClick: () -> Unit) {
+private fun CatalogItemCard(
+    item: CatalogItem,
+    accessRevision: Long,
+    onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
+    onClick: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
@@ -801,11 +1252,13 @@ private fun CatalogItemCard(item: CatalogItem, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier.size(44.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.AutoMirrored.Outlined.List, contentDescription = null)
+            Box(modifier = Modifier.size(72.dp).clip(MaterialTheme.shapes.medium)) {
+                PhotoThumbnail(
+                    key = item.key,
+                    accessRevision = accessRevision,
+                    description = item.displayName,
+                    onLoad = onLoadThumbnail,
+                )
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -834,10 +1287,12 @@ private fun CatalogItemCard(item: CatalogItem, onClick: () -> Unit) {
 @Composable
 private fun ViewerScreen(
     item: CatalogItem?,
+    searchProvenance: app.nayti.indexer.UnifiedSearchHit?,
     accessRevision: Long,
     probeState: ViewerProbeState,
     similarState: SimilarUiState,
     duplicateState: DuplicateUiState,
+    onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
     onBack: () -> Unit,
     onProbe: () -> Unit,
     onFindSimilar: () -> Unit,
@@ -862,6 +1317,39 @@ private fun ViewerScreen(
                     title = stringResource(R.string.viewer_access_changed),
                     subtitle = stringResource(R.string.viewer_access_changed_details),
                 )
+            }
+            searchProvenance?.let { provenance ->
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        ),
+                        shape = MaterialTheme.shapes.large,
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Card),
+                            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Compact),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.viewer_match_reason_title),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            )
+                            Text(
+                                text = evidenceLabel(provenance.reason),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            provenance.displaySnippet?.takeIf(String::isNotBlank)?.let { snippet ->
+                                Text(
+                                    text = snippet,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
             }
         } else {
             item {
@@ -904,7 +1392,7 @@ private fun ViewerScreen(
                             }
                             is ViewerProbeState.Failed ->
                                 Text(
-                                    text = stringResource(R.string.viewer_read_failed, probeState.code),
+                                    text = stringResource(R.string.viewer_read_failed),
                                     color = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.padding(24.dp),
                                 )
@@ -961,7 +1449,7 @@ private fun ViewerScreen(
                 is SimilarUiState.Failed -> if (similarState.sourceAssetId == item.assetId) {
                     item {
                         Text(
-                            text = stringResource(R.string.viewer_similar_failed, similarState.code),
+                            text = stringResource(R.string.viewer_similar_failed),
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
@@ -985,7 +1473,12 @@ private fun ViewerScreen(
                             )
                         }
                         items(similarState.results, key = { result -> result.asset.assetId }) { result ->
-                            SimilarResultCard(result, onClick = { onOpenSimilar(result.asset.assetId) })
+                            SimilarResultCard(
+                                result = result,
+                                accessRevision = accessRevision,
+                                onLoadThumbnail = onLoadThumbnail,
+                                onClick = { onOpenSimilar(result.asset.assetId) },
+                            )
                         }
                     }
                 }
@@ -997,7 +1490,7 @@ private fun ViewerScreen(
                 is DuplicateUiState.Failed -> if (duplicateState.sourceAssetId == item.assetId) {
                     item {
                         Text(
-                            text = stringResource(R.string.viewer_duplicates_failed, duplicateState.code),
+                            text = stringResource(R.string.viewer_duplicates_failed),
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
@@ -1021,7 +1514,12 @@ private fun ViewerScreen(
                             )
                         }
                         items(duplicateState.results, key = { result -> result.asset.assetId }) { result ->
-                            DuplicateResultCard(result, onClick = { onOpenSimilar(result.asset.assetId) })
+                            DuplicateResultCard(
+                                result = result,
+                                accessRevision = accessRevision,
+                                onLoadThumbnail = onLoadThumbnail,
+                                onClick = { onOpenSimilar(result.asset.assetId) },
+                            )
                         }
                     }
                 }
@@ -1031,63 +1529,95 @@ private fun ViewerScreen(
 }
 
 @Composable
-private fun SimilarResultCard(result: SimilarResultItem, onClick: () -> Unit) {
+private fun SimilarResultCard(
+    result: SimilarResultItem,
+    accessRevision: Long,
+    onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
+    onClick: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Item),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = result.asset.displayName ?: stringResource(
-                    R.string.catalog_unnamed_photo,
-                    result.asset.assetId,
-                ),
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = stringResource(R.string.evidence_visual),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            Box(modifier = Modifier.size(72.dp).clip(MaterialTheme.shapes.medium)) {
+                PhotoThumbnail(
+                    key = MediaKey(result.asset.volumeName, result.asset.mediaStoreId),
+                    accessRevision = accessRevision,
+                    description = result.asset.displayName,
+                    onLoad = onLoadThumbnail,
+                )
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = result.asset.displayName ?: stringResource(
+                        R.string.catalog_unnamed_photo,
+                        result.asset.assetId,
+                    ),
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = stringResource(R.string.evidence_visual),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun DuplicateResultCard(result: DuplicateResultItem, onClick: () -> Unit) {
+private fun DuplicateResultCard(
+    result: DuplicateResultItem,
+    accessRevision: Long,
+    onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
+    onClick: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Item),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = result.asset.displayName ?: stringResource(
-                    R.string.catalog_unnamed_photo,
-                    result.asset.assetId,
-                ),
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = stringResource(
-                    if (result.match.distance == 0) {
-                        R.string.viewer_duplicate_exact
-                    } else {
-                        R.string.viewer_duplicate_near
-                    },
-                ),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            Box(modifier = Modifier.size(72.dp).clip(MaterialTheme.shapes.medium)) {
+                PhotoThumbnail(
+                    key = MediaKey(result.asset.volumeName, result.asset.mediaStoreId),
+                    accessRevision = accessRevision,
+                    description = result.asset.displayName,
+                    onLoad = onLoadThumbnail,
+                )
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = result.asset.displayName ?: stringResource(
+                        R.string.catalog_unnamed_photo,
+                        result.asset.assetId,
+                    ),
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = stringResource(
+                        if (result.match.distance == 0) {
+                            R.string.viewer_duplicate_exact
+                        } else {
+                            R.string.viewer_duplicate_near
+                        },
+                    ),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
     }
 }
@@ -1159,103 +1689,16 @@ private fun MetricCard(title: String, value: String, supporting: String, icon: I
 }
 
 @Composable
-private fun DataScreen(
-    catalog: CatalogRuntimeState,
-    modelPack: ModelPackRuntimeState,
-    onImportModelPack: () -> Unit,
-) {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(22.dp),
-    ) {
-        item {
-            ScreenHeader(
-                eyebrow = stringResource(R.string.data_eyebrow),
-                title = stringResource(R.string.data_title),
-                subtitle = stringResource(R.string.data_subtitle),
-            )
-        }
-        item {
-            SettingsCard(
-                icon = Icons.Outlined.Lock,
-                title = stringResource(R.string.privacy_title),
-                body = stringResource(R.string.privacy_details),
-            )
-        }
-        item {
-            SettingsCard(
-                icon = Icons.AutoMirrored.Outlined.List,
-                title = stringResource(R.string.catalog_data_title),
-                body = stringResource(
-                    R.string.catalog_data_details,
-                    catalog.summary.total,
-                    catalog.summary.outOfScope,
-                ),
-            )
-        }
-        item {
-            Card(shape = RoundedCornerShape(24.dp)) {
-                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(Icons.Outlined.Build, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Text(
-                            stringResource(R.string.model_pack_title),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                    HorizontalDivider()
-                    Text(
-                        text = modelPackDescription(modelPack),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Button(
-                        onClick = onImportModelPack,
-                        enabled = modelPack.status != ModelPackRuntimeStatus.Installing,
-                    ) {
-                        Text(
-                            stringResource(
-                                if (modelPack.installed == null) {
-                                    R.string.model_pack_import
-                                } else {
-                                    R.string.model_pack_replace
-                                },
-                            ),
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun modelPackDescription(state: ModelPackRuntimeState): String =
-    when (state.status) {
-        ModelPackRuntimeStatus.Loading -> stringResource(R.string.model_pack_loading)
-        ModelPackRuntimeStatus.Missing -> stringResource(R.string.model_pack_missing)
-        ModelPackRuntimeStatus.Installing -> stringResource(R.string.model_pack_installing)
-        ModelPackRuntimeStatus.Ready ->
-            stringResource(
-                R.string.model_pack_ready,
-                state.installed?.packVersion.orEmpty(),
-                (state.installed?.payloadBytes ?: 0) / (1024 * 1024),
-            )
-        ModelPackRuntimeStatus.Failed ->
-            if (state.installed == null) {
-                stringResource(R.string.model_pack_failed, state.errorCode.orEmpty())
-            } else {
-                stringResource(
-                    R.string.model_pack_failed_using_previous,
-                    state.errorCode.orEmpty(),
-                    state.installed?.packVersion.orEmpty(),
-                )
-            }
-    }
+private fun preparationIssue(code: String): String = stringResource(
+    when (code) {
+        "THERMAL_SEVERE" -> R.string.preparation_paused_thermal
+        "MEMORY_PRESSURE" -> R.string.preparation_paused_memory
+        "STORAGE_RESERVE" -> R.string.preparation_paused_storage
+        "BATTERY_SAVER" -> R.string.preparation_paused_battery_saver
+        "BATTERY_LOW" -> R.string.preparation_paused_battery_low
+        else -> R.string.ocr_index_failed
+    },
+)
 
 private fun SearchResultItem.toCatalogItem(): CatalogItem =
     asset.toCatalogItem()
@@ -1271,23 +1714,6 @@ private fun app.nayti.storage.CatalogAssetEntity.toCatalogItem(): CatalogItem =
         height = height,
         dateTakenMillis = dateTakenMillis,
     )
-
-@Composable
-private fun SettingsCard(icon: ImageVector, title: String, body: String) {
-    Card(shape = RoundedCornerShape(24.dp)) {
-        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-            }
-            HorizontalDivider()
-            Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
 @Composable
@@ -1327,6 +1753,11 @@ private fun NaytiPreview() {
             similar = SimilarUiState.Idle,
             duplicates = DuplicateUiState.Idle,
             viewerProbe = ViewerProbeState.Idle,
+            onLoadThumbnail = { _, _ -> null },
+            localStorage = LocalStorageSummary(0L, 0L),
+            diagnosticsExport = DiagnosticsExportState.Idle,
+            searchDataReset = SearchDataResetState.Idle,
+            modelPackRollback = ModelPackRollbackState.Unavailable(null),
             onRequestAccess = {},
             onRefresh = {},
             onImportModelPack = {},
@@ -1337,8 +1768,13 @@ private fun NaytiPreview() {
             onPauseIndexing = {},
             onStopIndexing = {},
             onCancelIndexing = {},
+            onRetryIndexingGaps = {},
             onProbe = {},
             onClearProbe = {},
+            onRefreshStorage = {},
+            onExportDiagnostics = {},
+            onResetSearchData = {},
+            onRollbackModelPack = {},
         )
     }
 }

@@ -2,11 +2,14 @@ package app.nayti.ui
 
 import android.content.Context
 import android.net.Uri
+import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.nayti.indexing.IndexingServiceController
+import app.nayti.BuildConfig
 import app.nayti.indexer.CatalogRuntime
 import app.nayti.indexer.CatalogRuntimeState
+import app.nayti.indexer.ModelPackActivationRuntime
 import app.nayti.indexer.ModelPackRuntime
 import app.nayti.indexer.ModelPackRuntimeState
 import app.nayti.indexer.ModelPackRuntimeStatus
@@ -22,6 +25,7 @@ import app.nayti.indexer.VisualSimilaritySearch
 import app.nayti.indexer.VisualSimilaritySearchStatus
 import app.nayti.indexer.VisualTextSearchStatus
 import app.nayti.platform.media.DecodedMediaImage
+import app.nayti.platform.media.MediaKey
 import app.nayti.ml.runtime.pack.SafModelPackSource
 import app.nayti.storage.CatalogAssetEntity
 import app.nayti.storage.CatalogStorage
@@ -37,7 +41,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 sealed interface ViewerProbeState {
     data object Idle : ViewerProbeState
@@ -111,21 +118,68 @@ sealed interface DuplicateUiState {
     data class Failed(val sourceAssetId: Long, val code: String) : DuplicateUiState
 }
 
+sealed interface SearchDataResetState {
+    data object Idle : SearchDataResetState
+
+    data object Resetting : SearchDataResetState
+
+    data object Succeeded : SearchDataResetState
+
+    data object Failed : SearchDataResetState
+}
+
+sealed interface ModelPackRollbackState {
+    data object Loading : ModelPackRollbackState
+
+    data class Unavailable(
+        val activeVersion: String?,
+        val rollbackCompleted: Boolean = false,
+    ) : ModelPackRollbackState
+
+    data class Available(
+        val activeVersion: String,
+        val targetVersion: String,
+        val rollbackCompleted: Boolean = false,
+    ) : ModelPackRollbackState
+
+    data class RollingBack(val targetVersion: String) : ModelPackRollbackState
+
+    data class Failed(val activeVersion: String, val targetVersion: String) : ModelPackRollbackState
+}
+
 @HiltViewModel
 class CatalogViewModel @Inject constructor(
     private val runtime: CatalogRuntime,
     private val modelPacks: ModelPackRuntime,
+    private val modelPackActivation: ModelPackActivationRuntime,
     private val ocrIndexing: OcrIndexingRuntime,
     private val unifiedSearch: UnifiedSearch,
     private val visualSimilarity: VisualSimilaritySearch,
     private val perceptualHashes: PerceptualHashSearch,
     private val indexingService: IndexingServiceController,
     private val storage: CatalogStorage,
+    private val onboardingStore: OnboardingStore,
+    private val thumbnailLoader: ThumbnailLoader,
+    private val storageInspector: LocalStorageInspector,
+    private val diagnosticsExporter: DiagnosticsExporter,
+    private val searchDataResetter: SearchDataResetter,
     @param:ApplicationContext private val context: Context,
 ) : ViewModel() {
     val catalog: StateFlow<CatalogRuntimeState> = runtime.state
     val modelPack: StateFlow<ModelPackRuntimeState> = modelPacks.state
     val indexing: StateFlow<OcrIndexingState> = ocrIndexing.state
+    val onboardingCompleted: StateFlow<Boolean> = onboardingStore.completed
+    private val mutableLocalStorage = MutableStateFlow(LocalStorageSummary(0L, 0L))
+    val localStorage: StateFlow<LocalStorageSummary> = mutableLocalStorage.asStateFlow()
+    private val mutableDiagnosticsExport =
+        MutableStateFlow<DiagnosticsExportState>(DiagnosticsExportState.Idle)
+    val diagnosticsExport: StateFlow<DiagnosticsExportState> = mutableDiagnosticsExport.asStateFlow()
+    private val mutableSearchDataReset =
+        MutableStateFlow<SearchDataResetState>(SearchDataResetState.Idle)
+    val searchDataReset: StateFlow<SearchDataResetState> = mutableSearchDataReset.asStateFlow()
+    private val mutableModelPackRollback =
+        MutableStateFlow<ModelPackRollbackState>(ModelPackRollbackState.Loading)
+    val modelPackRollback: StateFlow<ModelPackRollbackState> = mutableModelPackRollback.asStateFlow()
 
     private val mutableViewerProbe = MutableStateFlow<ViewerProbeState>(ViewerProbeState.Idle)
     val viewerProbe: StateFlow<ViewerProbeState> = mutableViewerProbe.asStateFlow()
@@ -146,6 +200,17 @@ class CatalogViewModel @Inject constructor(
                 catalogState.access.value to packState.installed
             }.collectLatest { (_, pack) -> ocrIndexing.refresh(pack) }
         }
+        viewModelScope.launch {
+            catalog.map { state -> state.access.value }.distinctUntilChanged().collect { revision ->
+                thumbnailLoader.onAccessRevision(revision)
+            }
+        }
+        viewModelScope.launch {
+            modelPack
+                .map { state -> state.installed?.packVersion to state.candidate?.packVersion }
+                .distinctUntilChanged()
+                .collect { refreshModelPackRollback() }
+        }
     }
 
     fun refresh(forceFull: Boolean = false) {
@@ -154,6 +219,148 @@ class CatalogViewModel @Inject constructor(
 
     fun onPermissionResult() {
         runtime.onPermissionResult()
+    }
+
+    fun completeOnboarding() = onboardingStore.complete()
+
+    suspend fun loadThumbnail(key: MediaKey, accessRevision: Long) =
+        thumbnailLoader.load(key, accessRevision)
+
+    fun refreshLocalStorage() {
+        val modelBytes = modelPack.value.installed?.payloadBytes ?: 0L
+        viewModelScope.launch {
+            mutableLocalStorage.value = storageInspector.measure(modelBytes)
+        }
+    }
+
+    fun exportDiagnostics(destination: Uri) {
+        if (mutableDiagnosticsExport.value == DiagnosticsExportState.Writing) return
+        mutableDiagnosticsExport.value = DiagnosticsExportState.Writing
+        viewModelScope.launch {
+            mutableDiagnosticsExport.value =
+                try {
+                    diagnosticsExporter.export(
+                        destination = destination,
+                        snapshot = DiagnosticsSnapshot(
+                            appVersion = BuildConfig.VERSION_NAME,
+                            sdkInt = Build.VERSION.SDK_INT,
+                            device = "${Build.MANUFACTURER} ${Build.MODEL}",
+                            catalogStatus = catalog.value.status.name,
+                            accessScope = catalog.value.access.permission.scope.name,
+                            catalogTotal = catalog.value.summary.total,
+                            catalogAvailable = catalog.value.summary.available,
+                            modelPackStatus = modelPack.value.status.name,
+                            activeModelPackVersion = modelPack.value.installed?.packVersion,
+                            candidateModelPackVersion = modelPack.value.candidate?.packVersion,
+                            preparationStatus = indexing.value.status.name,
+                            preparationErrorCode = indexing.value.errorCode,
+                            capabilities = indexing.value.capabilities,
+                            storage = localStorage.value,
+                        ),
+                    )
+                    DiagnosticsExportState.Saved
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (_: Exception) {
+                    DiagnosticsExportState.Failed
+                }
+        }
+    }
+
+    fun resetSearchData() {
+        if (mutableSearchDataReset.value == SearchDataResetState.Resetting) return
+        mutableSearchDataReset.value = SearchDataResetState.Resetting
+        modelPackActivation.requestStop()
+        viewModelScope.launch {
+            mutableSearchDataReset.value =
+                try {
+                    ocrIndexing.cancel()
+                    searchDataResetter.reset()
+                    clearDerivedUiState()
+                    ocrIndexing.refresh(modelPack.value.installed)
+                    mutableLocalStorage.value =
+                        storageInspector.measure(modelPack.value.installed?.payloadBytes ?: 0L)
+                    SearchDataResetState.Succeeded
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (_: Exception) {
+                    SearchDataResetState.Failed
+                }
+        }
+    }
+
+    fun rollbackModelPack() {
+        val current = mutableModelPackRollback.value
+        val targetVersion =
+            when (current) {
+                is ModelPackRollbackState.Available -> current.targetVersion
+                is ModelPackRollbackState.Failed -> current.targetVersion
+                else -> return
+            }
+        mutableModelPackRollback.value = ModelPackRollbackState.RollingBack(targetVersion)
+        modelPackActivation.requestStop()
+        viewModelScope.launch {
+            try {
+                ocrIndexing.cancel()
+                val pointer = checkNotNull(modelPackActivation.rollback())
+                val activeSnapshot = checkNotNull(
+                    pointer.snapshotId?.let { snapshotId -> storage.vectorIndexDao.snapshot(snapshotId) },
+                )
+                val activePack = checkNotNull(
+                    storage.modelPackDao.pack(activeSnapshot.packId, activeSnapshot.packVersion),
+                )
+                modelPacks.refresh()
+                ocrIndexing.refresh(activePack)
+                mutableModelPackRollback.value = loadModelPackRollback(rollbackCompleted = true)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                val activeVersion = modelPack.value.installed?.packVersion ?: "—"
+                mutableModelPackRollback.value =
+                    ModelPackRollbackState.Failed(activeVersion, targetVersion)
+            }
+        }
+    }
+
+    private suspend fun refreshModelPackRollback() {
+        if (mutableModelPackRollback.value is ModelPackRollbackState.RollingBack) return
+        mutableModelPackRollback.value = loadModelPackRollback()
+    }
+
+    private suspend fun loadModelPackRollback(rollbackCompleted: Boolean = false): ModelPackRollbackState {
+        val pointer = storage.vectorIndexDao.activePointer()
+        val active = pointer?.snapshotId?.let { snapshotId -> storage.vectorIndexDao.snapshot(snapshotId) }
+        val rollback = pointer?.rollbackSnapshotId?.let { snapshotId -> storage.vectorIndexDao.snapshot(snapshotId) }
+        return if (active != null && rollback != null) {
+            ModelPackRollbackState.Available(
+                activeVersion = active.packVersion,
+                targetVersion = rollback.packVersion,
+                rollbackCompleted = rollbackCompleted,
+            )
+        } else {
+            ModelPackRollbackState.Unavailable(
+                activeVersion = active?.packVersion ?: modelPack.value.installed?.packVersion,
+                rollbackCompleted = rollbackCompleted,
+            )
+        }
+    }
+
+    fun acknowledgeSearchDataReset() {
+        if (mutableSearchDataReset.value != SearchDataResetState.Resetting) {
+            mutableSearchDataReset.value = SearchDataResetState.Idle
+        }
+    }
+
+    private fun clearDerivedUiState() {
+        searchGeneration.incrementAndGet()
+        similarGeneration.incrementAndGet()
+        duplicateGeneration.incrementAndGet()
+        viewerGeneration.incrementAndGet()
+        closeViewerImage()
+        mutableSearch.value = SearchUiState.Idle
+        mutableSimilar.value = SimilarUiState.Idle
+        mutableDuplicates.value = DuplicateUiState.Idle
+        mutableViewerProbe.value = ViewerProbeState.Idle
     }
 
     fun probe(assetId: Long) {
@@ -226,6 +433,12 @@ class CatalogViewModel @Inject constructor(
     fun stopIndexingForNow() = indexingService.stopForNow()
 
     fun cancelIndexing() = indexingService.cancel()
+
+    fun retryIndexingGaps() {
+        viewModelScope.launch {
+            if (ocrIndexing.retryPermanentGaps()) indexingService.start()
+        }
+    }
 
     fun search(query: String) {
         val normalizedQuery = query.trim()

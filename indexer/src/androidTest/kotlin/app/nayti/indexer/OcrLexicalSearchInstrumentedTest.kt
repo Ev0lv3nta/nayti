@@ -14,6 +14,7 @@ import app.nayti.storage.IndexChannelWorkEntity
 import app.nayti.storage.IndexExecutionWindowEntity
 import app.nayti.storage.IndexExecutionWindowState
 import app.nayti.storage.IndexOperationEntity
+import app.nayti.storage.IndexOperationAssetEntity
 import app.nayti.storage.IndexOperationState
 import app.nayti.storage.OcrDocumentDraft
 import app.nayti.storage.OcrPublicationCodec
@@ -163,6 +164,15 @@ class OcrLexicalSearchInstrumentedTest {
                 updatedAtMillis = 0,
                 completedAtMillis = null,
             ),
+        )
+        index.insertOperationAssets(
+            assetIds.map { assetId ->
+                IndexOperationAssetEntity(
+                    operationId = OperationId,
+                    assetId = assetId,
+                    sourceFingerprint = checkNotNull(catalog.asset(assetId)).sourceFingerprint,
+                )
+            },
         )
         index.startExecutionWindow(
             IndexExecutionWindowEntity(

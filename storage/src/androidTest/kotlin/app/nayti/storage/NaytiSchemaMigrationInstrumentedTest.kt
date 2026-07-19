@@ -66,6 +66,7 @@ class NaytiSchemaMigrationInstrumentedTest {
                 StorageMigrations.From6To7,
                 StorageMigrations.From7To8,
                 StorageMigrations.From8To9,
+                StorageMigrations.From9To10,
             ),
         ).use { connection ->
             connection.prepare(
@@ -148,6 +149,23 @@ class NaytiSchemaMigrationInstrumentedTest {
                 val columns = mutableSetOf<String>()
                 while (statement.step()) columns += statement.getText(1)
                 assertTrue("derivedDataPurgedAtMillis" in columns)
+            }
+        }
+    }
+
+    @Test
+    fun migration9To10CreatesDefaultUnboundedIndexingScope() = runBlocking {
+        migration.createDatabase(9).close()
+
+        migration.runMigrationsAndValidate(10, listOf(StorageMigrations.From9To10)).use { connection ->
+            connection.prepare(
+                "SELECT mode, takenFromMillis, revision FROM indexing_scope WHERE singletonId = 1",
+            ).use { statement ->
+                assertTrue(statement.step())
+                assertEquals(IndexingScopeMode.ALL, statement.getText(0))
+                assertTrue(statement.isNull(1))
+                assertEquals(1L, statement.getLong(2))
+                assertFalse(statement.step())
             }
         }
     }

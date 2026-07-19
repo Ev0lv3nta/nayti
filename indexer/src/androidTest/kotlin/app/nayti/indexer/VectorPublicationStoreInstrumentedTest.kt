@@ -14,6 +14,7 @@ import app.nayti.storage.CatalogWatermarkEntity
 import app.nayti.storage.IndexChannel
 import app.nayti.storage.IndexChannelWorkEntity
 import app.nayti.storage.IndexWorkState
+import app.nayti.storage.IndexingScopeMode
 import app.nayti.storage.ModelPackEntity
 import app.nayti.storage.ModelPackStatus
 import app.nayti.storage.OcrDocumentDraft
@@ -986,7 +987,7 @@ class VectorPublicationStoreInstrumentedTest {
         assertEquals(1, root.resolve("segments").listFiles().orEmpty().size)
         val recovery =
             IndexStartupRecovery(root, storage.indexStateDao, storage.vectorIndexDao).recover(
-                nowMillis = now,
+                nowMillis = now + 20_000,
                 orphanGraceMillis = 0,
                 deepVerifySegments = true,
             )
@@ -1009,7 +1010,7 @@ class VectorPublicationStoreInstrumentedTest {
         assertEquals(IndexWorkState.RUNNING, storage.indexStateDao.work(assetId, IndexChannel.VISUAL)?.state)
         val recovery =
             IndexStartupRecovery(root, storage.indexStateDao, storage.vectorIndexDao).recover(
-                nowMillis = now,
+                nowMillis = now + 20_000,
                 orphanGraceMillis = 0,
                 deepVerifySegments = true,
             )
@@ -1043,17 +1044,17 @@ class VectorPublicationStoreInstrumentedTest {
 
     @Test
     fun imageToImageSearchUsesCurrentEligibleVectorsAndReleasesLease() = runBlocking {
-        val sourceAsset = insertAsset(1)
+        val sourceAsset = insertAsset(1, dateModifiedSeconds = 3)
         store().publish(
             request(2_001, sourceAsset, stageRunningWork(sourceAsset, "visual-source")).withVector(100),
         )
         now += 100
-        val similarAsset = insertAsset(2)
+        val similarAsset = insertAsset(2, dateModifiedSeconds = 2)
         store().publish(
             request(2_002, similarAsset, stageRunningWork(similarAsset, "visual-similar")).withVector(100),
         )
         now += 100
-        val differentAsset = insertAsset(3)
+        val differentAsset = insertAsset(3, dateModifiedSeconds = 1)
         store().publish(
             request(2_003, differentAsset, stageRunningWork(differentAsset, "visual-different")).withVector(-100),
         )
@@ -1063,6 +1064,7 @@ class VectorPublicationStoreInstrumentedTest {
                 vectorRoot = root,
                 clock = { now },
                 leaseTokens = { "visual-query-test" },
+                catalog = storage.catalogDao,
             )
 
         val initial = search.searchSimilar(sourceAsset)
@@ -1071,6 +1073,11 @@ class VectorPublicationStoreInstrumentedTest {
         assertEquals(listOf(similarAsset, differentAsset), initial.hits.map { it.assetId })
         assertTrue(initial.hits.first().rawScore > initial.hits.last().rawScore)
         assertNull(storage.vectorIndexDao.queryLease("visual-query-test"))
+
+        storage.catalogDao.updateIndexingScope(IndexingScopeMode.SINCE_DATE, 1_500, now)
+        val scoped = search.searchSimilar(sourceAsset)
+        assertEquals(listOf(similarAsset), scoped.hits.map { it.assetId })
+        storage.catalogDao.updateIndexingScope(IndexingScopeMode.ALL, null, now + 1)
 
         val changed = checkNotNull(storage.catalogDao.asset(similarAsset))
         assertEquals(1, storage.catalogDao.updateAsset(changed.copy(sourceFingerprint = "changed-source")))
@@ -1086,8 +1093,8 @@ class VectorPublicationStoreInstrumentedTest {
 
     @Test
     fun perceptualHashSearchUsesActiveSnapshotEpochAndReleasesLease() = runBlocking {
-        val sourceAsset = insertAsset(1)
-        val similarAsset = insertAsset(2)
+        val sourceAsset = insertAsset(1, dateModifiedSeconds = 3)
+        val similarAsset = insertAsset(2, dateModifiedSeconds = 2)
         suspend fun publishHash(assetId: Long, bits: Long, suffix: String) {
             val lease = "phash-$suffix"
             storage.indexStateDao.replaceWork(
@@ -1144,6 +1151,7 @@ class VectorPublicationStoreInstrumentedTest {
                 vectors = storage.vectorIndexDao,
                 clock = { now },
                 leaseTokens = { "phash-query-test" },
+                catalog = storage.catalogDao,
             )
 
         val result = search.nearDuplicates(sourceAsset)
@@ -1153,6 +1161,12 @@ class VectorPublicationStoreInstrumentedTest {
         assertEquals(AccessRevision, result.accessRevision)
         assertEquals(listOf(similarAsset), result.hits.map { it.assetId })
         assertNull(storage.vectorIndexDao.queryLease("phash-query-test"))
+
+        storage.catalogDao.updateIndexingScope(IndexingScopeMode.SINCE_DATE, 2_500, now)
+        val scoped = search.nearDuplicates(sourceAsset)
+        assertEquals(PerceptualHashSearchStatus.READY, scoped.status)
+        assertTrue(scoped.hits.isEmpty())
+        storage.catalogDao.updateIndexingScope(IndexingScopeMode.ALL, null, now + 1)
 
         storage.catalogDao.recordAccessObservation("Full", AccessRevision + 1, now + 1)
         assertEquals(PerceptualHashSearchStatus.SOURCE_NOT_INDEXED, search.nearDuplicates(sourceAsset).status)
@@ -1432,7 +1446,10 @@ class VectorPublicationStoreInstrumentedTest {
             records = records.map { record -> record.copy(vector = ByteArray(Dimension) { value.toByte() }) },
         )
 
-    private suspend fun insertAsset(mediaStoreId: Long): Long =
+    private suspend fun insertAsset(
+        mediaStoreId: Long,
+        dateModifiedSeconds: Long = mediaStoreId,
+    ): Long =
         storage.catalogDao.insertAsset(
             CatalogAssetEntity(
                 volumeName = "external_primary",
@@ -1445,7 +1462,7 @@ class VectorPublicationStoreInstrumentedTest {
                 generationAdded = 1,
                 generationModified = mediaStoreId,
                 dateTakenMillis = null,
-                dateModifiedSeconds = mediaStoreId,
+                dateModifiedSeconds = dateModifiedSeconds,
                 displayName = null,
                 bucketId = null,
                 bucketDisplayName = null,

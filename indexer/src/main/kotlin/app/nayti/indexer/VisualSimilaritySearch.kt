@@ -5,6 +5,7 @@ import app.nayti.search.engine.NativeVectorSearchHit
 import app.nayti.search.engine.VectorSegmentChannel
 import app.nayti.search.engine.VectorSegmentV1Reader
 import app.nayti.storage.ActivationSnapshotEntity
+import app.nayti.storage.CatalogDao
 import app.nayti.storage.IndexChannel
 import app.nayti.storage.QuerySnapshotLeaseEntity
 import app.nayti.storage.VectorGenerationEntity
@@ -66,6 +67,7 @@ class VisualSimilaritySearch(
     vectorRoot: File,
     private val clock: () -> Long = System::currentTimeMillis,
     private val leaseTokens: () -> String = { "visual-query-${UUID.randomUUID()}" },
+    private val catalog: CatalogDao? = null,
 ) {
     private val files = ImmutableVectorFiles(vectorRoot)
 
@@ -75,6 +77,7 @@ class VisualSimilaritySearch(
     ): VisualSimilaritySearchResult {
         require(sourceAssetId > 0)
         require(limit in 1..MaximumResultLimit)
+        val filter = SearchFilter.None.constrainedFrom(catalog?.currentIndexingScope()?.takenFromMillis)
         val acquiredAt = clock()
         val lease =
             vectors.acquireCurrentSnapshotLease(
@@ -84,7 +87,7 @@ class VisualSimilaritySearch(
             ) ?: return empty(VisualSimilaritySearchStatus.NO_ACTIVE_SNAPSHOT, sourceAssetId)
         return try {
             withContext(Dispatchers.Default) {
-                searchLeased(sourceAssetId, limit, lease)
+                searchLeased(sourceAssetId, limit, lease, filter)
             }
         } finally {
             vectors.releaseQueryLease(lease.leaseToken)
@@ -97,6 +100,7 @@ class VisualSimilaritySearch(
         encoder: suspend (VisualQueryContract) -> ByteArray,
     ): EncodedVisualSearchResult {
         require(limit in 1..MaximumResultLimit)
+        val effectiveFilter = filter.constrainedFrom(catalog?.currentIndexingScope()?.takenFromMillis)
         val acquiredAt = clock()
         val lease =
             vectors.acquireCurrentSnapshotLease(
@@ -112,7 +116,7 @@ class VisualSimilaritySearch(
             )
         return try {
             withContext(Dispatchers.Default) {
-                searchEncodedLeased(limit, lease, filter, encoder)
+                searchEncodedLeased(limit, lease, effectiveFilter, encoder)
             }
         } finally {
             vectors.releaseQueryLease(lease.leaseToken)
@@ -123,6 +127,7 @@ class VisualSimilaritySearch(
         sourceAssetId: Long,
         limit: Int,
         lease: QuerySnapshotLeaseEntity,
+        filter: SearchFilter = SearchFilter.None,
     ): VisualSimilaritySearchResult {
         val snapshot = checkNotNull(vectors.snapshot(lease.snapshotId))
         check(snapshot.engineContractVersion == NativeVectorIndex.contractVersion())
@@ -145,6 +150,10 @@ class VisualSimilaritySearch(
                     segmentSha256 = artifact.sha256,
                     visualPipelineVersion = index.generation.pipelineVersion,
                     componentHash = index.generation.componentHash,
+                    takenFromMillis = filter.takenFromMillis,
+                    takenBeforeMillis = filter.takenBeforeMillis,
+                    bucketId = filter.bucketId,
+                    mimeType = filter.mimeType,
                 )
             if (sourceAssetId !in eligible) continue
             val decoded = decodeVerified(artifact)
@@ -160,7 +169,7 @@ class VisualSimilaritySearch(
                 lease.accessRevision,
             )
         check(sourceVector.size == index.generation.dimension)
-        val hits = scan(index, sourceVector, sourceAssetId, limit, lease, leaseExpiresAt, SearchFilter.None)
+        val hits = scan(index, sourceVector, sourceAssetId, limit, lease, leaseExpiresAt, filter)
         return ready(sourceAssetId, snapshot.snapshotId, manifestRevision, lease.accessRevision, hits)
     }
 

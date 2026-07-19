@@ -58,6 +58,12 @@ class DiagnosticsExporterTest {
                         ),
                     ),
                     storage = LocalStorageSummary(indexBytes = 1024, modelBytes = 2048),
+                    indexingScopeMode = "SINCE_DATE",
+                    indexingScopeTakenFromMillis = 1_700_000_000_000,
+                    indexingScopeRevision = 2,
+                    indexingScopeEligibleAssets = 8,
+                    preparationActiveDurationMillis = 120_000,
+                    estimatedAllMediaDurationMillis = 180_000,
                 ),
             )
             val report = resolver.openInputStream(uri).use { input ->
@@ -65,6 +71,8 @@ class DiagnosticsExporterTest {
             }
             assertTrue(report.contains("\"format\": \"nayti-diagnostics-v1\""))
             assertTrue(report.contains("\"BATTERY_LOW\""))
+            assertTrue(report.contains("\"scopeMode\": \"SINCE_DATE\""))
+            assertTrue(report.contains("\"estimatedAllMediaDurationMillis\": 180000"))
             assertFalse(report.contains("/storage/emulated"))
             assertFalse(report.contains("secret user query"))
         } finally {

@@ -4,6 +4,23 @@
     <string name="nav_readiness">Readiness</string>
     <string name="nav_data">Data</string>
     <string name="local_only">On-device only</string>
+    <string name="indexing_scope_title">Photos to prepare</string>
+    <string name="indexing_scope_all">Entire library</string>
+    <string name="indexing_scope_since_date">Starting from a date</string>
+    <plurals name="indexing_scope_all_details">
+        <item quantity="one">%1$d available photo will be prepared.</item>
+        <item quantity="other">%1$d available photos will be prepared.</item>
+    </plurals>
+    <plurals name="indexing_scope_since_details">
+        <item quantity="one">From %1$s, %2$d of %3$d available photos will be prepared. Existing work is retained when the period expands.</item>
+        <item quantity="other">From %1$s, %2$d of %3$d available photos will be prepared. Existing work is retained when the period expands.</item>
+    </plurals>
+    <string name="indexing_scope_months_short">%1$d mo.</string>
+    <string name="indexing_scope_pause_first">Pause the current preparation before changing the period.</string>
+    <string name="indexing_scope_unknown_dates">Photos without a reliable date will remain unprocessed: %1$d.</string>
+    <string name="indexing_scope_estimate">The selected period took %1$s of active work. Preliminary estimate for the entire library: %2$s.</string>
+    <string name="indexing_scope_duration_minutes">%1$d min</string>
+    <string name="indexing_scope_duration_hours">%1$d h %2$d min</string>
     <string name="setup_eyebrow">First launch</string>
     <string name="setup_title">Photo search that understands context</string>
     <string name="setup_subtitle">Nayti finds photos by text, meaning, and visual content — even when you remember a single detail.</string>

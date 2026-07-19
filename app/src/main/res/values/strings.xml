@@ -4,6 +4,27 @@
     <string name="nav_readiness">Готовность</string>
     <string name="nav_data">Данные</string>
     <string name="local_only">Только на устройстве</string>
+    <string name="indexing_scope_title">Какие фото подготовить</string>
+    <string name="indexing_scope_all">Вся медиатека</string>
+    <string name="indexing_scope_since_date">Начиная с даты</string>
+    <plurals name="indexing_scope_all_details">
+        <item quantity="one">Будет подготовлена %1$d доступная фотография.</item>
+        <item quantity="few">Будут подготовлены %1$d доступные фотографии.</item>
+        <item quantity="many">Будут подготовлены %1$d доступных фотографий.</item>
+        <item quantity="other">Будет подготовлено %1$d доступной фотографии.</item>
+    </plurals>
+    <plurals name="indexing_scope_since_details">
+        <item quantity="one">С %1$s будет подготовлена %2$d из %3$d доступных фотографий. Готовая работа сохранится при расширении периода.</item>
+        <item quantity="few">С %1$s будут подготовлены %2$d из %3$d доступных фотографий. Готовая работа сохранится при расширении периода.</item>
+        <item quantity="many">С %1$s будут подготовлены %2$d из %3$d доступных фотографий. Готовая работа сохранится при расширении периода.</item>
+        <item quantity="other">С %1$s будет подготовлено %2$d из %3$d доступных фотографий. Готовая работа сохранится при расширении периода.</item>
+    </plurals>
+    <string name="indexing_scope_months_short">%1$d мес.</string>
+    <string name="indexing_scope_pause_first">Чтобы изменить период, сначала приостановите текущую подготовку.</string>
+    <string name="indexing_scope_unknown_dates">Без обработки останутся фотографии без надёжной даты: %1$d.</string>
+    <string name="indexing_scope_estimate">Выбранный период занял %1$s активной работы. Предварительная оценка всей медиатеки: %2$s.</string>
+    <string name="indexing_scope_duration_minutes">%1$d мин</string>
+    <string name="indexing_scope_duration_hours">%1$d ч %2$d мин</string>
     <string name="setup_eyebrow">Первый запуск</string>
     <string name="setup_title">Поиск по фотографиям, который понимает контекст</string>
     <string name="setup_subtitle">Nayti находит снимки по тексту, смыслу и содержимому — даже если вы помните только одну деталь.</string>

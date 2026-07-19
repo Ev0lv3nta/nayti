@@ -8,6 +8,7 @@ import app.nayti.storage.CatalogAvailability
 import app.nayti.storage.CatalogStorage
 import app.nayti.storage.IndexChannel
 import app.nayti.storage.IndexOperationState
+import app.nayti.storage.IndexingScopeMode
 import app.nayti.storage.IndexStateDao
 import app.nayti.storage.IndexWorkState
 import app.nayti.storage.StorageContract
@@ -258,6 +259,33 @@ class IndexExecutionCoordinatorInstrumentedTest {
         assertEquals("CANCELLED", storage.indexStateDao.executionWindow(window.windowId)?.state)
     }
 
+    @Test
+    fun scopedOperationCannotClaimPendingWorkFromAnOlderBroaderOperation() = runBlocking {
+        insertAsset(mediaStoreId = 1, dateTakenMillis = 1_000)
+        insertAsset(mediaStoreId = 2, dateTakenMillis = 10_000)
+        storage.catalogDao.recordAccessObservation("Full", AccessRevision, 1)
+        val clock = MutableClock(20_000)
+        val planner = coordinator(clock, "planner", emptyMap())
+        val channel = IndexChannelContract(IndexChannel.OCR, 0, "ocr-v1", ComponentHash)
+        val broad = planner.planOperation(request(channel, operationId = "operation-all"))
+        assertEquals(2L, broad.denominatorAssetCount)
+
+        storage.catalogDao.updateIndexingScope(IndexingScopeMode.SINCE_DATE, 5_000, clock.nowMillis)
+        val scoped = planner.planOperation(request(channel, operationId = "operation-scoped"))
+        assertEquals(1L, scoped.denominatorAssetCount)
+        assertEquals(listOf(2L), storage.indexStateDao.operationAssets(scoped.operationId).map { it.assetId })
+
+        val executor = DeterministicExecutor(storage.indexStateDao, clock)
+        val runner = coordinator(clock, "scoped", mapOf(IndexChannel.OCR to executor))
+        val window = runner.startExecutionWindow(scoped.operationId, "TEST", 1_000)
+        val report = runner.runWindow(window.windowId, itemLimit = 2)
+
+        assertEquals(1, report.published)
+        assertEquals(IndexWorkState.PENDING, storage.indexStateDao.work(1, IndexChannel.OCR)?.state)
+        assertEquals(IndexWorkState.DONE, storage.indexStateDao.work(2, IndexChannel.OCR)?.state)
+        assertEquals(IndexOperationState.COMPLETED, storage.indexStateDao.operation(scoped.operationId)?.state)
+    }
+
     private fun coordinator(
         clock: MutableClock,
         prefix: String,
@@ -271,9 +299,12 @@ class IndexExecutionCoordinatorInstrumentedTest {
             ids = SequentialIdFactory(prefix),
         )
 
-    private fun request(vararg channels: IndexChannelContract) =
+    private fun request(
+        vararg channels: IndexChannelContract,
+        operationId: String = OperationId,
+    ) =
         IndexOperationRequest(
-            operationId = OperationId,
+            operationId = operationId,
             profileId = "balanced-v1",
             targetPackId = "nayti-offline-search",
             targetPackVersion = "0.1.0-alpha.1",
@@ -281,7 +312,10 @@ class IndexExecutionCoordinatorInstrumentedTest {
             autoResume = true,
         )
 
-    private suspend fun insertAsset(mediaStoreId: Long) {
+    private suspend fun insertAsset(
+        mediaStoreId: Long,
+        dateTakenMillis: Long? = null,
+    ) {
         storage.catalogDao.insertAsset(
             CatalogAssetEntity(
                 volumeName = "external_primary",
@@ -293,7 +327,7 @@ class IndexExecutionCoordinatorInstrumentedTest {
                 orientationDegrees = 0,
                 generationAdded = 1,
                 generationModified = mediaStoreId,
-                dateTakenMillis = null,
+                dateTakenMillis = dateTakenMillis,
                 dateModifiedSeconds = mediaStoreId,
                 displayName = null,
                 bucketId = null,

@@ -363,6 +363,33 @@ object StorageMigrations {
             }
         }
 
+    val From9To10: Migration =
+        object : Migration(9, 10) {
+            override suspend fun migrate(connection: SQLiteConnection) {
+                connection.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `indexing_scope` (" +
+                        "`singletonId` INTEGER NOT NULL, `mode` TEXT NOT NULL, " +
+                        "`takenFromMillis` INTEGER, `revision` INTEGER NOT NULL, " +
+                        "`updatedAtMillis` INTEGER NOT NULL, PRIMARY KEY(`singletonId`))",
+                )
+                connection.execSQL(
+                    "INSERT OR IGNORE INTO `indexing_scope` " +
+                        "(`singletonId`, `mode`, `takenFromMillis`, `revision`, `updatedAtMillis`) " +
+                        "VALUES (1, 'ALL', NULL, 1, 0)",
+                )
+            }
+        }
+
     val All: Array<Migration> =
-        arrayOf(From1To2, From2To3, From3To4, From4To5, From5To6, From6To7, From7To8, From8To9)
+        arrayOf(
+            From1To2,
+            From2To3,
+            From3To4,
+            From4To5,
+            From5To6,
+            From6To7,
+            From7To8,
+            From8To9,
+            From9To10,
+        )
 }

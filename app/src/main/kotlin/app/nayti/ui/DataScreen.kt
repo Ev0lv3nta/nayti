@@ -42,6 +42,7 @@ import app.nayti.R
 import app.nayti.indexer.CatalogRuntimeState
 import app.nayti.indexer.ModelPackRuntimeState
 import app.nayti.indexer.ModelPackRuntimeStatus
+import app.nayti.indexer.OcrIndexingState
 import app.nayti.platform.media.MediaAccessScope
 import app.nayti.ui.theme.NaytiSpacing
 
@@ -53,12 +54,15 @@ internal fun DataScreen(
     diagnosticsExport: DiagnosticsExportState,
     searchDataReset: SearchDataResetState,
     modelPackRollback: ModelPackRollbackState,
+    indexing: OcrIndexingState,
     onRequestAccess: () -> Unit,
     onImportModelPack: () -> Unit,
     onRefreshStorage: () -> Unit,
     onExportDiagnostics: () -> Unit,
     onResetSearchData: () -> Unit,
     onRollbackModelPack: () -> Unit,
+    onSelectIndexingMonths: (Long?) -> Unit = {},
+    onSelectIndexingStartDate: (Long) -> Unit = {},
 ) {
     var showResetConfirmation by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { onRefreshStorage() }
@@ -101,6 +105,13 @@ internal fun DataScreen(
                 icon = Icons.Outlined.Lock,
                 title = stringResource(R.string.privacy_title),
                 body = stringResource(R.string.privacy_details),
+            )
+        }
+        item {
+            IndexingScopeCard(
+                indexing = indexing,
+                onSelectMonths = onSelectIndexingMonths,
+                onSelectStartDate = onSelectIndexingStartDate,
             )
         }
         item {

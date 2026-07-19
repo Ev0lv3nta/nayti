@@ -441,6 +441,15 @@ class OcrPublicationInstrumentedTest {
                 completedAtMillis = null,
             ),
         )
+        index.insertOperationAssets(
+            listOf(
+                IndexOperationAssetEntity(
+                    operationId = OperationId,
+                    assetId = assetId,
+                    sourceFingerprint = checkNotNull(catalog.asset(assetId)).sourceFingerprint,
+                ),
+            ),
+        )
         index.startExecutionWindow(
             IndexExecutionWindowEntity(
                 windowId = WindowId,

@@ -325,6 +325,7 @@ class IndexStateInstrumentedTest {
     }
 
     private suspend fun startOperationAndWindow(windowId: String, expiresAtMillis: Long) {
+        val plannedAssets = catalog.availableAssets()
         index.insertOperation(
             IndexOperationEntity(
                 operationId = OperationId,
@@ -332,13 +333,22 @@ class IndexStateInstrumentedTest {
                 targetPackId = "nayti-offline-search",
                 targetPackVersion = "0.1.0-alpha.1",
                 denominatorCatalogRevision = 1,
-                denominatorAssetCount = 1,
+                denominatorAssetCount = plannedAssets.size.toLong(),
                 state = IndexOperationState.PLANNED,
                 autoResume = true,
                 createdAtMillis = 0,
                 updatedAtMillis = 0,
                 completedAtMillis = null,
             ),
+        )
+        index.insertOperationAssets(
+            plannedAssets.map { asset ->
+                IndexOperationAssetEntity(
+                    operationId = OperationId,
+                    assetId = asset.assetId,
+                    sourceFingerprint = asset.sourceFingerprint,
+                )
+            },
         )
         index.startExecutionWindow(window(windowId, 0, expiresAtMillis), 0)
     }

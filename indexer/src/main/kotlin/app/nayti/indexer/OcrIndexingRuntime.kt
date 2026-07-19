@@ -7,6 +7,8 @@ import app.nayti.storage.CatalogStorage
 import app.nayti.storage.IndexChannel
 import app.nayti.storage.IndexOperationEntity
 import app.nayti.storage.IndexOperationState
+import app.nayti.storage.IndexingScopeMode
+import app.nayti.storage.IndexingScopeSummary
 import app.nayti.storage.ModelPackEntity
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
@@ -56,6 +58,17 @@ data class OcrIndexingState(
     val operationState: String? = null,
     val hostType: String? = null,
     val capabilities: List<SearchCapabilityCoverage> = emptyList(),
+    val activeDurationMillis: Long = 0,
+    val estimatedAllMediaDurationMillis: Long? = null,
+    val scope: IndexingScopeSummary =
+        IndexingScopeSummary(
+            mode = IndexingScopeMode.ALL,
+            takenFromMillis = null,
+            revision = 1,
+            totalAvailable = 0,
+            eligibleAssets = 0,
+            unknownDateAssets = 0,
+        ),
 )
 
 object OcrExecutionHost {
@@ -95,6 +108,26 @@ class OcrIndexingRuntime(
         currentPack.set(pack)
         scope.launch {
             if (!running.get()) publishCoverage(pack, lastSlicePublished = 0)
+        }
+    }
+
+    suspend fun setIndexingScope(takenFromMillis: Long?): Boolean {
+        require(takenFromMillis == null || takenFromMillis >= 0)
+        if (running.get() || !executionMutex.tryLock()) return false
+        return try {
+            if (running.get()) return false
+            val current = storage.catalogDao.currentIndexingScope()
+            val mode = if (takenFromMillis == null) IndexingScopeMode.ALL else IndexingScopeMode.SINCE_DATE
+            if (current.mode != mode || current.takenFromMillis != takenFromMillis) {
+                val now = System.currentTimeMillis()
+                require(takenFromMillis == null || takenFromMillis <= now)
+                storage.catalogDao.updateIndexingScope(mode, takenFromMillis, now)
+                currentOperationId.set(null)
+            }
+            publishCoverage(currentPack.get(), lastSlicePublished = 0, operationId = null)
+            true
+        } finally {
+            executionMutex.unlock()
         }
     }
 
@@ -205,7 +238,7 @@ class OcrIndexingRuntime(
                 publishCoverage(pack, result.visualPublished, operationId, hostType)
                 if (!result.saturated) break
             }
-            val coverage = coverage(pack)
+            val coverage = coverage(pack, storage.catalogDao.currentIndexingScope().takenFromMillis)
             val constraintCode = activeConstraint.get()
             if (coverage != null && coverage.outstandingAssetCount > 0) {
                 if (constraintCode == null) {
@@ -264,6 +297,7 @@ class OcrIndexingRuntime(
         activeConstraint: AtomicReference<String?>,
     ): WindowResult {
         val catalogRevision = storage.catalogDao.watermark()?.catalogRevision ?: 0
+        val indexingScope = storage.catalogDao.currentIndexingScope()
         val planner =
             IndexExecutionCoordinator(
                 indexState = storage.indexStateDao,
@@ -274,7 +308,7 @@ class OcrIndexingRuntime(
         val operation =
             planner.planOperation(
                 IndexOperationRequest(
-                    operationId = operationId(pack, catalogRevision),
+                    operationId = operationId(pack, catalogRevision, indexingScope.revision),
                     profileId = ProfileId,
                     targetPackId = pack.packId,
                     targetPackVersion = pack.packVersion,
@@ -489,6 +523,7 @@ class OcrIndexingRuntime(
             accessRevision = access.processAccessRevision,
             pipelineVersion = pipelineVersion,
             componentHash = componentHash,
+            takenFromMillis = storage.catalogDao.currentIndexingScope().takenFromMillis,
         ).outstandingAssetCount > 0
     }
 
@@ -574,19 +609,21 @@ class OcrIndexingRuntime(
         operationId: String? = currentOperationId.get(),
         hostType: String? = null,
     ) {
+        val scopeSummary = storage.catalogDao.indexingScopeSummary()
         if (pack == null) {
-            mutableState.value = EmptyState
+            mutableState.value = EmptyState.copy(scope = scopeSummary)
             return
         }
         val access = storage.catalogDao.accessObservation()
         if (access == null || access.accessScope == "None") {
-            mutableState.value = EmptyState
+            mutableState.value = EmptyState.copy(scope = scopeSummary)
             return
         }
-        val coverage = coverage(pack) ?: return
+        val coverage = coverage(pack, scopeSummary.takenFromMillis) ?: return
         val selectedOperation =
             if (operationId == null) {
-                storage.indexStateDao.latestOperation(pack.packId, pack.packVersion)
+                val catalogRevision = storage.catalogDao.watermark()?.catalogRevision ?: 0
+                storage.indexStateDao.operation(operationId(pack, catalogRevision))
             } else {
                 storage.indexStateDao.operation(operationId)
             }
@@ -594,10 +631,24 @@ class OcrIndexingRuntime(
             candidate.targetPackId == pack.packId && candidate.targetPackVersion == pack.packVersion
         }
         if (operation != null) currentOperationId.set(operation.operationId)
-        mutableState.value = coverage.toState(operation, lastSlicePublished, hostType)
+        val activeDurationMillis =
+            operation?.let { current ->
+                storage.indexStateDao.operationActiveDurationMillis(current.operationId, System.currentTimeMillis())
+            } ?: 0
+        mutableState.value =
+            coverage.toState(
+                operation,
+                lastSlicePublished,
+                hostType,
+                scopeSummary,
+                activeDurationMillis,
+            )
     }
 
-    private suspend fun coverage(pack: ModelPackEntity): PreparationCoverage? {
+    private suspend fun coverage(
+        pack: ModelPackEntity,
+        takenFromMillis: Long?,
+    ): PreparationCoverage? {
         val access = storage.catalogDao.accessObservation() ?: return null
         if (access.accessScope == "None") return null
         suspend fun channel(
@@ -611,6 +662,7 @@ class OcrIndexingRuntime(
                 accessRevision = access.processAccessRevision,
                 pipelineVersion = pipelineVersion,
                 componentHash = componentHash,
+                takenFromMillis = takenFromMillis,
             )
             return SearchCapabilityCoverage(
                 capability = capability,
@@ -656,6 +708,8 @@ class OcrIndexingRuntime(
         operation: IndexOperationEntity?,
         lastSlicePublished: Int,
         hostType: String?,
+        scopeSummary: IndexingScopeSummary,
+        activeDurationMillis: Long,
     ): OcrIndexingState =
         OcrIndexingState(
             status =
@@ -677,10 +731,21 @@ class OcrIndexingRuntime(
             operationState = operation?.state,
             hostType = hostType,
             capabilities = capabilities,
+            activeDurationMillis = activeDurationMillis,
+            estimatedAllMediaDurationMillis =
+                estimateAllMediaDuration(scopeSummary, capabilities, activeDurationMillis),
+            scope = scopeSummary,
         )
 
-    private fun operationId(pack: ModelPackEntity, catalogRevision: Long): String =
-        "search-v3-${pack.manifestSha256.take(16)}-catalog-$catalogRevision"
+    private suspend fun operationId(pack: ModelPackEntity, catalogRevision: Long): String =
+        operationId(pack, catalogRevision, storage.catalogDao.currentIndexingScope().revision)
+
+    private fun operationId(
+        pack: ModelPackEntity,
+        catalogRevision: Long,
+        scopeRevision: Long,
+    ): String =
+        "search-v3-${pack.manifestSha256.take(16)}-catalog-$catalogRevision-scope-$scopeRevision"
 
     private data class WindowResult(
         val operation: IndexOperationEntity,
@@ -722,6 +787,37 @@ class OcrIndexingRuntime(
                 outstanding = 0,
                 lastSlicePublished = 0,
                 errorCode = null,
+                scope =
+                    IndexingScopeSummary(
+                        mode = IndexingScopeMode.ALL,
+                        takenFromMillis = null,
+                        revision = 1,
+                        totalAvailable = 0,
+                        eligibleAssets = 0,
+                        unknownDateAssets = 0,
+                    ),
             )
     }
+}
+
+internal fun estimateAllMediaDuration(
+    scope: IndexingScopeSummary,
+    capabilities: List<SearchCapabilityCoverage>,
+    activeDurationMillis: Long,
+): Long? {
+    if (
+        scope.mode == IndexingScopeMode.ALL ||
+        scope.eligibleAssets <= 0 ||
+        scope.totalAvailable <= scope.eligibleAssets ||
+        activeDurationMillis <= 0 ||
+        capabilities.isEmpty() ||
+        capabilities.any { coverage -> coverage.outstanding > 0 }
+    ) {
+        return null
+    }
+    val scaled =
+        activeDurationMillis.toDouble() *
+            scope.totalAvailable.toDouble() /
+            scope.eligibleAssets.toDouble()
+    return scaled.coerceAtMost(Long.MAX_VALUE.toDouble()).toLong()
 }

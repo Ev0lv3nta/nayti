@@ -1,7 +1,10 @@
 package app.nayti.ui
 
+import android.content.ContentValues
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.Environment
+import android.provider.MediaStore
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
@@ -23,7 +26,6 @@ import app.nayti.platform.media.AccessRevision
 import app.nayti.platform.media.MediaAccessScope
 import app.nayti.platform.media.MediaPermissionSnapshot
 import app.nayti.ui.theme.NaytiTheme
-import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -67,6 +69,7 @@ class ScreenshotRegressionTest {
                         diagnosticsExport = DiagnosticsExportState.Idle,
                         searchDataReset = SearchDataResetState.Idle,
                         modelPackRollback = ModelPackRollbackState.Unavailable(null),
+                        indexing = indexing(),
                         onRequestAccess = {},
                         onImportModelPack = {},
                         onRefreshStorage = {},
@@ -88,13 +91,31 @@ class ScreenshotRegressionTest {
             instrumentation.context.assets.open("goldens/$name").use(BitmapFactory::decodeStream)
         }.getOrNull()
         if (expected == null) {
-            val outputDirectory = instrumentation.targetContext.cacheDir
-            check(outputDirectory.mkdirs() || outputDirectory.isDirectory)
-            val output = File(outputDirectory, name)
-            output.outputStream().use { stream ->
-                check(actual.compress(Bitmap.CompressFormat.PNG, 100, stream))
+            val resolver = instrumentation.targetContext.contentResolver
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+                put(
+                    MediaStore.MediaColumns.RELATIVE_PATH,
+                    "${Environment.DIRECTORY_DOWNLOADS}/NaytiTest",
+                )
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
-            error("Missing screenshot baseline. Generated candidate: ${output.absolutePath}")
+            val output = checkNotNull(
+                resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values),
+            )
+            runCatching {
+                resolver.openOutputStream(output).use { stream ->
+                    checkNotNull(stream)
+                    check(actual.compress(Bitmap.CompressFormat.PNG, 100, stream))
+                }
+                values.clear()
+                values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                check(resolver.update(output, values, null, null) == 1)
+            }.onFailure {
+                resolver.delete(output, null, null)
+            }.getOrThrow()
+            error("Missing screenshot baseline. Generated candidate: $output")
         }
         assertEquals(expected.width, actual.width)
         assertEquals(expected.height, actual.height)

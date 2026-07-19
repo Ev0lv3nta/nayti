@@ -99,6 +99,7 @@ for avd in "${avds[@]}"; do
   echo "[matrix] Running API $api_level ($page_size-byte pages) on $avd"
   ANDROID_SERIAL="$serial" ./gradlew \
     :app:connectedDebugAndroidTest \
+    :indexer:connectedDebugAndroidTest \
     :ml-runtime:connectedDebugAndroidTest \
     :search-engine:connectedDebugAndroidTest \
     :storage:connectedDebugAndroidTest \

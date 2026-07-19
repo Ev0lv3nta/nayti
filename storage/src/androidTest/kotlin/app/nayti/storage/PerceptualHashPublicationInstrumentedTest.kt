@@ -102,6 +102,7 @@ class PerceptualHashPublicationInstrumentedTest {
     }
 
     private suspend fun startWindow() {
+        val plannedAssets = catalog.availableAssets()
         index.insertOperation(
             IndexOperationEntity(
                 operationId = OperationId,
@@ -116,6 +117,15 @@ class PerceptualHashPublicationInstrumentedTest {
                 updatedAtMillis = 0,
                 completedAtMillis = null,
             ),
+        )
+        index.insertOperationAssets(
+            plannedAssets.map { asset ->
+                IndexOperationAssetEntity(
+                    operationId = OperationId,
+                    assetId = asset.assetId,
+                    sourceFingerprint = asset.sourceFingerprint,
+                )
+            },
         )
         index.startExecutionWindow(
             IndexExecutionWindowEntity(

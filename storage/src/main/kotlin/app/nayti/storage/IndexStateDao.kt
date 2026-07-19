@@ -68,6 +68,13 @@ interface IndexStateDao {
     suspend fun liveExecutionWindowCount(operationId: String, nowMillis: Long): Int
 
     @Query(
+        "SELECT COALESCE(SUM(MAX(0, " +
+            "(CASE WHEN finishedAtMillis IS NULL THEN :nowMillis ELSE finishedAtMillis END) - startedAtMillis)), 0) " +
+            "FROM index_execution_window WHERE operationId = :operationId",
+    )
+    suspend fun operationActiveDurationMillis(operationId: String, nowMillis: Long): Long
+
+    @Query(
         "UPDATE index_execution_window SET state = 'EXPIRED', finishedAtMillis = :nowMillis " +
             "WHERE state = 'RUNNING' AND expiresAtMillis <= :nowMillis",
     )
@@ -91,8 +98,10 @@ interface IndexStateDao {
     @Query(
         "SELECT work.* FROM index_channel_work AS work " +
             "INNER JOIN catalog_asset AS asset ON asset.assetId = work.assetId " +
+            "INNER JOIN index_operation_asset AS planned ON planned.assetId = work.assetId " +
             "INNER JOIN catalog_access_observation AS access ON access.singletonId = 1 " +
-            "WHERE work.channel = :channel " +
+            "WHERE planned.operationId = :operationId " +
+            "AND work.channel = :channel " +
             "AND work.state IN ('PENDING', 'RETRYABLE_ERROR') " +
             "AND (work.nextEligibleAtMillis IS NULL OR work.nextEligibleAtMillis <= :nowMillis) " +
             "AND asset.availability = 'AVAILABLE' " +
@@ -107,7 +116,12 @@ interface IndexStateDao {
             ")) " +
             "ORDER BY work.assetId LIMIT :limit",
     )
-    suspend fun eligibleWork(channel: String, nowMillis: Long, limit: Int): List<IndexChannelWorkEntity>
+    suspend fun eligibleWork(
+        operationId: String,
+        channel: String,
+        nowMillis: Long,
+        limit: Int,
+    ): List<IndexChannelWorkEntity>
 
     @Query(
         "UPDATE index_channel_work SET state = 'RUNNING', attempt = attempt + 1, " +
@@ -232,21 +246,30 @@ interface IndexStateDao {
 
     @Query(
         "SELECT :channel AS channel, " +
-            "(SELECT COUNT(*) FROM catalog_asset WHERE availability = 'AVAILABLE') AS accessibleAssetCount, " +
+            "(SELECT COUNT(*) FROM catalog_asset WHERE availability = 'AVAILABLE' " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(dateTakenMillis, dateModifiedSeconds * 1000) >= :takenFromMillis)) " +
+            "AS accessibleAssetCount, " +
             "(SELECT COUNT(*) FROM catalog_asset AS asset INNER JOIN index_channel_work AS work " +
             "ON work.assetId = asset.assetId AND work.channel = :channel " +
             "WHERE asset.availability = 'AVAILABLE' AND work.sourceFingerprint = asset.sourceFingerprint " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(asset.dateTakenMillis, asset.dateModifiedSeconds * 1000) " +
+            ">= :takenFromMillis) " +
             "AND work.accessRevision = :accessRevision AND work.pipelineVersion = :pipelineVersion " +
             "AND work.componentHash = :componentHash AND work.state = 'DONE') AS committedAssetCount, " +
             "(SELECT COUNT(*) FROM catalog_asset AS asset INNER JOIN index_channel_work AS work " +
             "ON work.assetId = asset.assetId AND work.channel = :channel " +
             "WHERE asset.availability = 'AVAILABLE' AND work.sourceFingerprint = asset.sourceFingerprint " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(asset.dateTakenMillis, asset.dateModifiedSeconds * 1000) " +
+            ">= :takenFromMillis) " +
             "AND work.accessRevision = :accessRevision AND work.pipelineVersion = :pipelineVersion " +
             "AND work.componentHash = :componentHash AND work.state = 'PERMANENT_ERROR') AS permanentGapCount, " +
-            "((SELECT COUNT(*) FROM catalog_asset WHERE availability = 'AVAILABLE') - " +
+            "((SELECT COUNT(*) FROM catalog_asset WHERE availability = 'AVAILABLE' " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(dateTakenMillis, dateModifiedSeconds * 1000) >= :takenFromMillis)) - " +
             "(SELECT COUNT(*) FROM catalog_asset AS asset INNER JOIN index_channel_work AS work " +
             "ON work.assetId = asset.assetId AND work.channel = :channel " +
             "WHERE asset.availability = 'AVAILABLE' AND work.sourceFingerprint = asset.sourceFingerprint " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(asset.dateTakenMillis, asset.dateModifiedSeconds * 1000) " +
+            ">= :takenFromMillis) " +
             "AND work.accessRevision = :accessRevision AND work.pipelineVersion = :pipelineVersion " +
             "AND work.componentHash = :componentHash AND work.state IN ('DONE', 'PERMANENT_ERROR'))) " +
             "AS outstandingAssetCount",
@@ -256,6 +279,7 @@ interface IndexStateDao {
         accessRevision: Long,
         pipelineVersion: String,
         componentHash: String,
+        takenFromMillis: Long?,
     ): IndexChannelCoverage
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -461,7 +485,7 @@ interface IndexStateDao {
         check(operation(window.operationId)?.state == IndexOperationState.RUNNING)
         val expiry = minOf(window.expiresAtMillis, Math.addExact(nowMillis, leaseDurationMillis))
         val claimed = mutableListOf<IndexChannelWorkEntity>()
-        eligibleWork(channel, nowMillis, limit).forEach { candidate ->
+        eligibleWork(window.operationId, channel, nowMillis, limit).forEach { candidate ->
             val token = "$claimNonce:${candidate.assetId}:${candidate.channel}"
             if (
                 claimWorkRow(
@@ -692,12 +716,14 @@ interface IndexStateDao {
         accessRevision: Long,
         pipelineVersion: String,
         componentHash: String,
+        takenFromMillis: Long? = null,
     ): IndexChannelCoverage {
         require(channel in IndexChannel.all)
         require(accessRevision > 0)
         require(contractValue(pipelineVersion))
         require(Sha256.matches(componentHash))
-        val coverage = channelCoverageRow(channel, accessRevision, pipelineVersion, componentHash)
+        require(takenFromMillis == null || takenFromMillis >= 0)
+        val coverage = channelCoverageRow(channel, accessRevision, pipelineVersion, componentHash, takenFromMillis)
         check(coverage.accessibleAssetCount >= 0)
         check(coverage.committedAssetCount >= 0 && coverage.permanentGapCount >= 0 && coverage.outstandingAssetCount >= 0)
         check(

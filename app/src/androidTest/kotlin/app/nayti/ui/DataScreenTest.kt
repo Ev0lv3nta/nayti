@@ -16,10 +16,15 @@ import app.nayti.indexer.CatalogRuntimeStatus
 import app.nayti.indexer.CatalogSummary
 import app.nayti.indexer.ModelPackRuntimeState
 import app.nayti.indexer.ModelPackRuntimeStatus
+import app.nayti.indexer.OcrIndexingState
+import app.nayti.indexer.OcrIndexingStatus
 import app.nayti.platform.media.AccessRevision
 import app.nayti.platform.media.MediaAccessScope
 import app.nayti.platform.media.MediaPermissionSnapshot
+import app.nayti.storage.IndexingScopeMode
+import app.nayti.storage.IndexingScopeSummary
 import app.nayti.ui.theme.NaytiTheme
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -38,9 +43,9 @@ class DataScreenTest {
         var resetRequested = false
         setContent(onResetSearchData = { resetRequested = true })
 
-        composeRule.onNodeWithText(context.getString(R.string.reset_index_action))
-            .performScrollTo()
-            .performClick()
+        val action = context.getString(R.string.reset_index_action)
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(action))
+        composeRule.onNodeWithText(action).performClick()
         composeRule.onNodeWithText(context.getString(R.string.reset_index_confirm_title))
             .assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.reset_index_confirm_action))
@@ -64,10 +69,23 @@ class DataScreenTest {
         composeRule.runOnIdle { assertTrue(rollbackRequested) }
     }
 
+    @Test
+    fun indexingPeriodCanBeSelectedFromAQuickPreset() {
+        var selectedMonths: Long? = null
+        setContent(onSelectIndexingMonths = { selectedMonths = it })
+
+        composeRule.onNodeWithText(context.getString(R.string.indexing_scope_months_short, 3L))
+            .performScrollTo()
+            .performClick()
+
+        composeRule.runOnIdle { assertEquals(3L, selectedMonths) }
+    }
+
     private fun setContent(
         rollback: ModelPackRollbackState = ModelPackRollbackState.Unavailable("1.0"),
         onResetSearchData: () -> Unit = {},
         onRollback: () -> Unit = {},
+        onSelectIndexingMonths: (Long?) -> Unit = {},
     ) {
         composeRule.setContent {
             NaytiTheme {
@@ -78,12 +96,14 @@ class DataScreenTest {
                     diagnosticsExport = DiagnosticsExportState.Idle,
                     searchDataReset = SearchDataResetState.Idle,
                     modelPackRollback = rollback,
+                    indexing = indexing(),
                     onRequestAccess = {},
                     onImportModelPack = {},
                     onRefreshStorage = {},
                     onExportDiagnostics = {},
                     onResetSearchData = onResetSearchData,
                     onRollbackModelPack = onRollback,
+                    onSelectIndexingMonths = onSelectIndexingMonths,
                 )
             }
         }
@@ -106,4 +126,24 @@ class DataScreenTest {
         candidate = null,
         errorCode = null,
     )
+
+    private fun indexing() =
+        OcrIndexingState(
+            status = OcrIndexingStatus.Ready,
+            accessible = 120,
+            committed = 120,
+            permanentGaps = 0,
+            outstanding = 0,
+            lastSlicePublished = 0,
+            errorCode = null,
+            scope =
+                IndexingScopeSummary(
+                    mode = IndexingScopeMode.ALL,
+                    takenFromMillis = null,
+                    revision = 1,
+                    totalAvailable = 1_200,
+                    eligibleAssets = 1_200,
+                    unknownDateAssets = 0,
+                ),
+        )
 }

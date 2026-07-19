@@ -9,6 +9,7 @@ import app.nayti.search.engine.fusion.StrictMultimodalFusion
 import app.nayti.search.engine.fusion.TextFusionReason
 import app.nayti.storage.QuerySnapshotLeaseEntity
 import app.nayti.storage.IndexChannel
+import app.nayti.storage.CatalogDao
 import app.nayti.storage.VectorIndexDao
 import java.util.UUID
 
@@ -54,6 +55,7 @@ class UnifiedSearch(
     private val planner: MultimodalQueryPlanner = MultimodalQueryPlanner(),
     private val clock: () -> Long = System::currentTimeMillis,
     private val leaseTokens: () -> String = { "unified-query-${UUID.randomUUID()}" },
+    private val catalog: CatalogDao? = null,
 ) {
     suspend fun search(
         query: String,
@@ -66,6 +68,8 @@ class UnifiedSearch(
         val plan = planner.plan(query)
         var consistencyFailure: QueryConsistencyChangedException? = null
         repeat(MaximumConsistencyAttempts) {
+            val scope = catalog?.currentIndexingScope()
+            val effectiveFilter = filter.constrainedFrom(scope?.takenFromMillis)
             val acquiredAt = clock()
             val lease =
                 vectors.acquireCurrentSnapshotLease(
@@ -82,7 +86,8 @@ class UnifiedSearch(
                         limit,
                         plan.intent,
                         plan.usesVisualRetriever,
-                        filter,
+                        effectiveFilter,
+                        scope?.revision,
                     )
                 } catch (failure: QueryConsistencyChangedException) {
                     consistencyFailure = failure
@@ -97,7 +102,8 @@ class UnifiedSearch(
                     plan.intent,
                     plan.usesVisualRetriever,
                     lease,
-                    filter,
+                    effectiveFilter,
+                    scope?.revision,
                 )
             } catch (failure: QueryConsistencyChangedException) {
                 consistencyFailure = failure
@@ -116,6 +122,7 @@ class UnifiedSearch(
         usesVisualRetriever: Boolean,
         lease: QuerySnapshotLeaseEntity,
         filter: SearchFilter,
+        scopeRevision: Long?,
     ): UnifiedSearchResult {
         val textResult =
             text.searchLeased(
@@ -136,6 +143,9 @@ class UnifiedSearch(
         }
         val access = vectors.accessObservation()
         if (access?.accessScope == "None" || access?.processAccessRevision != lease.accessRevision) {
+            throw QueryConsistencyChangedException()
+        }
+        if (scopeRevision != null && catalog?.currentIndexingScope()?.revision != scopeRevision) {
             throw QueryConsistencyChangedException()
         }
 
@@ -159,13 +169,14 @@ class UnifiedSearch(
         intent: MultimodalQueryIntent,
         usesVisualRetriever: Boolean,
         filter: SearchFilter,
+        scopeRevision: Long?,
     ): UnifiedSearchResult {
-        val before = captureState()
+        val before = captureState(scopeRevision)
         val textResult =
             text.search(query, pipelineVersion, fallbackComponentHash, MaximumRetrieverCandidates, filter)
         val visualResult =
             if (usesVisualRetriever) visual.search(query, MaximumRetrieverCandidates, filter) else null
-        val after = captureState()
+        val after = captureState(scopeRevision)
         if (before != after) throw QueryConsistencyChangedException()
         return fuse(intent, before.snapshotId, before.accessRevision, null, null, textResult, visualResult, limit)
     }
@@ -228,12 +239,17 @@ class UnifiedSearch(
         )
     }
 
-    private suspend fun captureState(): QueryConsistencyState {
+    private suspend fun captureState(expectedScopeRevision: Long?): QueryConsistencyState {
         val access = vectors.accessObservation()
+        val actualScopeRevision = catalog?.currentIndexingScope()?.revision
+        if (expectedScopeRevision != null && actualScopeRevision != expectedScopeRevision) {
+            throw QueryConsistencyChangedException()
+        }
         return QueryConsistencyState(
             snapshotId = vectors.activeSnapshotId(),
             accessScope = access?.accessScope,
             accessRevision = access?.processAccessRevision,
+            scopeRevision = actualScopeRevision,
         )
     }
 
@@ -244,6 +260,7 @@ class UnifiedSearch(
         val snapshotId: String?,
         val accessScope: String?,
         val accessRevision: Long?,
+        val scopeRevision: Long?,
     )
 
     private class QueryConsistencyChangedException : Exception()

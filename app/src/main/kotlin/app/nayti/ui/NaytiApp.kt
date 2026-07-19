@@ -202,6 +202,8 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
             onImportModelPack = { modelPackLauncher.launch(arrayOf("application/octet-stream")) },
             onRequestAccess = requestAccess,
             onStartIndexing = startIndexing,
+            onSelectIndexingMonths = viewModel::setIndexingScopeMonths,
+            onSelectIndexingStartDate = viewModel::setIndexingScopeFrom,
             onComplete = viewModel::completeOnboarding,
         )
     } else {
@@ -230,6 +232,8 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
             onStopIndexing = viewModel::stopIndexingForNow,
             onCancelIndexing = viewModel::cancelIndexing,
             onRetryIndexingGaps = viewModel::retryIndexingGaps,
+            onSelectIndexingMonths = viewModel::setIndexingScopeMonths,
+            onSelectIndexingStartDate = viewModel::setIndexingScopeFrom,
             onProbe = viewModel::probe,
             onClearProbe = viewModel::clearProbe,
             onRefreshStorage = viewModel::refreshLocalStorage,
@@ -266,6 +270,8 @@ private fun NaytiAppContent(
     onStopIndexing: () -> Unit,
     onCancelIndexing: () -> Unit,
     onRetryIndexingGaps: () -> Unit,
+    onSelectIndexingMonths: (Long?) -> Unit,
+    onSelectIndexingStartDate: (Long) -> Unit,
     onProbe: (Long) -> Unit,
     onClearProbe: () -> Unit,
     onRefreshStorage: () -> Unit,
@@ -314,6 +320,8 @@ private fun NaytiAppContent(
                     onStopIndexing = onStopIndexing,
                     onCancelIndexing = onCancelIndexing,
                     onRetryIndexingGaps = onRetryIndexingGaps,
+                    onSelectIndexingMonths = onSelectIndexingMonths,
+                    onSelectIndexingStartDate = onSelectIndexingStartDate,
                     onProbe = onProbe,
                     onClearProbe = onClearProbe,
                     onRefreshStorage = onRefreshStorage,
@@ -361,6 +369,8 @@ private fun NaytiAppContent(
                     onStopIndexing = onStopIndexing,
                     onCancelIndexing = onCancelIndexing,
                     onRetryIndexingGaps = onRetryIndexingGaps,
+                    onSelectIndexingMonths = onSelectIndexingMonths,
+                    onSelectIndexingStartDate = onSelectIndexingStartDate,
                     onProbe = onProbe,
                     onClearProbe = onClearProbe,
                     onRefreshStorage = onRefreshStorage,
@@ -448,6 +458,8 @@ private fun RootNavHost(
     onStopIndexing: () -> Unit,
     onCancelIndexing: () -> Unit,
     onRetryIndexingGaps: () -> Unit,
+    onSelectIndexingMonths: (Long?) -> Unit,
+    onSelectIndexingStartDate: (Long) -> Unit,
     onProbe: (Long) -> Unit,
     onClearProbe: () -> Unit,
     onRefreshStorage: () -> Unit,
@@ -485,6 +497,8 @@ private fun RootNavHost(
                     onStopIndexing = onStopIndexing,
                     onCancelIndexing = onCancelIndexing,
                     onRetryIndexingGaps = onRetryIndexingGaps,
+                    onSelectIndexingMonths = onSelectIndexingMonths,
+                    onSelectIndexingStartDate = onSelectIndexingStartDate,
                     onOpenItem = { item -> navController.navigate("viewer/${item.assetId}") },
                 )
             }
@@ -496,12 +510,15 @@ private fun RootNavHost(
                     diagnosticsExport = diagnosticsExport,
                     searchDataReset = searchDataReset,
                     modelPackRollback = modelPackRollback,
+                    indexing = indexing,
                     onRequestAccess = onRequestAccess,
                     onImportModelPack = onImportModelPack,
                     onRefreshStorage = onRefreshStorage,
                     onExportDiagnostics = onExportDiagnostics,
                     onResetSearchData = onResetSearchData,
                     onRollbackModelPack = onRollbackModelPack,
+                    onSelectIndexingMonths = onSelectIndexingMonths,
+                    onSelectIndexingStartDate = onSelectIndexingStartDate,
                 )
             }
             composable(
@@ -1071,6 +1088,8 @@ private fun ReadinessScreen(
     onStopIndexing: () -> Unit,
     onCancelIndexing: () -> Unit,
     onRetryIndexingGaps: () -> Unit,
+    onSelectIndexingMonths: (Long?) -> Unit,
+    onSelectIndexingStartDate: (Long) -> Unit,
     onOpenItem: (CatalogItem) -> Unit,
 ) {
     LazyColumn(
@@ -1086,6 +1105,13 @@ private fun ReadinessScreen(
             )
         }
         item { AccessCard(catalog, onRequestAccess, onRefresh) }
+        item {
+            IndexingScopeCard(
+                indexing = indexing,
+                onSelectMonths = onSelectIndexingMonths,
+                onSelectStartDate = onSelectIndexingStartDate,
+            )
+        }
         item {
             OcrReadinessCard(
                 catalog = catalog,
@@ -1928,6 +1954,8 @@ private fun NaytiPreview() {
             onStopIndexing = {},
             onCancelIndexing = {},
             onRetryIndexingGaps = {},
+            onSelectIndexingMonths = {},
+            onSelectIndexingStartDate = {},
             onProbe = {},
             onClearProbe = {},
             onRefreshStorage = {},

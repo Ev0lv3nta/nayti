@@ -236,7 +236,7 @@ class IndexExecutionCoordinator(
 
     private suspend fun createOperation(request: IndexOperationRequest): IndexOperationEntity {
         val now = clock.nowMillis()
-        val capturedAssets = catalog.availableAssets()
+        val capturedAssets = catalog.indexableAssets()
         val catalogRevision = catalog.watermark()?.catalogRevision ?: 0
         val operation =
             IndexOperationEntity(

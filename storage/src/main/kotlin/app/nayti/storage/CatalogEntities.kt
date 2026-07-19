@@ -78,6 +78,31 @@ data class CatalogWatermarkEntity(
     val updatedAtMillis: Long,
 )
 
+@Entity(tableName = "indexing_scope")
+data class IndexingScopeEntity(
+    @PrimaryKey val singletonId: Int = 1,
+    val mode: String,
+    val takenFromMillis: Long?,
+    val revision: Long,
+    val updatedAtMillis: Long,
+)
+
+data class IndexingScopeSummary(
+    val mode: String,
+    val takenFromMillis: Long?,
+    val revision: Long,
+    val totalAvailable: Long,
+    val eligibleAssets: Long,
+    val unknownDateAssets: Long,
+)
+
+object IndexingScopeMode {
+    const val ALL = "ALL"
+    const val SINCE_DATE = "SINCE_DATE"
+
+    val all: Set<String> = setOf(ALL, SINCE_DATE)
+}
+
 data class CatalogAssetDraft(
     val volumeName: String,
     val mediaStoreId: Long,

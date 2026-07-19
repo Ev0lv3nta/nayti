@@ -5,6 +5,7 @@ import app.nayti.search.engine.similarity.PerceptualHashRanker
 import app.nayti.search.engine.similarity.PerceptualHashRecord
 import app.nayti.search.engine.similarity.PerceptualHashV1
 import app.nayti.storage.PerceptualHashDao
+import app.nayti.storage.CatalogDao
 import app.nayti.storage.IndexChannel
 import app.nayti.storage.VectorIndexDao
 import java.util.UUID
@@ -29,6 +30,7 @@ class PerceptualHashSearch(
     private val vectors: VectorIndexDao,
     private val clock: () -> Long = System::currentTimeMillis,
     private val leaseTokens: () -> String = { "phash-query-${UUID.randomUUID()}" },
+    private val catalog: CatalogDao? = null,
 ) {
     suspend fun nearDuplicates(
         sourceAssetId: Long,
@@ -59,9 +61,16 @@ class PerceptualHashSearch(
                     componentHash = component.componentHash,
                     maximumPublicationEpoch = snapshot.pHashPublicationEpoch,
                 )
+            val scopedRows =
+                if (catalog == null) {
+                    rows
+                } else {
+                    val eligible = catalog.indexableAssetIds().toHashSet()
+                    rows.filter { row -> row.assetId in eligible }
+                }
             val access = vectors.accessObservation()
             check(access?.accessScope != "None" && access?.processAccessRevision == lease.accessRevision)
-            val source = rows.singleOrNull { it.assetId == sourceAssetId }
+            val source = scopedRows.singleOrNull { it.assetId == sourceAssetId }
             if (source == null) {
                 PerceptualHashSearchResult(
                     PerceptualHashSearchStatus.SOURCE_NOT_INDEXED,
@@ -72,7 +81,7 @@ class PerceptualHashSearch(
                     emptyList(),
                 )
             } else {
-                val records = rows.map { PerceptualHashRecord(it.assetId, it.hashBits, it.publicationEpoch) }
+                val records = scopedRows.map { PerceptualHashRecord(it.assetId, it.hashBits, it.publicationEpoch) }
                 PerceptualHashSearchResult(
                     status = PerceptualHashSearchStatus.READY,
                     sourceAssetId = sourceAssetId,

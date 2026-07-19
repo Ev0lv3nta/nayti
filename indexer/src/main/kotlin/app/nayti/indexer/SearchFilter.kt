@@ -18,6 +18,15 @@ data class SearchFilter(
     val isEmpty: Boolean
         get() = takenFromMillis == null && takenBeforeMillis == null && bucketId == null && mimeType == null
 
+    fun constrainedFrom(scopeTakenFromMillis: Long?): SearchFilter {
+        if (scopeTakenFromMillis == null) return this
+        val effectiveFrom = maxOf(takenFromMillis ?: 0, scopeTakenFromMillis)
+        require(takenBeforeMillis == null || effectiveFrom < takenBeforeMillis) {
+            "Search filter does not overlap the active indexing scope"
+        }
+        return copy(takenFromMillis = effectiveFrom)
+    }
+
     companion object {
         val None = SearchFilter()
 

@@ -27,6 +27,12 @@ data class DiagnosticsSnapshot(
     val preparationErrorCode: String?,
     val capabilities: List<SearchCapabilityCoverage>,
     val storage: LocalStorageSummary,
+    val indexingScopeMode: String? = null,
+    val indexingScopeTakenFromMillis: Long? = null,
+    val indexingScopeRevision: Long? = null,
+    val indexingScopeEligibleAssets: Long? = null,
+    val preparationActiveDurationMillis: Long? = null,
+    val estimatedAllMediaDurationMillis: Long? = null,
 )
 
 sealed interface DiagnosticsExportState {
@@ -67,6 +73,12 @@ class DiagnosticsExporter @Inject constructor(
             json.name("preparation").beginObject()
             json.name("status").value(snapshot.preparationStatus)
             json.nullableName("errorCode", snapshot.preparationErrorCode)
+            json.nullableName("scopeMode", snapshot.indexingScopeMode)
+            json.nullableLongName("scopeTakenFromMillis", snapshot.indexingScopeTakenFromMillis)
+            json.nullableLongName("scopeRevision", snapshot.indexingScopeRevision)
+            json.nullableLongName("scopeEligibleAssets", snapshot.indexingScopeEligibleAssets)
+            json.nullableLongName("activeDurationMillis", snapshot.preparationActiveDurationMillis)
+            json.nullableLongName("estimatedAllMediaDurationMillis", snapshot.estimatedAllMediaDurationMillis)
             json.name("capabilities").beginArray()
             snapshot.capabilities.forEach { coverage ->
                 json.beginObject()
@@ -88,6 +100,11 @@ class DiagnosticsExporter @Inject constructor(
     }
 
     private fun JsonWriter.nullableName(name: String, value: String?) {
+        name(name)
+        if (value == null) nullValue() else value(value)
+    }
+
+    private fun JsonWriter.nullableLongName(name: String, value: Long?) {
         name(name)
         if (value == null) nullValue() else value(value)
     }

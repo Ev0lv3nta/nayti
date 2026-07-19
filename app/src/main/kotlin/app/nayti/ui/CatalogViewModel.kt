@@ -38,8 +38,10 @@ import app.nayti.storage.SearchFilterFacets
 import app.nayti.search.engine.similarity.PerceptualHashMatch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
+import java.time.Instant
+import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicLong
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -262,6 +264,25 @@ class CatalogViewModel @Inject constructor(
 
     fun completeOnboarding() = onboardingStore.complete()
 
+    fun setIndexingScopeMonths(months: Long?) {
+        require(months == null || months in setOf(1L, 3L, 6L, 12L))
+        val takenFromMillis =
+            months?.let { value ->
+                indexingCutoffMillis(System.currentTimeMillis(), value, ZoneId.systemDefault())
+            }
+        setIndexingScopeFrom(takenFromMillis)
+    }
+
+    fun setIndexingScopeFrom(takenFromMillis: Long?) {
+        require(takenFromMillis == null || takenFromMillis in 0..System.currentTimeMillis())
+        viewModelScope.launch {
+            if (ocrIndexing.setIndexingScope(takenFromMillis)) {
+                clearDerivedUiState()
+                mutableSearchFilterFacets.value = storage.catalogDao.searchFilterFacets()
+            }
+        }
+    }
+
     suspend fun loadThumbnail(key: MediaKey, accessRevision: Long) =
         thumbnailLoader.load(key, accessRevision)
 
@@ -295,6 +316,12 @@ class CatalogViewModel @Inject constructor(
                             preparationErrorCode = indexing.value.errorCode,
                             capabilities = indexing.value.capabilities,
                             storage = localStorage.value,
+                            indexingScopeMode = indexing.value.scope.mode,
+                            indexingScopeTakenFromMillis = indexing.value.scope.takenFromMillis,
+                            indexingScopeRevision = indexing.value.scope.revision,
+                            indexingScopeEligibleAssets = indexing.value.scope.eligibleAssets,
+                            preparationActiveDurationMillis = indexing.value.activeDurationMillis,
+                            estimatedAllMediaDurationMillis = indexing.value.estimatedAllMediaDurationMillis,
                         ),
                     )
                     DiagnosticsExportState.Saved
@@ -416,7 +443,7 @@ class CatalogViewModel @Inject constructor(
                             storage.vectorIndexDao.snapshotChannel(snapshotId, IndexChannel.OCR)
                         }
                         val evidence =
-                            if (ocrComponent == null) {
+                            if (ocrComponent == null || !storage.catalogDao.isAssetIndexable(assetId)) {
                                 null
                             } else {
                                 storage.ocrDao.eligibleAsset(
@@ -555,4 +582,20 @@ class CatalogViewModel @Inject constructor(
             if (duplicateGeneration.get() == generation) mutableDuplicates.value = result
         }
     }
+}
+
+internal fun indexingCutoffMillis(
+    nowMillis: Long,
+    months: Long,
+    zoneId: ZoneId,
+): Long {
+    require(nowMillis >= 0)
+    require(months > 0)
+    return Instant.ofEpochMilli(nowMillis)
+        .atZone(zoneId)
+        .minusMonths(months)
+        .toLocalDate()
+        .atStartOfDay(zoneId)
+        .toInstant()
+        .toEpochMilli()
 }

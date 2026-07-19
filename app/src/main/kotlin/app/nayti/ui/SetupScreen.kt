@@ -57,9 +57,14 @@ internal fun SetupScreen(
     onImportModelPack: () -> Unit,
     onRequestAccess: () -> Unit,
     onStartIndexing: () -> Unit,
+    onSelectIndexingMonths: (Long?) -> Unit = {},
+    onSelectIndexingStartDate: (Long) -> Unit = {},
     onComplete: () -> Unit,
 ) {
     val accessGranted = catalog.access.permission.scope != MediaAccessScope.None
+    val scopeMatchesCatalog = indexing.scope.totalAvailable == catalog.summary.available
+    val selectedPhotoCount =
+        if (scopeMatchesCatalog) indexing.scope.eligibleAssets else catalog.summary.available
     val action =
         SetupPolicy.next(
             SetupSnapshot(
@@ -67,7 +72,7 @@ internal fun SetupScreen(
                 modelPackBusy = modelPack.status in setOf(ModelPackRuntimeStatus.Loading, ModelPackRuntimeStatus.Installing),
                 photoAccessGranted = accessGranted,
                 catalogReconciling = catalog.status == CatalogRuntimeStatus.Reconciling,
-                availablePhotos = catalog.summary.available,
+                availablePhotos = selectedPhotoCount,
                 indexingRunning = indexing.status == OcrIndexingStatus.Running,
                 indexingAccessible = indexing.accessible,
                 indexingOutstanding = indexing.outstanding,
@@ -135,6 +140,15 @@ internal fun SetupScreen(
             item {
                 PrivacyPromise()
             }
+            if (accessGranted && catalog.status != CatalogRuntimeStatus.Reconciling) {
+                item {
+                    IndexingScopeCard(
+                        indexing = indexing,
+                        onSelectMonths = onSelectIndexingMonths,
+                        onSelectStartDate = onSelectIndexingStartDate,
+                    )
+                }
+            }
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Item)) {
                     Text(
@@ -164,11 +178,11 @@ internal fun SetupScreen(
                     SetupStepCard(
                         icon = Icons.AutoMirrored.Outlined.List,
                         title = stringResource(R.string.setup_prepare_title),
-                        body = setupPreparationDescription(catalog, indexing),
+                        body = setupPreparationDescription(catalog, indexing, selectedPhotoCount),
                         complete =
                             accessGranted &&
                                 catalog.status != CatalogRuntimeStatus.Reconciling &&
-                                (catalog.summary.available == 0L ||
+                                (selectedPhotoCount == 0L ||
                                     (indexing.accessible > 0 && indexing.outstanding == 0L)),
                         busy =
                             catalog.status == CatalogRuntimeStatus.Reconciling ||
@@ -337,10 +351,11 @@ private fun setupPackDescription(state: ModelPackRuntimeState): String = when (s
 private fun setupPreparationDescription(
     catalog: CatalogRuntimeState,
     indexing: OcrIndexingState,
+    selectedPhotoCount: Long,
 ): String = when {
     catalog.access.permission.scope == MediaAccessScope.None -> stringResource(R.string.setup_prepare_waiting_access)
     catalog.status == CatalogRuntimeStatus.Reconciling -> stringResource(R.string.setup_prepare_inventory)
-    catalog.summary.available == 0L -> stringResource(R.string.setup_prepare_empty)
+    selectedPhotoCount == 0L -> stringResource(R.string.setup_prepare_empty)
     indexing.status == OcrIndexingStatus.Running -> stringResource(
         R.string.setup_prepare_running,
         indexing.committed,
@@ -353,8 +368,8 @@ private fun setupPreparationDescription(
     )
     else -> pluralStringResource(
         R.plurals.setup_prepare_pending,
-        catalog.summary.available.asResourceQuantity(),
-        catalog.summary.available,
+        selectedPhotoCount.asResourceQuantity(),
+        selectedPhotoCount,
     )
 }
 

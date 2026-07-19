@@ -6,6 +6,7 @@ import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
 import androidx.room3.Transaction
 import androidx.room3.Update
+import androidx.room3.Upsert
 
 @Dao
 interface CatalogDao {
@@ -17,6 +18,26 @@ interface CatalogDao {
 
     @Query("SELECT * FROM catalog_asset WHERE availability = 'AVAILABLE' ORDER BY assetId")
     suspend fun availableAssets(): List<CatalogAssetEntity>
+
+    @Query(
+        "SELECT * FROM catalog_asset WHERE availability = 'AVAILABLE' " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(dateTakenMillis, dateModifiedSeconds * 1000) >= :takenFromMillis) " +
+            "ORDER BY assetId",
+    )
+    suspend fun availableAssetsFrom(takenFromMillis: Long?): List<CatalogAssetEntity>
+
+    @Query(
+        "SELECT assetId FROM catalog_asset WHERE availability = 'AVAILABLE' " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(dateTakenMillis, dateModifiedSeconds * 1000) >= :takenFromMillis) " +
+            "ORDER BY assetId",
+    )
+    suspend fun availableAssetIdsFrom(takenFromMillis: Long?): List<Long>
+
+    @Query(
+        "SELECT COUNT(*) FROM catalog_asset WHERE assetId = :assetId AND availability = 'AVAILABLE' " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(dateTakenMillis, dateModifiedSeconds * 1000) >= :takenFromMillis)",
+    )
+    suspend fun isAssetAvailableFrom(assetId: Long, takenFromMillis: Long?): Int
 
     @Query("SELECT * FROM catalog_asset ORDER BY assetId")
     suspend fun allAssets(): List<CatalogAssetEntity>
@@ -33,6 +54,43 @@ interface CatalogDao {
             "WHERE availability = 'AVAILABLE' GROUP BY mimeType ORDER BY assetCount DESC, mimeType",
     )
     suspend fun availableMimeFacets(): List<SearchMimeFacet>
+
+    @Query(
+        "SELECT bucketId AS bucketId, COALESCE(NULLIF(TRIM(bucketDisplayName), ''), 'Без названия') AS displayName, " +
+            "COUNT(*) AS assetCount FROM catalog_asset WHERE availability = 'AVAILABLE' AND bucketId IS NOT NULL " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(dateTakenMillis, dateModifiedSeconds * 1000) >= :takenFromMillis) " +
+            "GROUP BY bucketId, displayName ORDER BY displayName COLLATE NOCASE, bucketId",
+    )
+    suspend fun availableAlbumFacetsFrom(takenFromMillis: Long?): List<SearchAlbumFacet>
+
+    @Query(
+        "SELECT mimeType AS mimeType, COUNT(*) AS assetCount FROM catalog_asset " +
+            "WHERE availability = 'AVAILABLE' " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(dateTakenMillis, dateModifiedSeconds * 1000) >= :takenFromMillis) " +
+            "GROUP BY mimeType ORDER BY assetCount DESC, mimeType",
+    )
+    suspend fun availableMimeFacetsFrom(takenFromMillis: Long?): List<SearchMimeFacet>
+
+    @Query("SELECT * FROM indexing_scope WHERE singletonId = 1")
+    suspend fun indexingScopeRow(): IndexingScopeEntity?
+
+    @Upsert
+    suspend fun replaceIndexingScope(scope: IndexingScopeEntity)
+
+    @Query(
+        "SELECT :mode AS mode, :takenFromMillis AS takenFromMillis, :revision AS revision, " +
+            "COUNT(*) AS totalAvailable, " +
+            "COALESCE(SUM(CASE WHEN :takenFromMillis IS NULL OR " +
+            "COALESCE(dateTakenMillis, dateModifiedSeconds * 1000) >= :takenFromMillis THEN 1 ELSE 0 END), 0) " +
+            "AS eligibleAssets, " +
+            "COALESCE(SUM(CASE WHEN dateTakenMillis IS NULL AND dateModifiedSeconds IS NULL THEN 1 ELSE 0 END), 0) " +
+            "AS unknownDateAssets FROM catalog_asset WHERE availability = 'AVAILABLE'",
+    )
+    suspend fun indexingScopeSummaryRow(
+        mode: String,
+        takenFromMillis: Long?,
+        revision: Long,
+    ): IndexingScopeSummary
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertAsset(asset: CatalogAssetEntity): Long
@@ -285,8 +343,76 @@ interface CatalogDao {
 
     @Transaction
     suspend fun searchFilterFacets(): SearchFilterFacets =
-        SearchFilterFacets(
-            albums = availableAlbumFacets(),
-            mimeTypes = availableMimeFacets(),
-        )
+        currentIndexingScope().let { scope ->
+            SearchFilterFacets(
+                albums = availableAlbumFacetsFrom(scope.takenFromMillis),
+                mimeTypes = availableMimeFacetsFrom(scope.takenFromMillis),
+            )
+        }
+
+    @Transaction
+    suspend fun currentIndexingScope(): IndexingScopeEntity {
+        indexingScopeRow()?.let { return it.validated() }
+        val initial =
+            IndexingScopeEntity(
+                mode = IndexingScopeMode.ALL,
+                takenFromMillis = null,
+                revision = 1,
+                updatedAtMillis = 0,
+            )
+        replaceIndexingScope(initial)
+        return checkNotNull(indexingScopeRow()).validated()
+    }
+
+    @Transaction
+    suspend fun updateIndexingScope(
+        mode: String,
+        takenFromMillis: Long?,
+        nowMillis: Long,
+    ): IndexingScopeEntity {
+        require(mode in IndexingScopeMode.all)
+        require(nowMillis >= 0)
+        require((mode == IndexingScopeMode.ALL) == (takenFromMillis == null))
+        require(takenFromMillis == null || takenFromMillis in 0..nowMillis)
+        val current = currentIndexingScope()
+        if (current.mode == mode && current.takenFromMillis == takenFromMillis) return current
+        val updated =
+            IndexingScopeEntity(
+                mode = mode,
+                takenFromMillis = takenFromMillis,
+                revision = Math.addExact(current.revision, 1),
+                updatedAtMillis = nowMillis,
+            )
+        replaceIndexingScope(updated)
+        return checkNotNull(indexingScopeRow()).validated()
+    }
+
+    @Transaction
+    suspend fun indexableAssets(): List<CatalogAssetEntity> =
+        availableAssetsFrom(currentIndexingScope().takenFromMillis)
+
+    @Transaction
+    suspend fun indexableAssetIds(): List<Long> =
+        availableAssetIdsFrom(currentIndexingScope().takenFromMillis)
+
+    @Transaction
+    suspend fun isAssetIndexable(assetId: Long): Boolean {
+        require(assetId > 0)
+        return isAssetAvailableFrom(assetId, currentIndexingScope().takenFromMillis) == 1
+    }
+
+    @Transaction
+    suspend fun indexingScopeSummary(): IndexingScopeSummary =
+        currentIndexingScope().let { scope ->
+            indexingScopeSummaryRow(scope.mode, scope.takenFromMillis, scope.revision)
+        }
+
+    private fun IndexingScopeEntity.validated(): IndexingScopeEntity {
+        check(singletonId == 1)
+        check(mode in IndexingScopeMode.all)
+        check(revision > 0 && updatedAtMillis >= 0)
+        check((mode == IndexingScopeMode.ALL) == (takenFromMillis == null))
+        check(takenFromMillis == null || takenFromMillis >= 0)
+        return this
+    }
 }

@@ -133,6 +133,40 @@ class CatalogDatabaseInstrumentedTest {
         assertTrue(dao.availableAssets().isEmpty())
     }
 
+    @Test
+    fun indexingScopePersistsExactCutoffAndLeavesCatalogIntact() = runBlocking {
+        completeRun(
+            "external_primary",
+            1,
+            listOf(
+                draft("external_primary", 1).copy(dateTakenMillis = 1_000),
+                draft("external_primary", 2).copy(dateTakenMillis = 5_000),
+                draft("external_primary", 3).copy(dateTakenMillis = null, dateModifiedSeconds = null),
+            ),
+        )
+        val initial = dao.indexingScopeSummary()
+        assertEquals(IndexingScopeMode.ALL, initial.mode)
+        assertEquals(3L, initial.eligibleAssets)
+
+        val changed = dao.updateIndexingScope(IndexingScopeMode.SINCE_DATE, 3_000, tick())
+
+        assertEquals(2L, changed.revision)
+        assertEquals(listOf(2L), dao.indexableAssets().map { it.mediaStoreId })
+        val scoped = dao.indexingScopeSummary()
+        assertEquals(3L, scoped.totalAvailable)
+        assertEquals(1L, scoped.eligibleAssets)
+        assertEquals(1L, scoped.unknownDateAssets)
+        assertEquals(3L, dao.counts().available)
+
+        reopenDatabase()
+        assertEquals(3_000L, dao.currentIndexingScope().takenFromMillis)
+        assertEquals(listOf(2L), dao.indexableAssets().map { it.mediaStoreId })
+
+        val expanded = dao.updateIndexingScope(IndexingScopeMode.ALL, null, tick())
+        assertEquals(3L, expanded.revision)
+        assertEquals(3, dao.indexableAssets().size)
+    }
+
     private suspend fun completeRun(
         volumeName: String,
         generation: Long,

@@ -48,14 +48,17 @@ adb push nayti-offline-search-0.1.0-alpha.2.naytipack /sdcard/Download/
 
 ## Функциональная последовательность
 
-1. Пройти clean-install setup, импортировать pack и сначала выдать Selected Photos Access на небольшой набор.
-2. Убедиться, что readiness показывает независимый прогресс OCR, OCR semantic, visual и duplicates, а поиск доступен по уже готовой части.
-3. Проверить exact/phrase/identifier, fuzzy, OCR-semantic, visual, Auto, Similar и Duplicates на заранее известных примерах.
-4. Проверить date, album и MIME filters; исключённые фильтром совпадения не должны вытеснять подходящие из top-K.
-5. Расширить selected access, затем отозвать часть доступа. Thumbnail, Viewer, Similar и Search должны очиститься немедленно; возврат доступа должен переиспользовать стабильный catalog identity и переиндексировать purged данные.
-6. Проверить Pause/Resume, swipe-away, process kill и reboot. Durable operation продолжается без повторной публикации готовых items.
-7. Экспортировать redacted diagnostics и вручную убедиться, что там нет queries, OCR, имён файлов, URI, MediaStore IDs, изображений или embeddings.
-8. Проверить подтверждаемый Reset index: model pack и catalog сохраняются, производный индекс исчезает и строится заново.
+1. Пройти clean-install setup, импортировать pack и выдать доступ к фототеке. Android Selected Photos Access проверяется отдельно от периода локальной индексации.
+2. Для первого измеряемого прогона выбрать «3 мес.» или собственную начальную дату. Записать показанные числа выбранных и всех доступных фотографий; дата фиксируется и не сдвигается во время многодневного прогона.
+3. Дождаться завершения всех четырёх каналов. Записать активное время и предварительный прогноз всей медиатеки; время пауз и ожидания ограничений в эту оценку не входит.
+4. Убедиться, что readiness показывает независимый прогресс OCR, OCR semantic, visual и duplicates, а поиск не возвращает фотографии за пределами выбранного периода.
+5. Проверить exact/phrase/identifier, fuzzy, OCR-semantic, visual, Auto, Similar и Duplicates на заранее известных примерах.
+6. Проверить date, album и MIME filters; исключённые фильтром совпадения не должны вытеснять подходящие из top-K.
+7. Расширить период до года или всей медиатеки. Уже подготовленные фотографии должны остаться готовыми, а новая operation — планировать только недостающую работу.
+8. Расширить selected access, затем отозвать часть доступа. Thumbnail, Viewer, Similar и Search должны очиститься немедленно; возврат доступа должен переиспользовать стабильный catalog identity и переиндексировать purged данные.
+9. Проверить Pause/Resume, swipe-away, process kill и reboot. Durable operation продолжается без повторной публикации готовых items.
+10. Экспортировать redacted diagnostics и вручную убедиться, что там нет queries, OCR, имён файлов, URI, MediaStore IDs, изображений или embeddings. В отчёте должны быть scope revision, граница периода, охват и активное время.
+11. Проверить подтверждаемый Reset index: model pack и catalog сохраняются, производный индекс исчезает и строится заново.
 
 ## Ресурсы и stop conditions
 

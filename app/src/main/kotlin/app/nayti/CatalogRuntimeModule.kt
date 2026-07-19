@@ -249,12 +249,17 @@ object CatalogRuntimeModule {
         VisualSimilaritySearch(
             vectors = storage.vectorIndexDao,
             vectorRoot = context.noBackupFilesDir.resolve(StorageContract.VectorIndexDirectory),
+            catalog = storage.catalogDao,
         )
 
     @Provides
     @Singleton
     fun providePerceptualHashSearch(storage: CatalogStorage): PerceptualHashSearch =
-        PerceptualHashSearch(storage.perceptualHashDao, storage.vectorIndexDao)
+        PerceptualHashSearch(
+            hashes = storage.perceptualHashDao,
+            vectors = storage.vectorIndexDao,
+            catalog = storage.catalogDao,
+        )
 
     @Provides
     @Singleton
@@ -279,5 +284,11 @@ object CatalogRuntimeModule {
         storage: CatalogStorage,
         text: OcrHybridSearch,
         visual: VisualTextSearch,
-    ): UnifiedSearch = UnifiedSearch(storage.vectorIndexDao, text, visual)
+    ): UnifiedSearch =
+        UnifiedSearch(
+            vectors = storage.vectorIndexDao,
+            text = text,
+            visual = visual,
+            catalog = storage.catalogDao,
+        )
 }

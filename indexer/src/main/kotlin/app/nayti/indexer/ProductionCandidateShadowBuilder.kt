@@ -175,13 +175,16 @@ class ProductionCandidateShadowBuilder(
     private suspend fun coverage(
         candidate: ActivationCandidateEntity,
         target: ActivationCandidateChannelEntity,
-    ): IndexChannelCoverage =
-        storage.indexStateDao.channelCoverage(
+    ): IndexChannelCoverage {
+        val scope = storage.catalogDao.currentIndexingScope()
+        return storage.indexStateDao.channelCoverage(
             channel = target.channel,
             accessRevision = candidate.capturedAccessRevision,
             pipelineVersion = target.pipelineVersion,
             componentHash = target.componentHash,
+            takenFromMillis = scope.takenFromMillis,
         )
+    }
 
     private suspend fun assemble(
         candidate: ActivationCandidateEntity,

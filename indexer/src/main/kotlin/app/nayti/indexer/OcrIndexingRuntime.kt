@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -224,6 +225,23 @@ class OcrIndexingRuntime(
             errorCode = null,
             hostType = hostType,
         )
+        val liveProgressJob =
+            CoroutineScope(currentCoroutineContext()).launch {
+                PreparationProgressPoller().run {
+                    try {
+                        publishCoverage(
+                            pack = pack,
+                            lastSlicePublished = 0,
+                            operationId = currentOperationId.get(),
+                            hostType = hostType,
+                        )
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation
+                    } catch (_: Exception) {
+                        // The durable work is authoritative; a best-effort UI projection must not stop it.
+                    }
+                }
+            }
         var operationId: String? = null
         try {
             var windows = 0
@@ -276,6 +294,7 @@ class OcrIndexingRuntime(
                 )
             return true
         } finally {
+            liveProgressJob.cancel()
             continueExecution.set(false)
             running.set(false)
             check(activeHostType.compareAndSet(hostType, null))

@@ -129,6 +129,21 @@ class CatalogRuntime private constructor(
         publishAccessChange(before, after, forceFull = true)
     }
 
+    suspend fun refreshIndexingScope() {
+        val access = accessGate.pin()
+        val items =
+            if (access.permission.scope == MediaAccessScope.None) {
+                emptyList()
+            } else {
+                storage.catalogDao.indexableAssets().take(RecentItemLimit).map { it.toItem() }
+            }
+        while (true) {
+            val current = mutableState.value
+            if (current.access != access) return
+            if (mutableState.compareAndSet(current, current.copy(recentItems = items))) return
+        }
+    }
+
     private fun publishAccessChange(
         before: AccessRevision,
         after: AccessRevision,
@@ -206,7 +221,7 @@ class CatalogRuntime private constructor(
                 if (currentAccess.permission.scope == MediaAccessScope.None) {
                     emptyList()
                 } else {
-                    storage.catalogDao.availableAssets().take(RecentItemLimit).map { it.toItem() }
+                    storage.catalogDao.indexableAssets().take(RecentItemLimit).map { it.toItem() }
                 }
             mutableState.value =
                 CatalogRuntimeState(

@@ -25,6 +25,7 @@ enum class VisualSimilaritySearchStatus {
     READY,
     NO_ACTIVE_SNAPSHOT,
     NO_VISUAL_MANIFEST,
+    SOURCE_OUTSIDE_SCOPE,
     SOURCE_NOT_INDEXED,
 }
 
@@ -77,6 +78,9 @@ class VisualSimilaritySearch(
     ): VisualSimilaritySearchResult {
         require(sourceAssetId > 0)
         require(limit in 1..MaximumResultLimit)
+        if (catalog?.isAssetOutsideIndexingScope(sourceAssetId) == true) {
+            return empty(VisualSimilaritySearchStatus.SOURCE_OUTSIDE_SCOPE, sourceAssetId)
+        }
         val filter = SearchFilter.None.constrainedFrom(catalog?.currentIndexingScope()?.takenFromMillis)
         val acquiredAt = clock()
         val lease =

@@ -1077,6 +1077,10 @@ class VectorPublicationStoreInstrumentedTest {
         storage.catalogDao.updateIndexingScope(IndexingScopeMode.SINCE_DATE, 1_500, now)
         val scoped = search.searchSimilar(sourceAsset)
         assertEquals(listOf(similarAsset), scoped.hits.map { it.assetId })
+        storage.catalogDao.updateIndexingScope(IndexingScopeMode.SINCE_DATE, 3_500, now + 1)
+        val sourceOutsideScope = search.searchSimilar(sourceAsset)
+        assertEquals(VisualSimilaritySearchStatus.SOURCE_OUTSIDE_SCOPE, sourceOutsideScope.status)
+        assertTrue(sourceOutsideScope.hits.isEmpty())
         storage.catalogDao.updateIndexingScope(IndexingScopeMode.ALL, null, now + 1)
 
         val changed = checkNotNull(storage.catalogDao.asset(similarAsset))
@@ -1166,6 +1170,10 @@ class VectorPublicationStoreInstrumentedTest {
         val scoped = search.nearDuplicates(sourceAsset)
         assertEquals(PerceptualHashSearchStatus.READY, scoped.status)
         assertTrue(scoped.hits.isEmpty())
+        storage.catalogDao.updateIndexingScope(IndexingScopeMode.SINCE_DATE, 3_500, now + 1)
+        val sourceOutsideScope = search.nearDuplicates(sourceAsset)
+        assertEquals(PerceptualHashSearchStatus.SOURCE_OUTSIDE_SCOPE, sourceOutsideScope.status)
+        assertTrue(sourceOutsideScope.hits.isEmpty())
         storage.catalogDao.updateIndexingScope(IndexingScopeMode.ALL, null, now + 1)
 
         storage.catalogDao.recordAccessObservation("Full", AccessRevision + 1, now + 1)

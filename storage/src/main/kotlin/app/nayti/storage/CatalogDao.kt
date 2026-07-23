@@ -402,6 +402,14 @@ interface CatalogDao {
     }
 
     @Transaction
+    suspend fun isAssetOutsideIndexingScope(assetId: Long): Boolean {
+        require(assetId > 0)
+        val takenFromMillis = currentIndexingScope().takenFromMillis ?: return false
+        return isAssetAvailableFrom(assetId, null) == 1 &&
+            isAssetAvailableFrom(assetId, takenFromMillis) == 0
+    }
+
+    @Transaction
     suspend fun indexingScopeSummary(): IndexingScopeSummary =
         currentIndexingScope().let { scope ->
             indexingScopeSummaryRow(scope.mode, scope.takenFromMillis, scope.revision)

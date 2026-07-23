@@ -13,6 +13,7 @@ import java.util.UUID
 enum class PerceptualHashSearchStatus {
     READY,
     NO_ACTIVE_SNAPSHOT,
+    SOURCE_OUTSIDE_SCOPE,
     SOURCE_NOT_INDEXED,
 }
 
@@ -38,6 +39,16 @@ class PerceptualHashSearch(
         limit: Int = PerceptualHashRanker.DefaultLimit,
     ): PerceptualHashSearchResult {
         require(sourceAssetId > 0)
+        if (catalog?.isAssetOutsideIndexingScope(sourceAssetId) == true) {
+            return PerceptualHashSearchResult(
+                PerceptualHashSearchStatus.SOURCE_OUTSIDE_SCOPE,
+                sourceAssetId,
+                null,
+                null,
+                0,
+                emptyList(),
+            )
+        }
         val acquiredAt = clock()
         val lease =
             vectors.acquireCurrentSnapshotLease(

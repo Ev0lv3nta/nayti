@@ -129,6 +129,12 @@
     <string name="preparation_paused_battery_saver">Режим энергосбережения приостановил подготовку. Отключите его или продолжите позже.</string>
     <string name="preparation_paused_battery_low">Низкий заряд приостановил подготовку. Подключите питание или продолжите позже.</string>
     <string name="capability_section_title">Способы поиска</string>
+    <plurals name="capability_scope_note">
+        <item quantity="one">Готовность ниже относится к выбранному периоду: %1$d из %2$d доступной фотографии.</item>
+        <item quantity="few">Готовность ниже относится к выбранному периоду: %1$d из %2$d доступных фотографий.</item>
+        <item quantity="many">Готовность ниже относится к выбранному периоду: %1$d из %2$d доступных фотографий.</item>
+        <item quantity="other">Готовность ниже относится к выбранному периоду: %1$d из %2$d доступной фотографии.</item>
+    </plurals>
     <string name="capability_unavailable">После выбора model pack здесь появится готовность каждого способа поиска.</string>
     <string name="capability_text_title">Текст на фотографиях</string>
     <string name="capability_text_body">Точные фразы, имена, номера и надписи.</string>
@@ -153,8 +159,8 @@
     <string name="catalog_available_details">Только фотографии, которые можно безопасно открыть при текущем разрешении.</string>
     <string name="catalog_not_visible">Вне текущей выдачи</string>
     <string name="catalog_not_visible_details">Выбранные ограничения, отключённые носители или ещё не подтверждённые изменения.</string>
-    <string name="catalog_recent_title">Доступная медиатека</string>
-    <string name="catalog_empty">После выдачи доступа здесь появятся первые проверенные записи каталога.</string>
+    <string name="catalog_recent_title">Медиатека выбранного периода</string>
+    <string name="catalog_empty">В выбранном периоде нет доступных фотографий.</string>
     <string name="catalog_unnamed_photo">Фотография %1$d</string>
     <string name="catalog_item_details">%1$d × %2$d · %3$s</string>
     <string name="viewer_back">Назад</string>
@@ -169,11 +175,13 @@
     <string name="viewer_find_similar">Найти похожие фотографии</string>
     <string name="viewer_similar_title">Похожие фотографии</string>
     <string name="viewer_similar_not_ready">Эта фотография ещё не готова для поиска похожих. Продолжите подготовку медиатеки.</string>
+    <string name="viewer_similar_outside_scope">Эта фотография не входит в выбранный период подготовки. Расширьте период на экране «Готовность», чтобы искать для неё похожие кадры.</string>
     <string name="viewer_similar_empty">Среди уже обработанных фотографий похожих кадров не найдено.</string>
     <string name="viewer_similar_failed">Не удалось завершить поиск похожих фотографий. Попробуйте ещё раз.</string>
     <string name="viewer_find_duplicates">Найти копии и близкие кадры</string>
     <string name="viewer_duplicates_title">Копии и близкие кадры</string>
     <string name="viewer_duplicates_not_ready">Эта фотография ещё не готова для поиска копий.</string>
+    <string name="viewer_duplicates_outside_scope">Эта фотография не входит в выбранный период подготовки. Расширьте период на экране «Готовность», чтобы искать для неё копии и близкие кадры.</string>
     <string name="viewer_duplicates_empty">Копий и почти одинаковых кадров не найдено.</string>
     <string name="viewer_duplicates_failed">Не удалось завершить поиск копий. Попробуйте ещё раз.</string>
     <string name="viewer_duplicate_exact">Точная копия</string>

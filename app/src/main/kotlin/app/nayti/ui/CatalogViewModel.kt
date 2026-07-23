@@ -287,6 +287,7 @@ class CatalogViewModel @Inject constructor(
             if (ocrIndexing.setIndexingScope(takenFromMillis)) {
                 clearDerivedUiState()
                 mutableSearchFilterFacets.value = storage.catalogDao.searchFilterFacets()
+                runtime.refreshIndexingScope()
             }
         }
     }

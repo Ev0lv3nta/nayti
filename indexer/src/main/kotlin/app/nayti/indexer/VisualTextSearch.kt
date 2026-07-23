@@ -135,7 +135,9 @@ class VisualTextSearch(
                         VisualTextSearchStatus.NO_ACTIVE_SNAPSHOT
                     VisualSimilaritySearchStatus.NO_VISUAL_MANIFEST ->
                         VisualTextSearchStatus.NO_VISUAL_MANIFEST
-                    VisualSimilaritySearchStatus.SOURCE_NOT_INDEXED ->
+                    VisualSimilaritySearchStatus.SOURCE_OUTSIDE_SCOPE,
+                    VisualSimilaritySearchStatus.SOURCE_NOT_INDEXED,
+                    ->
                         error("Encoded visual query cannot have a missing source asset")
                 },
             snapshotId = snapshotId,

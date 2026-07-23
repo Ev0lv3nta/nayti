@@ -117,6 +117,10 @@
     <string name="preparation_paused_battery_saver">Battery Saver paused preparation. Turn it off or continue later.</string>
     <string name="preparation_paused_battery_low">Low battery paused preparation. Connect power or continue later.</string>
     <string name="capability_section_title">Search modes</string>
+    <plurals name="capability_scope_note">
+        <item quantity="one">Readiness below covers the selected period: %1$d of %2$d available photo.</item>
+        <item quantity="other">Readiness below covers the selected period: %1$d of %2$d available photos.</item>
+    </plurals>
     <string name="capability_unavailable">Readiness for each search mode appears here after you choose a model pack.</string>
     <string name="capability_text_title">Text in photos</string>
     <string name="capability_text_body">Exact phrases, names, identifiers, and visible writing.</string>
@@ -141,8 +145,8 @@
     <string name="catalog_available_details">Only photos that can be opened safely with the current permission.</string>
     <string name="catalog_not_visible">Outside the current result set</string>
     <string name="catalog_not_visible_details">Selection limits, offline media, or changes that are not confirmed yet.</string>
-    <string name="catalog_recent_title">Available library</string>
-    <string name="catalog_empty">The first verified catalog records appear here after access is granted.</string>
+    <string name="catalog_recent_title">Selected-period library</string>
+    <string name="catalog_empty">There are no available photos in the selected period.</string>
     <string name="catalog_unnamed_photo">Photo %1$d</string>
     <string name="catalog_item_details">%1$d × %2$d · %3$s</string>
     <string name="viewer_back">Back</string>
@@ -157,11 +161,13 @@
     <string name="viewer_find_similar">Find similar photos</string>
     <string name="viewer_similar_title">Similar photos</string>
     <string name="viewer_similar_not_ready">This photo is not ready for similarity search yet. Continue preparing the library.</string>
+    <string name="viewer_similar_outside_scope">This photo is outside the selected preparation period. Expand the period on the Readiness screen to find similar photos for it.</string>
     <string name="viewer_similar_empty">No similar frames were found among the photos processed so far.</string>
     <string name="viewer_similar_failed">Similar-photo search could not finish. Try again.</string>
     <string name="viewer_find_duplicates">Find copies and near-duplicates</string>
     <string name="viewer_duplicates_title">Copies and near-duplicates</string>
     <string name="viewer_duplicates_not_ready">This photo is not ready for duplicate search yet.</string>
+    <string name="viewer_duplicates_outside_scope">This photo is outside the selected preparation period. Expand the period on the Readiness screen to find copies and near-duplicates for it.</string>
     <string name="viewer_duplicates_empty">No copies or near-identical frames were found.</string>
     <string name="viewer_duplicates_failed">Duplicate search could not finish. Try again.</string>
     <string name="viewer_duplicate_exact">Exact copy</string>

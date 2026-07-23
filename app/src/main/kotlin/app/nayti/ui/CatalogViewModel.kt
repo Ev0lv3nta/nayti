@@ -43,12 +43,14 @@ import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 
@@ -175,7 +177,10 @@ class CatalogViewModel @Inject constructor(
 ) : ViewModel() {
     val catalog: StateFlow<CatalogRuntimeState> = runtime.state
     val modelPack: StateFlow<ModelPackRuntimeState> = modelPacks.state
-    val indexing: StateFlow<OcrIndexingState> = ocrIndexing.state
+    val indexing: StateFlow<OcrIndexingState> =
+        combine(ocrIndexing.state, modelPack, modelPackActivation.state) { active, packs, candidate ->
+            if (packs.candidate == null) active else candidate
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, ocrIndexing.state.value)
     val onboardingCompleted: StateFlow<Boolean> = onboardingStore.completed
     private val mutableLocalStorage = MutableStateFlow(LocalStorageSummary(0L, 0L))
     val localStorage: StateFlow<LocalStorageSummary> = mutableLocalStorage.asStateFlow()
@@ -207,8 +212,11 @@ class CatalogViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             combine(catalog, modelPack) { catalogState, packState ->
-                catalogState.access.value to packState.installed
-            }.collectLatest { (_, pack) -> ocrIndexing.refresh(pack) }
+                Triple(catalogState.access.value, packState.installed, packState.candidate)
+            }.collectLatest { (_, active, candidate) ->
+                ocrIndexing.refresh(active)
+                modelPackActivation.refresh(candidate)
+            }
         }
         viewModelScope.launch {
             catalog

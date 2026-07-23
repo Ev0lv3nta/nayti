@@ -25,6 +25,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -49,7 +50,9 @@ class IndexingForegroundService : Service() {
             ),
         )
         serviceScope.launch {
-            indexing.state.collectLatest { state ->
+            combine(indexing.state, packActivation.state, modelPacks.state) { active, candidate, packs ->
+                if (packs.candidate == null) active else candidate
+            }.collectLatest { state ->
                 if (executionJob?.isActive == true) {
                     notifications.notify(NotificationId, notification(state))
                 }
@@ -72,7 +75,11 @@ class IndexingForegroundService : Service() {
     override fun onTimeout(startId: Int, fgsType: Int) {
         serviceScope.launch {
             try {
-                indexing.stopForSystem()
+                if (packActivation.isRunning()) {
+                    packActivation.requestStop()
+                } else {
+                    indexing.stopForSystem()
+                }
             } finally {
                 executionJob?.cancel()
                 stopForeground(STOP_FOREGROUND_REMOVE)

@@ -5,6 +5,8 @@ import app.nayti.indexer.ActivationCandidateVerifier
 import app.nayti.indexer.AtomicSnapshotActivator
 import app.nayti.indexer.CandidateActivationCoordinator
 import app.nayti.indexer.CandidateBuildControl
+import app.nayti.indexer.CandidatePreparationTracker
+import app.nayti.indexer.CandidateProgressObserver
 import app.nayti.indexer.CandidateChannelContractResolver
 import app.nayti.indexer.CatalogRuntime
 import app.nayti.indexer.IndexResourceGovernor
@@ -150,6 +152,7 @@ object CatalogRuntimeModule {
     ): ModelPackActivationRuntime {
         val vectorRoot = context.noBackupFilesDir.resolve(StorageContract.VectorIndexDirectory)
         val continueExecution = AtomicBoolean(false)
+        val preparation = CandidatePreparationTracker(storage)
         val integrityVerifier = VectorSnapshotIntegrityVerifier(vectorRoot, storage.vectorIndexDao)
         val activation =
             AtomicSnapshotActivator(
@@ -173,6 +176,25 @@ object CatalogRuntimeModule {
                 activation = activation,
                 neuralLane = neuralLane,
                 control = CandidateBuildControl(continueExecution::get),
+                progressObserver = CandidateProgressObserver { candidate, plan ->
+                    preparation.publish(
+                        pack = storage.modelPackDao.pack(candidate.packId, candidate.packVersion),
+                        candidateId = candidate.candidateId,
+                        targetChannels = plan.map { target ->
+                            app.nayti.storage.ActivationSnapshotChannelEntity(
+                                snapshotId = candidate.snapshotId,
+                                channel = target.channel,
+                                pipelineVersion = target.pipelineVersion,
+                                componentHash = target.componentHash,
+                                embeddingSpaceHash = target.embeddingSpaceHash,
+                                generationId = null,
+                                manifestRevision = null,
+                                inheritedFromSnapshotId = null,
+                            )
+                        },
+                        running = true,
+                    )
+                },
             )
         return ModelPackActivationRuntime(
             vectors = storage.vectorIndexDao,
@@ -183,6 +205,7 @@ object CatalogRuntimeModule {
                     builder = builder,
                     canary = ProductionCandidateCanaryVerifier(storage, packResolver, vectorRoot),
                 ),
+            preparation = preparation,
             continueExecution = continueExecution,
             executionGate = executionGate,
             rollbackAction = rollback@{

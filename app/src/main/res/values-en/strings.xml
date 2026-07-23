@@ -70,6 +70,11 @@
     <string name="search_album_all">All albums</string>
     <string name="search_type_all">All formats</string>
     <string name="search_filters_reset">Reset</string>
+    <string name="search_channels_title">Search channels</string>
+    <string name="search_channel_ocr_literal">OCR text</string>
+    <string name="search_channel_ocr_semantic">OCR meaning · USER2</string>
+    <string name="search_channel_visual">Photo · SigLIP2</string>
+    <string name="search_channels_note">Select one or more channels. Results use only the selected search methods.</string>
     <string name="search_catalog_ready">The catalog is connected. Search covers only photos already processed.</string>
     <string name="search_waiting_access">Connect your library on the Readiness tab first.</string>
     <string name="search_waiting_model_pack">Import a signed model pack on the Data tab.</string>

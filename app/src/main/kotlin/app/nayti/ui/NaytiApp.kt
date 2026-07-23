@@ -116,6 +116,8 @@ import app.nayti.indexer.OcrSemanticSearchStatus
 import app.nayti.indexer.PerceptualHashSearchStatus
 import app.nayti.indexer.SearchCapability
 import app.nayti.indexer.SearchCapabilityCoverage
+import app.nayti.indexer.SearchChannel
+import app.nayti.indexer.SearchChannelSelection
 import app.nayti.indexer.SearchFilter
 import app.nayti.indexer.UnifiedSearchReason
 import app.nayti.indexer.VisualSimilaritySearchStatus
@@ -262,7 +264,7 @@ private fun NaytiAppContent(
     onRequestAccess: () -> Unit,
     onRefresh: () -> Unit,
     onImportModelPack: () -> Unit,
-    onSearch: (String, SearchFilter) -> Unit,
+    onSearch: (String, SearchFilter, SearchChannelSelection) -> Unit,
     onFindSimilar: (Long) -> Unit,
     onFindDuplicates: (Long) -> Unit,
     onStartIndexing: () -> Unit,
@@ -450,7 +452,7 @@ private fun RootNavHost(
     onRequestAccess: () -> Unit,
     onRefresh: () -> Unit,
     onImportModelPack: () -> Unit,
-    onSearch: (String, SearchFilter) -> Unit,
+    onSearch: (String, SearchFilter, SearchChannelSelection) -> Unit,
     onFindSimilar: (Long) -> Unit,
     onFindDuplicates: (Long) -> Unit,
     onStartIndexing: () -> Unit,
@@ -587,13 +589,22 @@ private fun SearchScreen(
     search: SearchUiState,
     searchFilterFacets: SearchFilterFacets,
     onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
-    onSearch: (String, SearchFilter) -> Unit,
+    onSearch: (String, SearchFilter, SearchChannelSelection) -> Unit,
     onOpenAsset: (Long) -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var dateFilter by rememberSaveable { mutableStateOf(SearchDateFilter.Any) }
     var bucketId by rememberSaveable { mutableStateOf<Long?>(null) }
     var mimeType by rememberSaveable { mutableStateOf<String?>(null) }
+    var literalOcrEnabled by rememberSaveable { mutableStateOf(true) }
+    var semanticOcrEnabled by rememberSaveable { mutableStateOf(true) }
+    var visualEnabled by rememberSaveable { mutableStateOf(true) }
+    val channelSelection =
+        SearchChannelSelection(
+            ocrLiteral = literalOcrEnabled,
+            ocrSemantic = semanticOcrEnabled,
+            visual = visualEnabled,
+        )
     LaunchedEffect(searchFilterFacets) {
         if (bucketId != null && searchFilterFacets.albums.none { it.bucketId == bucketId }) bucketId = null
         if (mimeType != null && searchFilterFacets.mimeTypes.none { it.mimeType == mimeType }) mimeType = null
@@ -663,6 +674,16 @@ private fun SearchScreen(
             )
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
+            SearchChannelControls(
+                selection = channelSelection,
+                onSelectionChange = { updated ->
+                    literalOcrEnabled = updated.ocrLiteral
+                    semanticOcrEnabled = updated.ocrSemantic
+                    visualEnabled = updated.visual
+                },
+            )
+        }
+        item(span = { GridItemSpan(maxLineSpan) }) {
             Button(
                 onClick = {
                     val now = System.currentTimeMillis()
@@ -673,6 +694,7 @@ private fun SearchScreen(
                             bucketId = bucketId,
                             mimeType = mimeType,
                         ),
+                        channelSelection,
                     )
                 },
                 enabled = canSearch && query.isNotBlank() && search !is SearchUiState.Searching,
@@ -709,8 +731,12 @@ private fun SearchScreen(
                     )
                 }
                 if (
-                    search.semanticStatus == OcrSemanticSearchStatus.NO_ACTIVE_SNAPSHOT ||
-                    search.semanticStatus == OcrSemanticSearchStatus.NO_SEMANTIC_MANIFEST
+                    search.channels.ocrSemantic &&
+                    search.semanticStatus in
+                    setOf(
+                        OcrSemanticSearchStatus.NO_ACTIVE_SNAPSHOT,
+                        OcrSemanticSearchStatus.NO_SEMANTIC_MANIFEST,
+                    )
                 ) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Text(
@@ -721,8 +747,12 @@ private fun SearchScreen(
                     }
                 }
                 if (
-                    search.visualStatus == VisualTextSearchStatus.NO_ACTIVE_SNAPSHOT ||
-                    search.visualStatus == VisualTextSearchStatus.NO_VISUAL_MANIFEST
+                    search.channels.visual &&
+                    search.visualStatus in
+                    setOf(
+                        VisualTextSearchStatus.NO_ACTIVE_SNAPSHOT,
+                        VisualTextSearchStatus.NO_VISUAL_MANIFEST,
+                    )
                 ) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Text(
@@ -736,13 +766,19 @@ private fun SearchScreen(
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         SearchEmptyState(
                             partial =
-                                search.semanticStatus in setOf(
-                                    OcrSemanticSearchStatus.NO_ACTIVE_SNAPSHOT,
-                                    OcrSemanticSearchStatus.NO_SEMANTIC_MANIFEST,
+                                (
+                                    search.channels.ocrSemantic &&
+                                        search.semanticStatus in setOf(
+                                            OcrSemanticSearchStatus.NO_ACTIVE_SNAPSHOT,
+                                            OcrSemanticSearchStatus.NO_SEMANTIC_MANIFEST,
+                                        )
                                 ) ||
-                                    search.visualStatus in setOf(
-                                        VisualTextSearchStatus.NO_ACTIVE_SNAPSHOT,
-                                        VisualTextSearchStatus.NO_VISUAL_MANIFEST,
+                                    (
+                                        search.channels.visual &&
+                                            search.visualStatus in setOf(
+                                                VisualTextSearchStatus.NO_ACTIVE_SNAPSHOT,
+                                                VisualTextSearchStatus.NO_VISUAL_MANIFEST,
+                                            )
                                     ),
                         )
                     }
@@ -855,6 +891,44 @@ private fun SearchFilterControls(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SearchChannelControls(
+    selection: SearchChannelSelection,
+    onSelectionChange: (SearchChannelSelection) -> Unit,
+) {
+    val options =
+        listOf(
+            SearchChannel.OCR_LITERAL to R.string.search_channel_ocr_literal,
+            SearchChannel.OCR_SEMANTIC to R.string.search_channel_ocr_semantic,
+            SearchChannel.VISUAL to R.string.search_channel_visual,
+        )
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            text = stringResource(R.string.search_channels_title),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            options.forEach { (channel, label) ->
+                val selected = selection.isEnabled(channel)
+                FilterChip(
+                    selected = selected,
+                    onClick = { onSelectionChange(selection.set(channel, !selected)) },
+                    label = { Text(stringResource(label)) },
+                )
+            }
+        }
+        Text(
+            text = stringResource(R.string.search_channels_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -1978,7 +2052,7 @@ private fun NaytiPreview() {
             onRequestAccess = {},
             onRefresh = {},
             onImportModelPack = {},
-            onSearch = { _, _ -> },
+            onSearch = { _, _, _ -> },
             onFindSimilar = {},
             onFindDuplicates = {},
             onStartIndexing = {},

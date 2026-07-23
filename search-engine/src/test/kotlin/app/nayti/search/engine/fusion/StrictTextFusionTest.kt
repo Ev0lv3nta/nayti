@@ -60,6 +60,22 @@ class StrictTextFusionTest {
     }
 
     @Test
+    fun explicitlyEnabledSemanticChannelProvidesFallbackForExactIntent() {
+        val ranked =
+            StrictTextFusion.rank(
+                intent = TextFusionIntent.QUOTED_EXACT,
+                lexical = listOf(TextLexicalCandidate(1, 1, TextLexicalEvidence.QUOTED_PHRASE)),
+                semantic = listOf(TextSemanticCandidate(2, 1)),
+                limit = 10,
+                allowSemanticFallback = true,
+            )
+
+        assertEquals(listOf(1L, 2L), ranked.map { it.assetId })
+        assertEquals(listOf(0, 3), ranked.map { it.tier })
+        assertEquals(TextFusionReason.SEMANTIC_TEXT, ranked.last().reason)
+    }
+
+    @Test
     fun equalSignalsUseStableAssetIdentity() {
         val ranked =
             StrictTextFusion.rank(

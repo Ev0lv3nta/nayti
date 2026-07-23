@@ -78,6 +78,11 @@
     <string name="search_album_all">Все альбомы</string>
     <string name="search_type_all">Все форматы</string>
     <string name="search_filters_reset">Сбросить</string>
+    <string name="search_channels_title">Как искать</string>
+    <string name="search_channel_ocr_literal">Текст OCR</string>
+    <string name="search_channel_ocr_semantic">Смысл OCR · USER2</string>
+    <string name="search_channel_visual">Фото · SigLIP2</string>
+    <string name="search_channels_note">Включите один или несколько каналов. Выдача использует только отмеченные способы поиска.</string>
     <string name="search_catalog_ready">Каталог подключён. Поиск видит только уже обработанные фотографии.</string>
     <string name="search_waiting_access">Сначала подключите медиатеку на вкладке «Готовность».</string>
     <string name="search_waiting_model_pack">Импортируйте подписанный model pack на вкладке «Данные».</string>

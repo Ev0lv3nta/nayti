@@ -7,6 +7,7 @@ import app.nayti.search.engine.fusion.TextLexicalCandidate
 import app.nayti.search.engine.fusion.TextLexicalEvidence
 import app.nayti.search.engine.fusion.TextSemanticCandidate
 import app.nayti.search.engine.lexical.LexicalIntent
+import app.nayti.search.engine.lexical.LexicalQueryPlanner
 import app.nayti.storage.OcrDao
 import app.nayti.storage.IndexChannel
 import app.nayti.storage.QuerySnapshotLeaseEntity
@@ -33,10 +34,11 @@ data class OcrHybridSearchResult(
 )
 
 class OcrHybridSearch(
-    ocr: OcrDao,
+    private val ocr: OcrDao,
     private val vectors: VectorIndexDao,
     private val semantic: OcrSemanticSearch,
     private val lexical: OcrLexicalSearch = OcrLexicalSearch(ocr),
+    private val planner: LexicalQueryPlanner = LexicalQueryPlanner(),
 ) {
     suspend fun search(
         query: String,
@@ -44,12 +46,13 @@ class OcrHybridSearch(
         fallbackComponentHash: String,
         limit: Int = DefaultLimit,
         filter: SearchFilter = SearchFilter.None,
+        channels: SearchChannelSelection? = null,
     ): OcrHybridSearchResult {
         require(limit in 1..MaximumResultLimit)
         var accessFailure: SemanticAccessChangedException? = null
         repeat(MaximumAccessAttempts) {
             try {
-                return searchOnce(query, pipelineVersion, fallbackComponentHash, limit, filter)
+                return searchOnce(query, pipelineVersion, fallbackComponentHash, limit, filter, channels)
             } catch (failure: SemanticAccessChangedException) {
                 accessFailure = failure
             }
@@ -63,21 +66,29 @@ class OcrHybridSearch(
         limit: Int,
         lease: QuerySnapshotLeaseEntity,
         filter: SearchFilter = SearchFilter.None,
+        channels: SearchChannelSelection? = null,
     ): OcrHybridSearchResult {
         require(limit in 1..MaximumResultLimit)
         val snapshot = checkNotNull(vectors.snapshot(lease.snapshotId))
         val ocrComponent = checkNotNull(vectors.snapshotChannel(snapshot.snapshotId, IndexChannel.OCR))
+        val intent = planner.plan(query).intent
+        val effectiveChannels = channels ?: intent.defaultSearchChannels()
+        require(effectiveChannels.usesText)
         val lexicalResult =
-            lexical.searchAtEpoch(
-                query = query,
-                pipelineVersion = pipelineVersion,
-                componentHash = ocrComponent.componentHash,
-                maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
-                limit = MaximumRetrieverCandidates,
-                filter = filter,
-            )
+            if (effectiveChannels.ocrLiteral) {
+                lexical.searchAtEpoch(
+                    query = query,
+                    pipelineVersion = pipelineVersion,
+                    componentHash = ocrComponent.componentHash,
+                    maximumPublicationEpoch = snapshot.lexicalPublicationEpoch,
+                    limit = MaximumRetrieverCandidates,
+                    filter = filter,
+                )
+            } else {
+                OcrLexicalSearchResult(intent, snapshot.lexicalPublicationEpoch, emptyList())
+            }
         val semanticResult =
-            if (lexicalResult.intent == LexicalIntent.ORDINARY_TEXT) {
+            if (effectiveChannels.ocrSemantic) {
                 semantic.searchLeased(query.trim(), MaximumRetrieverCandidates, lease, filter)
             } else {
                 null
@@ -89,7 +100,7 @@ class OcrHybridSearch(
             check(semanticResult.lexicalPublicationEpoch == snapshot.lexicalPublicationEpoch)
             check(semanticResult.componentHash == semanticComponent.componentHash)
         }
-        return fuse(lexicalResult, semanticResult, limit)
+        return fuse(lexicalResult, semanticResult, limit, effectiveChannels)
     }
 
     private suspend fun searchOnce(
@@ -98,20 +109,25 @@ class OcrHybridSearch(
         fallbackComponentHash: String,
         limit: Int,
         filter: SearchFilter,
+        channels: SearchChannelSelection?,
     ): OcrHybridSearchResult {
         val activeSnapshot = vectors.activeSnapshotId()?.let { snapshotId -> vectors.snapshot(snapshotId) }
         val activeOcrComponent = activeSnapshot?.let { snapshot ->
             vectors.snapshotChannel(snapshot.snapshotId, IndexChannel.OCR)?.componentHash
         }
+        val intent = planner.plan(query).intent
+        val effectiveChannels = channels ?: intent.defaultSearchChannels()
+        require(effectiveChannels.usesText)
         var lexicalResult =
-            if (activeSnapshot == null) {
-                lexical.search(
-                    query,
-                    pipelineVersion,
-                    fallbackComponentHash,
-                    MaximumRetrieverCandidates,
-                    filter,
+            if (!effectiveChannels.ocrLiteral) {
+                OcrLexicalSearchResult(
+                    intent = intent,
+                    capturedPublicationEpoch =
+                        activeSnapshot?.lexicalPublicationEpoch ?: ocr.publicationClock()?.lastEpoch ?: 0,
+                    hits = emptyList(),
                 )
+            } else if (activeSnapshot == null) {
+                lexical.search(query, pipelineVersion, fallbackComponentHash, MaximumRetrieverCandidates, filter)
             } else {
                 lexical.searchAtEpoch(
                     query = query,
@@ -123,14 +139,14 @@ class OcrHybridSearch(
                 )
             }
         val semanticResult =
-            if (lexicalResult.intent == LexicalIntent.ORDINARY_TEXT) {
+            if (effectiveChannels.ocrSemantic) {
                 semantic.search(query, MaximumRetrieverCandidates, filter)
             } else {
                 null
             }
         if (semanticResult?.status == OcrSemanticSearchStatus.READY) {
             val semanticEpoch = checkNotNull(semanticResult.lexicalPublicationEpoch)
-            if (lexicalResult.capturedPublicationEpoch != semanticEpoch) {
+            if (effectiveChannels.ocrLiteral && lexicalResult.capturedPublicationEpoch != semanticEpoch) {
                 lexicalResult =
                     lexical.searchAtEpoch(
                         query = query,
@@ -140,6 +156,8 @@ class OcrHybridSearch(
                         limit = MaximumRetrieverCandidates,
                         filter = filter,
                     )
+            } else if (!effectiveChannels.ocrLiteral && lexicalResult.capturedPublicationEpoch != semanticEpoch) {
+                lexicalResult = lexicalResult.copy(capturedPublicationEpoch = semanticEpoch)
             }
             val access = vectors.accessObservation()
             if (
@@ -151,13 +169,14 @@ class OcrHybridSearch(
             }
         }
 
-        return fuse(lexicalResult, semanticResult, limit)
+        return fuse(lexicalResult, semanticResult, limit, effectiveChannels)
     }
 
     private fun fuse(
         lexicalResult: OcrLexicalSearchResult,
         semanticResult: OcrSemanticSearchResult?,
         limit: Int,
+        channels: SearchChannelSelection,
     ): OcrHybridSearchResult {
         val lexicalByAsset = lexicalResult.hits.associateBy(OcrLexicalHit::assetId)
         val semanticByAsset = semanticResult?.hits.orEmpty().associateBy(OcrSemanticHit::assetId)
@@ -171,6 +190,7 @@ class OcrHybridSearch(
                     TextSemanticCandidate(hit.assetId, hit.rank)
                 },
                 limit = limit,
+                allowSemanticFallback = channels.ocrSemantic,
             )
         return OcrHybridSearchResult(
             intent = lexicalResult.intent,
@@ -206,6 +226,13 @@ class OcrHybridSearch(
             LexicalIntent.ORDINARY_TEXT -> TextFusionIntent.TEXT_CONCEPT
             LexicalIntent.EMPTY -> error("Empty query has no fusion intent")
         }
+
+    private fun LexicalIntent.defaultSearchChannels(): SearchChannelSelection =
+        SearchChannelSelection(
+            ocrLiteral = true,
+            ocrSemantic = this == LexicalIntent.ORDINARY_TEXT,
+            visual = false,
+        )
 
     private fun LexicalEvidence.toFusionEvidence(): TextLexicalEvidence =
         TextLexicalEvidence.valueOf(name)

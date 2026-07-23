@@ -17,6 +17,13 @@ fun interface CandidateBuildControl {
     fun shouldContinue(): Boolean
 }
 
+fun interface CandidateProgressObserver {
+    suspend fun onProgress(
+        candidate: ActivationCandidateEntity,
+        plan: List<ActivationCandidateChannelEntity>,
+    )
+}
+
 /** Builds every invalidated channel against one candidate root and catches up catalog deltas before cutover. */
 class ProductionCandidateShadowBuilder(
     private val storage: CatalogStorage,
@@ -26,6 +33,7 @@ class ProductionCandidateShadowBuilder(
     private val activation: CandidateActivationGateway,
     private val neuralLane: NeuralExecutionLane,
     private val control: CandidateBuildControl = CandidateBuildControl { true },
+    private val progressObserver: CandidateProgressObserver = CandidateProgressObserver { _, _ -> },
     private val clock: () -> Long = System::currentTimeMillis,
 ) : CandidateShadowBuilder {
     override suspend fun prepare(
@@ -93,6 +101,7 @@ class ProductionCandidateShadowBuilder(
                     break
                 }
                 val report = runWindow(candidate, operation.operationId, target)
+                progressObserver.onProgress(candidate, plan)
                 if (report.claimed == 0) {
                     throw CandidatePreparationDeferredException(
                         "Candidate channel ${target.channel} is waiting for retry eligibility",

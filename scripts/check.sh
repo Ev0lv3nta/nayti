@@ -29,6 +29,10 @@ python3 scripts/verify_manifest_policy.py \
   app/build/intermediates/merged_manifests/release/processReleaseManifest/AndroidManifest.xml
 python3 scripts/verify_manifest_policy.py \
   app/build/intermediates/merged_manifests/benchmark/processBenchmarkManifest/AndroidManifest.xml
+python3 scripts/verify_ort_jni_r8_contract.py \
+  app/build/outputs/mapping/benchmark/mapping.txt
+python3 scripts/verify_ort_jni_r8_contract.py \
+  app/build/outputs/mapping/release/mapping.txt
 
 release_dependency_report="build/reports/release-dependencies.txt"
 ./gradlew \

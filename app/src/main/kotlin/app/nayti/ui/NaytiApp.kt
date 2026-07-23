@@ -1130,6 +1130,21 @@ private fun ReadinessScreen(
                 style = MaterialTheme.typography.titleLarge,
             )
         }
+        if (indexing.scope.eligibleAssets < indexing.scope.totalAvailable) {
+            item {
+                Text(
+                    text =
+                        pluralStringResource(
+                            R.plurals.capability_scope_note,
+                            indexing.scope.totalAvailable.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                            indexing.scope.eligibleAssets,
+                            indexing.scope.totalAvailable,
+                        ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
         if (indexing.capabilities.isEmpty()) {
             item {
                 Text(
@@ -1642,7 +1657,14 @@ private fun ViewerScreen(
                     if (similarState.status != VisualSimilaritySearchStatus.READY) {
                         item {
                             Text(
-                                text = stringResource(R.string.viewer_similar_not_ready),
+                                text =
+                                    stringResource(
+                                        if (similarState.status == VisualSimilaritySearchStatus.SOURCE_OUTSIDE_SCOPE) {
+                                            R.string.viewer_similar_outside_scope
+                                        } else {
+                                            R.string.viewer_similar_not_ready
+                                        },
+                                    ),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
@@ -1683,7 +1705,17 @@ private fun ViewerScreen(
                     if (duplicateState.status != PerceptualHashSearchStatus.READY) {
                         item {
                             Text(
-                                text = stringResource(R.string.viewer_duplicates_not_ready),
+                                text =
+                                    stringResource(
+                                        if (
+                                            duplicateState.status ==
+                                            PerceptualHashSearchStatus.SOURCE_OUTSIDE_SCOPE
+                                        ) {
+                                            R.string.viewer_duplicates_outside_scope
+                                        } else {
+                                            R.string.viewer_duplicates_not_ready
+                                        },
+                                    ),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }

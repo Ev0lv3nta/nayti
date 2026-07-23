@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -152,6 +153,8 @@ class CatalogDatabaseInstrumentedTest {
 
         assertEquals(2L, changed.revision)
         assertEquals(listOf(2L), dao.indexableAssets().map { it.mediaStoreId })
+        assertTrue(dao.isAssetOutsideIndexingScope(checkNotNull(dao.asset("external_primary", 1)).assetId))
+        assertFalse(dao.isAssetOutsideIndexingScope(checkNotNull(dao.asset("external_primary", 2)).assetId))
         val scoped = dao.indexingScopeSummary()
         assertEquals(3L, scoped.totalAvailable)
         assertEquals(1L, scoped.eligibleAssets)
@@ -165,6 +168,7 @@ class CatalogDatabaseInstrumentedTest {
         val expanded = dao.updateIndexingScope(IndexingScopeMode.ALL, null, tick())
         assertEquals(3L, expanded.revision)
         assertEquals(3, dao.indexableAssets().size)
+        assertFalse(dao.isAssetOutsideIndexingScope(checkNotNull(dao.asset("external_primary", 1)).assetId))
     }
 
     private suspend fun completeRun(

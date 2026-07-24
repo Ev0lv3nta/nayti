@@ -9,6 +9,7 @@ import app.nayti.ml.runtime.visual.Siglip2Contract
 import app.nayti.ml.runtime.visual.Siglip2EmbeddingSpaceIdentity
 import app.nayti.ml.runtime.visual.Siglip2ImageOrtRuntime
 import app.nayti.platform.media.BoundedMediaDecoder
+import app.nayti.search.engine.similarity.PerceptualHashV1
 import app.nayti.storage.IndexChannel
 import app.nayti.storage.IndexStateDao
 import app.nayti.storage.ModelPackDao
@@ -170,6 +171,7 @@ class OcrSemanticExecutionSession private constructor(
             resolver: InstalledOcrPackResolver,
             indexState: IndexStateDao,
             semantic: OcrSemanticDao,
+            hashes: PerceptualHashDao,
             vectors: VectorIndexDao,
             vectorRoot: File,
             candidateSnapshotId: String? = null,
@@ -220,6 +222,13 @@ class OcrSemanticExecutionSession private constructor(
                     OcrSemanticChannelExecutor(
                         indexState = indexState,
                         semantic = semantic,
+                        pHashEpochs =
+                            PerceptualHashEpochSource {
+                                hashes.maximumPublicationEpoch(
+                                    PerceptualHashV1.PipelineVersion,
+                                    PerceptualHashV1.ComponentHash,
+                                )
+                            },
                         embedding = User2SemanticEmbeddingEngine(runtime),
                         publisher =
                             VectorPublicationStore(

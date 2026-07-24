@@ -430,6 +430,7 @@ class OcrIndexingRuntime(
                     resolver = packResolver,
                     indexState = storage.indexStateDao,
                     semantic = storage.ocrSemanticDao,
+                    hashes = storage.perceptualHashDao,
                     vectors = storage.vectorIndexDao,
                     vectorRoot = vectorRoot,
                 ).use { session ->

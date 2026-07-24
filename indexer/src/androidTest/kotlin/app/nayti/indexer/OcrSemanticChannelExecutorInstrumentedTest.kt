@@ -58,7 +58,7 @@ class OcrSemanticChannelExecutorInstrumentedTest {
     fun currentOcrPublishesImmutableChunksVectorsAndSnapshot() = runBlocking {
         publishOcr(listOf("Quarterly report", "Revenue rose in Europe"))
         val engine = FixedEmbeddingEngine()
-        val coordinator = coordinator(engine)
+        val coordinator = coordinator(engine, pHashPublicationEpoch = 73)
         val operation = coordinator.planOperation(request("vectors"))
         val window = coordinator.startExecutionWindow(operation.operationId, "TEST", 60_000)
 
@@ -110,6 +110,7 @@ class OcrSemanticChannelExecutorInstrumentedTest {
         )
         assertEquals(2, engine.encodedTexts.size)
         assertEquals(1L, snapshot.lexicalPublicationEpoch)
+        assertEquals(73L, snapshot.pHashPublicationEpoch)
 
         val evidence =
             storage.vectorIndexDao.currentSemanticEvidence(
@@ -356,11 +357,15 @@ class OcrSemanticChannelExecutorInstrumentedTest {
         assertNull(storage.vectorIndexDao.activeSnapshotId())
     }
 
-    private fun coordinator(engine: SemanticEmbeddingEngine): IndexExecutionCoordinator {
+    private fun coordinator(
+        engine: SemanticEmbeddingEngine,
+        pHashPublicationEpoch: Long = 0,
+    ): IndexExecutionCoordinator {
         val executor =
             OcrSemanticChannelExecutor(
                 indexState = storage.indexStateDao,
                 semantic = storage.ocrSemanticDao,
+                pHashEpochs = PerceptualHashEpochSource { pHashPublicationEpoch },
                 embedding = engine,
                 publisher =
                     VectorStoreSemanticPublisher(

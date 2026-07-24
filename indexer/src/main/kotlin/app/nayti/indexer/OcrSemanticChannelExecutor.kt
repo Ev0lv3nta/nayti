@@ -33,6 +33,10 @@ fun interface SemanticVectorPublisher {
     suspend fun publish(request: VectorPublicationRequest): SemanticVectorPublicationResult
 }
 
+fun interface PerceptualHashEpochSource {
+    suspend fun maximumPublicationEpoch(): Long
+}
+
 class VectorStoreSemanticPublisher(
     private val store: VectorPublicationStore,
 ) : SemanticVectorPublisher {
@@ -71,6 +75,7 @@ class ShadowVectorStoreSemanticPublisher(
 class OcrSemanticChannelExecutor(
     private val indexState: IndexStateDao,
     private val semantic: OcrSemanticDao,
+    private val pHashEpochs: PerceptualHashEpochSource,
     private val embedding: SemanticEmbeddingEngine,
     private val publisher: SemanticVectorPublisher,
     private val generationId: String,
@@ -176,7 +181,7 @@ class OcrSemanticChannelExecutor(
                     records = records,
                     rankingConfigVersion = RankingConfigVersion,
                     lexicalPublicationEpoch = semantic.maximumOcrPublicationEpoch(),
-                    pHashPublicationEpoch = 0,
+                    pHashPublicationEpoch = pHashEpochs.maximumPublicationEpoch(),
                     catalogWatermark = semantic.catalogRevision(),
                 ),
             )

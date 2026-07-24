@@ -283,6 +283,41 @@ class IndexStateInstrumentedTest {
     }
 
     @Test
+    fun explicitStartRecoversProcessDeathWithoutWaitingForLeaseExpiry() = runBlocking {
+        val assetId = insertAsset("source-a")
+        catalog.recordAccessObservation("Full", AccessRevision, 1)
+        startOperationAndWindow("window-a", expiresAtMillis = 10_000)
+        index.ensureWork(assetId, IndexChannel.OCR, AccessRevision, "ocr-v1", ComponentHash, 2)
+        val stale = index.claimBatch("window-a", IndexChannel.OCR, "claim-a", 10, 5_000, 1).single()
+
+        val recovered = index.prepareOperationForExplicitStart(OperationId, 20)
+
+        assertEquals(IndexOperationState.PLANNED, recovered.state)
+        assertTrue(recovered.autoResume)
+        assertEquals(IndexExecutionWindowState.CANCELLED, index.executionWindow("window-a")?.state)
+        assertEquals(IndexWorkState.PENDING, index.work(assetId, IndexChannel.OCR)?.state)
+        assertNull(index.commitSqlPublication(checkNotNull(stale.leaseToken), "late", ResultHash, 1, 21))
+        index.startExecutionWindow(window("window-b", 22, 500), 22)
+        assertEquals(IndexOperationState.RUNNING, index.operation(OperationId)?.state)
+    }
+
+    @Test
+    fun explicitStartMayCreateANewAttemptAfterCancellation() = runBlocking {
+        insertAsset("source-a")
+        catalog.recordAccessObservation("Full", AccessRevision, 1)
+        startOperationAndWindow("window-a", expiresAtMillis = 1_000)
+        index.transitionOperation(OperationId, IndexOperationState.CANCELLED, false, 20)
+
+        val restarted = index.prepareOperationForExplicitStart(OperationId, 21)
+
+        assertEquals(IndexOperationState.PLANNED, restarted.state)
+        assertTrue(restarted.autoResume)
+        assertNull(restarted.completedAtMillis)
+        index.startExecutionWindow(window("window-b", 22, 500), 22)
+        assertEquals(IndexOperationState.RUNNING, index.operation(OperationId)?.state)
+    }
+
+    @Test
     fun systemStopInvalidatesLeaseAndAllowsAutomaticResume() = runBlocking {
         val assetId = insertAsset("source-a")
         catalog.recordAccessObservation("Full", AccessRevision, 1)

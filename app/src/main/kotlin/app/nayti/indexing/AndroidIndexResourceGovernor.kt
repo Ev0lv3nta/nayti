@@ -53,7 +53,7 @@ class AndroidIndexResourceGovernor(
     }
 
     override fun onTrimMemory(level: Int) {
-        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+        if (isActiveMemoryPressure(level)) {
             rememberMemoryPressure()
         }
     }
@@ -81,3 +81,8 @@ class AndroidIndexResourceGovernor(
         const val MemoryPressureCooldownMillis = 60_000L
     }
 }
+
+@Suppress("DEPRECATION")
+internal fun isActiveMemoryPressure(level: Int): Boolean =
+    level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW ||
+        level == ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL

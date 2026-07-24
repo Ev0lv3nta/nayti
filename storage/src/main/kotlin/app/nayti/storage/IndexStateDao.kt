@@ -631,6 +631,31 @@ interface IndexStateDao {
     }
 
     @Transaction
+    suspend fun prepareOperationForExplicitStart(
+        operationId: String,
+        nowMillis: Long,
+    ): IndexOperationEntity {
+        val current = checkNotNull(operation(operationId))
+        if (current.state !in ExplicitlyRestartableOperationStates) return current
+        runningExecutionWindows(operationId).forEach { window ->
+            if (stopExecutionWindowRow(window.windowId, IndexExecutionWindowState.CANCELLED, nowMillis) == 1) {
+                releaseWindowWork(window.windowId, nowMillis)
+            }
+        }
+        if (current.state != IndexOperationState.PLANNED || !current.autoResume) {
+            check(
+                updateOperationControlRow(
+                    operationId = operationId,
+                    state = IndexOperationState.PLANNED,
+                    autoResume = true,
+                    nowMillis = nowMillis,
+                ) == 1,
+            )
+        }
+        return checkNotNull(operation(operationId))
+    }
+
+    @Transaction
     suspend fun retryPermanentGaps(operationId: String, nowMillis: Long): Int {
         require(identifier(operationId))
         val current = checkNotNull(operation(operationId))
@@ -774,6 +799,15 @@ interface IndexStateDao {
         private val ControllableOperationStates =
             setOf(
                 IndexOperationState.PLANNED,
+                IndexOperationState.PAUSED_USER,
+                IndexOperationState.PAUSED_CONSTRAINT,
+                IndexOperationState.WAITING_SYSTEM,
+                IndexOperationState.CANCELLED,
+            )
+        private val ExplicitlyRestartableOperationStates =
+            setOf(
+                IndexOperationState.PLANNED,
+                IndexOperationState.RUNNING,
                 IndexOperationState.PAUSED_USER,
                 IndexOperationState.PAUSED_CONSTRAINT,
                 IndexOperationState.WAITING_SYSTEM,

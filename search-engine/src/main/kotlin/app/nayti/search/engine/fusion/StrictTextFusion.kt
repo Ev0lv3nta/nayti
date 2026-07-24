@@ -51,6 +51,7 @@ object StrictTextFusion {
         lexical: List<TextLexicalCandidate>,
         semantic: List<TextSemanticCandidate>,
         limit: Int,
+        allowSemanticFallback: Boolean = false,
     ): List<FusedTextCandidate> {
         require(limit in 1..MaximumResults)
         require(lexical.size <= MaximumCandidates && semantic.size <= MaximumCandidates)
@@ -58,7 +59,7 @@ object StrictTextFusion {
         require(semantic.map { it.assetId }.distinct().size == semantic.size)
         require(lexical.all { it.assetId > 0 && it.rank in 1..MaximumCandidates })
         require(semantic.all { it.assetId > 0 && it.rank in 1..MaximumCandidates })
-        val weights = weights(intent)
+        val weights = weights(intent, allowSemanticFallback)
         val lexicalByAsset = lexical.associateBy(TextLexicalCandidate::assetId)
         val semanticByAsset = semantic.associateBy(TextSemanticCandidate::assetId)
         return (lexicalByAsset.keys + semanticByAsset.keys).mapNotNull { assetId ->
@@ -95,11 +96,17 @@ object StrictTextFusion {
         return weightMicros.toLong() * ScorePrecision / (RrfConstant + rank)
     }
 
-    private fun weights(intent: TextFusionIntent): Weights =
+    private fun weights(
+        intent: TextFusionIntent,
+        allowSemanticFallback: Boolean,
+    ): Weights =
         when (intent) {
-            TextFusionIntent.QUOTED_EXACT -> Weights(lexical = 1_000_000, fuzzy = 0, semantic = 0)
-            TextFusionIntent.IDENTIFIER -> Weights(lexical = 1_000_000, fuzzy = 100_000, semantic = 0)
-            TextFusionIntent.PERSON_NAME -> Weights(lexical = 1_000_000, fuzzy = 250_000, semantic = 0)
+            TextFusionIntent.QUOTED_EXACT ->
+                Weights(lexical = 1_000_000, fuzzy = 0, semantic = if (allowSemanticFallback) 50_000 else 0)
+            TextFusionIntent.IDENTIFIER ->
+                Weights(lexical = 1_000_000, fuzzy = 100_000, semantic = if (allowSemanticFallback) 50_000 else 0)
+            TextFusionIntent.PERSON_NAME ->
+                Weights(lexical = 1_000_000, fuzzy = 250_000, semantic = if (allowSemanticFallback) 150_000 else 0)
             TextFusionIntent.TEXT_CONCEPT -> Weights(lexical = 1_000_000, fuzzy = 250_000, semantic = 800_000)
         }
 

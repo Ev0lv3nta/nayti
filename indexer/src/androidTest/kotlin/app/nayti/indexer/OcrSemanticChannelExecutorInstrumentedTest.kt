@@ -148,6 +148,26 @@ class OcrSemanticChannelExecutorInstrumentedTest {
         assertEquals(TextFusionReason.SEMANTIC_TEXT, hybridResult.hits.single().evidence)
         assertEquals(AssetId, hybridResult.hits.single().assetId)
 
+        val semanticOnly =
+            hybrid.search(
+                query = "Quarterly report",
+                pipelineVersion = OcrPipelineVersion,
+                fallbackComponentHash = ComponentHash,
+                channels = SearchChannelSelection(ocrLiteral = false, ocrSemantic = true, visual = false),
+            )
+        assertEquals(TextFusionReason.SEMANTIC_TEXT, semanticOnly.hits.single().evidence)
+        assertNull(semanticOnly.hits.single().lexicalRank)
+
+        val literalOnly =
+            hybrid.search(
+                query = "Quarterly report",
+                pipelineVersion = OcrPipelineVersion,
+                fallbackComponentHash = ComponentHash,
+                channels = SearchChannelSelection(ocrLiteral = true, ocrSemantic = false, visual = false),
+            )
+        assertEquals(OcrSemanticSearchStatus.NOT_REQUESTED, literalOnly.semanticStatus)
+        assertNull(literalOnly.hits.single().semanticRank)
+
         storage.vectorIndexDao.createGeneration(
             generation().copy(generationId = CompactionGenerationId),
         )

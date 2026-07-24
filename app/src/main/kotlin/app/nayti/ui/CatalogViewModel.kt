@@ -20,6 +20,7 @@ import app.nayti.indexer.OcrSemanticSearchStatus
 import app.nayti.indexer.PerceptualHashSearch
 import app.nayti.indexer.PerceptualHashSearchStatus
 import app.nayti.indexer.SearchFilter
+import app.nayti.indexer.SearchChannelSelection
 import app.nayti.indexer.QuarantineGarbageCollector
 import app.nayti.indexer.UnifiedSearch
 import app.nayti.indexer.UnifiedSearchHit
@@ -82,6 +83,7 @@ sealed interface SearchUiState {
         val query: String,
         val filter: SearchFilter,
         val results: List<SearchResultItem>,
+        val channels: SearchChannelSelection,
         val semanticStatus: OcrSemanticSearchStatus,
         val visualStatus: VisualTextSearchStatus?,
     ) : SearchUiState
@@ -515,7 +517,11 @@ class CatalogViewModel @Inject constructor(
         }
     }
 
-    fun search(query: String, filter: SearchFilter = SearchFilter.None) {
+    fun search(
+        query: String,
+        filter: SearchFilter = SearchFilter.None,
+        channels: SearchChannelSelection = SearchChannelSelection.All,
+    ) {
         val normalizedQuery = query.trim()
         if (normalizedQuery.isEmpty()) {
             searchGeneration.incrementAndGet()
@@ -538,6 +544,7 @@ class CatalogViewModel @Inject constructor(
                             pipelineVersion = OcrIndexingRuntime.PipelineVersion,
                             fallbackComponentHash = pack.manifestSha256,
                             filter = filter,
+                            channels = channels,
                         )
                     val hydrated = searchResult.hits.mapNotNull { hit ->
                         storage.catalogDao.asset(hit.assetId)?.let { asset -> SearchResultItem(asset, hit) }
@@ -546,6 +553,7 @@ class CatalogViewModel @Inject constructor(
                         normalizedQuery,
                         filter,
                         hydrated,
+                        searchResult.channels,
                         searchResult.semanticStatus,
                         searchResult.visualStatus,
                     )

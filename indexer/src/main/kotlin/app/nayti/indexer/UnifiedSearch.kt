@@ -38,6 +38,7 @@ data class UnifiedSearchHit(
 
 data class UnifiedSearchResult(
     val intent: MultimodalQueryIntent,
+    val channels: SearchChannelSelection,
     val snapshotId: String?,
     val accessRevision: Long?,
     val semanticGenerationId: String?,
@@ -47,7 +48,7 @@ data class UnifiedSearchResult(
     val hits: List<UnifiedSearchHit>,
 )
 
-/** Runs intent-selected retrievers and accepts results only across one stable snapshot/access observation. */
+/** Runs automatic or explicitly selected retrievers against one stable snapshot/access observation. */
 class UnifiedSearch(
     private val vectors: VectorIndexDao,
     private val text: OcrHybridSearch,
@@ -63,6 +64,7 @@ class UnifiedSearch(
         fallbackComponentHash: String,
         limit: Int = DefaultLimit,
         filter: SearchFilter = SearchFilter.None,
+        channels: SearchChannelSelection? = null,
     ): UnifiedSearchResult {
         require(limit in 1..MaximumResultLimit)
         val plan = planner.plan(query)
@@ -88,6 +90,7 @@ class UnifiedSearch(
                         plan.usesVisualRetriever,
                         effectiveFilter,
                         scope?.revision,
+                        channels,
                     )
                 } catch (failure: QueryConsistencyChangedException) {
                     consistencyFailure = failure
@@ -104,6 +107,7 @@ class UnifiedSearch(
                     lease,
                     effectiveFilter,
                     scope?.revision,
+                    channels,
                 )
             } catch (failure: QueryConsistencyChangedException) {
                 consistencyFailure = failure
@@ -123,17 +127,23 @@ class UnifiedSearch(
         lease: QuerySnapshotLeaseEntity,
         filter: SearchFilter,
         scopeRevision: Long?,
+        channels: SearchChannelSelection?,
     ): UnifiedSearchResult {
         val textResult =
-            text.searchLeased(
-                query = query,
-                pipelineVersion = pipelineVersion,
-                limit = MaximumRetrieverCandidates,
-                lease = lease,
-                filter = filter,
-            )
+            if (channels?.usesText != false) {
+                text.searchLeased(
+                    query = query,
+                    pipelineVersion = pipelineVersion,
+                    limit = MaximumRetrieverCandidates,
+                    lease = lease,
+                    filter = filter,
+                    channels = channels,
+                )
+            } else {
+                null
+            }
         val visualResult =
-            if (usesVisualRetriever) {
+            if (channels?.visual ?: usesVisualRetriever) {
                 visual.searchLeased(query, MaximumRetrieverCandidates, lease, filter)
             } else {
                 null
@@ -148,16 +158,28 @@ class UnifiedSearch(
         if (scopeRevision != null && catalog?.currentIndexingScope()?.revision != scopeRevision) {
             throw QueryConsistencyChangedException()
         }
+        val effectiveChannels = channels ?: automaticChannels(textResult, visualResult)
 
         return fuse(
             intent = intent,
             snapshotId = lease.snapshotId,
             accessRevision = lease.accessRevision,
-            semanticGenerationId = vectors.snapshotChannel(lease.snapshotId, IndexChannel.OCR_SEMANTIC)?.generationId,
-            visualGenerationId = vectors.snapshotChannel(lease.snapshotId, IndexChannel.VISUAL)?.generationId,
+            semanticGenerationId =
+                if (effectiveChannels.ocrSemantic) {
+                    vectors.snapshotChannel(lease.snapshotId, IndexChannel.OCR_SEMANTIC)?.generationId
+                } else {
+                    null
+                },
+            visualGenerationId =
+                if (effectiveChannels.visual) {
+                    vectors.snapshotChannel(lease.snapshotId, IndexChannel.VISUAL)?.generationId
+                } else {
+                    null
+                },
             textResult = textResult,
             visualResult = visualResult,
             limit = limit,
+            channels = effectiveChannels,
         )
     }
 
@@ -170,15 +192,42 @@ class UnifiedSearch(
         usesVisualRetriever: Boolean,
         filter: SearchFilter,
         scopeRevision: Long?,
+        channels: SearchChannelSelection?,
     ): UnifiedSearchResult {
         val before = captureState(scopeRevision)
         val textResult =
-            text.search(query, pipelineVersion, fallbackComponentHash, MaximumRetrieverCandidates, filter)
+            if (channels?.usesText != false) {
+                text.search(
+                    query,
+                    pipelineVersion,
+                    fallbackComponentHash,
+                    MaximumRetrieverCandidates,
+                    filter,
+                    channels,
+                )
+            } else {
+                null
+            }
         val visualResult =
-            if (usesVisualRetriever) visual.search(query, MaximumRetrieverCandidates, filter) else null
+            if (channels?.visual ?: usesVisualRetriever) {
+                visual.search(query, MaximumRetrieverCandidates, filter)
+            } else {
+                null
+            }
         val after = captureState(scopeRevision)
         if (before != after) throw QueryConsistencyChangedException()
-        return fuse(intent, before.snapshotId, before.accessRevision, null, null, textResult, visualResult, limit)
+        val effectiveChannels = channels ?: automaticChannels(textResult, visualResult)
+        return fuse(
+            intent,
+            before.snapshotId,
+            before.accessRevision,
+            null,
+            null,
+            textResult,
+            visualResult,
+            limit,
+            effectiveChannels,
+        )
     }
 
     private fun fuse(
@@ -187,17 +236,18 @@ class UnifiedSearch(
         accessRevision: Long?,
         semanticGenerationId: String?,
         visualGenerationId: String?,
-        textResult: OcrHybridSearchResult,
+        textResult: OcrHybridSearchResult?,
         visualResult: VisualTextSearchResult?,
         limit: Int,
+        channels: SearchChannelSelection,
     ): UnifiedSearchResult {
-        val textByAsset = textResult.hits.associateBy(HybridOcrHit::assetId)
+        val textByAsset = textResult?.hits.orEmpty().associateBy(HybridOcrHit::assetId)
         val visualByAsset = visualResult?.hits.orEmpty().associateBy(VisualSimilarityHit::assetId)
         val fused =
             StrictMultimodalFusion.rank(
                 intent = intent,
                 text =
-                    textResult.hits.map { hit ->
+                    textResult?.hits.orEmpty().map { hit ->
                         MultimodalTextCandidate(hit.assetId, hit.rank, hit.tier)
                     },
                 visual =
@@ -205,14 +255,16 @@ class UnifiedSearch(
                         MultimodalVisualCandidate(hit.assetId, hit.rank)
                     },
                 limit = limit,
+                allowVisualFallback = channels.visual,
             )
         return UnifiedSearchResult(
             intent = intent,
+            channels = channels,
             snapshotId = snapshotId,
             accessRevision = accessRevision,
             semanticGenerationId = semanticGenerationId,
             visualGenerationId = visualGenerationId,
-            semanticStatus = textResult.semanticStatus,
+            semanticStatus = textResult?.semanticStatus ?: OcrSemanticSearchStatus.NOT_REQUESTED,
             visualStatus = visualResult?.status,
             hits =
                 fused.mapIndexed { index, candidate ->
@@ -252,6 +304,19 @@ class UnifiedSearch(
             scopeRevision = actualScopeRevision,
         )
     }
+
+    private fun automaticChannels(
+        textResult: OcrHybridSearchResult?,
+        visualResult: VisualTextSearchResult?,
+    ): SearchChannelSelection =
+        SearchChannelSelection(
+            ocrLiteral = textResult != null,
+            ocrSemantic =
+                textResult?.semanticStatus?.let { status ->
+                    status != OcrSemanticSearchStatus.NOT_REQUESTED
+                } ?: false,
+            visual = visualResult != null,
+        )
 
     private fun TextFusionReason.toUnifiedReason(): UnifiedSearchReason =
         UnifiedSearchReason.valueOf(name)

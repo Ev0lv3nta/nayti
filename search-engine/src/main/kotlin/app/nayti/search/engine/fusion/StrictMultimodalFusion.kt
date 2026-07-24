@@ -32,6 +32,7 @@ object StrictMultimodalFusion {
         text: List<MultimodalTextCandidate>,
         visual: List<MultimodalVisualCandidate>,
         limit: Int,
+        allowVisualFallback: Boolean = false,
     ): List<FusedMultimodalCandidate> {
         require(limit in 1..MaximumResults)
         require(text.size <= MaximumCandidates && visual.size <= MaximumCandidates)
@@ -39,7 +40,7 @@ object StrictMultimodalFusion {
         require(visual.map { it.assetId }.distinct().size == visual.size)
         require(text.all { it.assetId > 0 && it.rank in 1..MaximumCandidates && it.tier in 0..VisualOnlyTier })
         require(visual.all { it.assetId > 0 && it.rank in 1..MaximumCandidates })
-        val weights = weights(intent)
+        val weights = weights(intent, allowVisualFallback)
         val textByAsset = text.associateBy(MultimodalTextCandidate::assetId)
         val visualByAsset = visual.associateBy(MultimodalVisualCandidate::assetId)
         return (textByAsset.keys + visualByAsset.keys).mapNotNull { assetId ->
@@ -50,7 +51,7 @@ object StrictMultimodalFusion {
             if (textContribution == 0L && visualContribution == 0L) return@mapNotNull null
             FusedMultimodalCandidate(
                 assetId = assetId,
-                tier = tier(intent, textCandidate, visualCandidate),
+                tier = tier(intent, textCandidate, visualCandidate, allowVisualFallback),
                 primaryChannel =
                     if (visualContribution > textContribution) {
                         MultimodalPrimaryChannel.VISUAL
@@ -74,12 +75,13 @@ object StrictMultimodalFusion {
         intent: MultimodalQueryIntent,
         text: MultimodalTextCandidate?,
         visual: MultimodalVisualCandidate?,
+        allowVisualFallback: Boolean,
     ): Int =
         when (intent) {
             MultimodalQueryIntent.QUOTED_EXACT,
             MultimodalQueryIntent.IDENTIFIER,
             MultimodalQueryIntent.PERSON_NAME,
-            -> checkNotNull(text).tier
+            -> text?.tier ?: if (allowVisualFallback && visual != null) VisualOnlyTier else error("Missing text candidate")
             MultimodalQueryIntent.TEXT_CONCEPT -> text?.tier ?: VisualOnlyTier
             MultimodalQueryIntent.VISUAL_SCENE -> if (visual != null) 0 else 1
             MultimodalQueryIntent.BROAD_HYBRID -> text?.tier?.coerceAtMost(EnrichedTier) ?: EnrichedTier
@@ -90,12 +92,15 @@ object StrictMultimodalFusion {
         return weightMicros.toLong() * ScorePrecision / (RrfConstant + rank)
     }
 
-    private fun weights(intent: MultimodalQueryIntent): Weights =
+    private fun weights(
+        intent: MultimodalQueryIntent,
+        allowVisualFallback: Boolean,
+    ): Weights =
         when (intent) {
             MultimodalQueryIntent.QUOTED_EXACT,
             MultimodalQueryIntent.IDENTIFIER,
             MultimodalQueryIntent.PERSON_NAME,
-            -> Weights(text = 1_000_000, visual = 0)
+            -> Weights(text = 1_000_000, visual = if (allowVisualFallback) 100_000 else 0)
             MultimodalQueryIntent.TEXT_CONCEPT -> Weights(text = 1_000_000, visual = 150_000)
             MultimodalQueryIntent.VISUAL_SCENE -> Weights(text = 200_000, visual = 1_000_000)
             MultimodalQueryIntent.BROAD_HYBRID -> Weights(text = 850_000, visual = 1_000_000)

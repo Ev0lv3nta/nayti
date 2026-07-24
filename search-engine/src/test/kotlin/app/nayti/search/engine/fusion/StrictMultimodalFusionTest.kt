@@ -78,4 +78,35 @@ class StrictMultimodalFusionTest {
 
         assertEquals(listOf(1L), ranked.map { it.assetId })
     }
+
+    @Test
+    fun explicitlyEnabledVisualChannelProvidesFallbackForIdentifierIntent() {
+        val ranked =
+            StrictMultimodalFusion.rank(
+                intent = MultimodalQueryIntent.IDENTIFIER,
+                text = listOf(MultimodalTextCandidate(assetId = 1, rank = 1, tier = 0)),
+                visual = listOf(MultimodalVisualCandidate(assetId = 2, rank = 1)),
+                limit = 10,
+                allowVisualFallback = true,
+            )
+
+        assertEquals(listOf(1L, 2L), ranked.map { it.assetId })
+        assertEquals(listOf(0, 4), ranked.map { it.tier })
+        assertEquals(MultimodalPrimaryChannel.VISUAL, ranked.last().primaryChannel)
+    }
+
+    @Test
+    fun visualOnlySelectionWorksForIdentifierShapedQuery() {
+        val ranked =
+            StrictMultimodalFusion.rank(
+                intent = MultimodalQueryIntent.IDENTIFIER,
+                text = emptyList(),
+                visual = listOf(MultimodalVisualCandidate(assetId = 2, rank = 1)),
+                limit = 10,
+                allowVisualFallback = true,
+            )
+
+        assertEquals(listOf(2L), ranked.map { it.assetId })
+        assertEquals(MultimodalPrimaryChannel.VISUAL, ranked.single().primaryChannel)
+    }
 }

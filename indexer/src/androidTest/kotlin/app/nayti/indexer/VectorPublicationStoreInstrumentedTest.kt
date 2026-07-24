@@ -1353,6 +1353,18 @@ class VectorPublicationStoreInstrumentedTest {
         assertEquals(MultimodalQueryIntent.IDENTIFIER, identifier.intent)
         assertTrue(identifier.hits.isEmpty())
         assertEquals(1, visualSessionsOpened)
+
+        val explicitVisual =
+            unified.search(
+                query = "№ АБ-123/45",
+                pipelineVersion = "visual-v1",
+                fallbackComponentHash = ComponentHash,
+                channels = SearchChannelSelection(ocrLiteral = false, ocrSemantic = false, visual = true),
+            )
+
+        assertEquals(listOf(firstAsset, secondAsset), explicitVisual.hits.map { it.assetId })
+        assertTrue(explicitVisual.hits.all { it.reason == UnifiedSearchReason.VISUAL_CONTENT })
+        assertEquals(2, visualSessionsOpened)
     }
 
     @Test

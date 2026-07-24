@@ -600,20 +600,12 @@ class OcrIndexingRuntime(
     private suspend fun resumeForExplicitStart(pack: ModelPackEntity) {
         val catalogRevision = storage.catalogDao.watermark()?.catalogRevision ?: 0
         val operationId = operationId(pack, catalogRevision)
-        val operation = storage.indexStateDao.operation(operationId) ?: return
+        storage.indexStateDao.operation(operationId) ?: return
         currentOperationId.set(operationId)
-        if (
-            operation.state == IndexOperationState.PAUSED_USER ||
-            operation.state == IndexOperationState.PAUSED_CONSTRAINT ||
-            operation.state == IndexOperationState.WAITING_SYSTEM
-        ) {
-            storage.indexStateDao.transitionOperation(
-                operationId = operationId,
-                state = IndexOperationState.PLANNED,
-                autoResume = true,
-                nowMillis = System.currentTimeMillis(),
-            )
-        }
+        storage.indexStateDao.prepareOperationForExplicitStart(
+            operationId = operationId,
+            nowMillis = System.currentTimeMillis(),
+        )
     }
 
     private suspend fun transitionConstraintAfterFailure() {

@@ -41,9 +41,10 @@ fun GlassSurface(
     content: @Composable BoxScope.() -> Unit,
 ) {
     val colors = NaytiTheme.colors
-    val blurring = material == ChromeMaterial.Glass && backdrop != null && backdrop.blurSupported
+    val blurredBackdrop =
+        backdrop?.takeIf { material == ChromeMaterial.Glass && it.blurSupported }
     val tintAlpha = when {
-        !blurring -> NaytiChrome.SolidTintAlpha
+        blurredBackdrop == null -> NaytiChrome.SolidTintAlpha
         colors.isDark -> NaytiChrome.GlassTintAlphaDark
         else -> NaytiChrome.GlassTintAlphaLight
     }
@@ -51,8 +52,8 @@ fun GlassSurface(
         modifier = modifier
             .clip(shape)
             .then(
-                if (blurring && backdrop != null) {
-                    Modifier.naytiBackdropBlur(backdrop, NaytiChrome.BlurRadius)
+                if (blurredBackdrop != null) {
+                    Modifier.naytiBackdropBlur(blurredBackdrop, NaytiChrome.BlurRadius)
                 } else {
                     Modifier
                 },

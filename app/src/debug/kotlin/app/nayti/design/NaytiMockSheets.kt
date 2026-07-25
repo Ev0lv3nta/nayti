@@ -69,7 +69,7 @@ fun MockPreparationSheet() {
                 ChannelRow(MockIcon.TextLines, "Текст на фото", 1420, 1423, 99, 0)
                 ChannelRow(MockIcon.Meaning, "Смысл текста", 1303, 1423, 91, 0)
                 ChannelRow(MockIcon.Scene, "Что на фото", 1057, 1423, 74, 0)
-                ChannelRow(MockIcon.Copies, "Копии кадра", 1420, 1423, 99, 12)
+                ChannelRow(MockIcon.Copies, "Копии кадра", 1411, 1423, 99, 12)
                 Spacer(Modifier.height(NaytiSpacing.XSmall))
                 RowLink(MockIcon.Period, "Период: с 23 апреля 2026", "1 423 из 13 953")
                 RowLink(MockIcon.Alert, "Повторить пропущенные", "12 фотографий")

@@ -74,13 +74,18 @@ fun DrawScope.drawMockIcon(icon: MockIcon, color: Color) {
             drawCircle(color, s * 0.09f, Offset(s * 0.82f, s * 0.36f))
         }
         MockIcon.Settings -> {
-            drawCircle(color, s * 0.2f, Offset(s * 0.5f, s * 0.5f), style = stroke)
-            listOf(0f, 45f, 90f, 135f, 180f, 225f, 270f, 315f).forEach { angle ->
-                val rad = Math.toRadians(angle.toDouble())
-                val cos = kotlin.math.cos(rad).toFloat()
-                val sin = kotlin.math.sin(rad).toFloat()
-                line(0.5f + 0.29f * cos, 0.5f + 0.29f * sin, 0.5f + 0.42f * cos, 0.5f + 0.42f * sin)
+            val gear = Path().apply {
+                repeat(24) { point ->
+                    val angle = Math.toRadians((point * 15.0) - 90.0)
+                    val radius = if (point % 3 == 1) 0.33f else 0.43f
+                    val x = s * (0.5f + radius * kotlin.math.cos(angle).toFloat())
+                    val y = s * (0.5f + radius * kotlin.math.sin(angle).toFloat())
+                    if (point == 0) moveTo(x, y) else lineTo(x, y)
+                }
+                close()
             }
+            drawPath(gear, color, style = stroke)
+            drawCircle(color, s * 0.15f, Offset(s * 0.5f, s * 0.5f), style = stroke)
         }
         MockIcon.ChevronRight -> {
             line(0.42f, 0.28f, 0.64f, 0.5f)

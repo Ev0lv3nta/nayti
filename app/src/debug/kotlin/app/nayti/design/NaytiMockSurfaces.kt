@@ -228,15 +228,14 @@ private fun TopChrome(backdrop: NaytiBackdrop, material: ChromeMaterial) {
                             .background(colors.ready),
                     )
                     Text(
-                        text = "Поиск уже работает · подготовка продолжается",
-                        style = NaytiTheme.type.bodyM,
+                        text = "Поиск работает · подготовка идёт",
+                        style = NaytiTheme.type.labelL,
                         color = colors.ink,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
                     MockIconMark(MockIcon.ChevronRight, colors.ink, 18.dp)
-                    Spacer(Modifier.width(NaytiSpacing.Small))
                     MockIconMark(MockIcon.Settings, colors.ink, 20.dp)
                 }
             }

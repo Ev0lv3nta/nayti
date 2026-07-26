@@ -39,6 +39,12 @@ enum class NaytiIcon {
     Info,
     Shield,
     Period,
+    Photos,
+    Models,
+    Storage,
+    Export,
+    Delete,
+    About,
 }
 
 @Composable
@@ -181,6 +187,72 @@ private fun DrawScope.drawNaytiIcon(icon: NaytiIcon, color: Color) {
             line(0.14f, 0.4f, 0.86f, 0.4f)
             line(0.32f, 0.14f, 0.32f, 0.3f)
             line(0.68f, 0.14f, 0.68f, 0.3f)
+        }
+        NaytiIcon.Photos -> {
+            drawRoundRectOutline(color, stroke, 0.12f, 0.16f, 0.76f, 0.68f, s)
+            drawCircle(color, s * 0.07f, Offset(s * 0.34f, s * 0.36f))
+            val photo = Path().apply {
+                moveTo(s * 0.18f, s * 0.74f)
+                lineTo(s * 0.4f, s * 0.5f)
+                lineTo(s * 0.56f, s * 0.66f)
+                lineTo(s * 0.68f, s * 0.54f)
+                lineTo(s * 0.82f, s * 0.74f)
+            }
+            drawPath(photo, color, style = stroke)
+        }
+        NaytiIcon.Models -> {
+            drawCircle(color, s * 0.11f, Offset(s * 0.5f, s * 0.22f), style = stroke)
+            drawCircle(color, s * 0.11f, Offset(s * 0.22f, s * 0.7f), style = stroke)
+            drawCircle(color, s * 0.11f, Offset(s * 0.78f, s * 0.7f), style = stroke)
+            line(0.44f, 0.3f, 0.28f, 0.6f)
+            line(0.56f, 0.3f, 0.72f, 0.6f)
+            line(0.34f, 0.7f, 0.66f, 0.7f)
+        }
+        NaytiIcon.Storage -> {
+            drawOval(
+                color,
+                topLeft = Offset(s * 0.16f, s * 0.16f),
+                size = Size(s * 0.68f, s * 0.24f),
+                style = stroke,
+            )
+            drawArc(
+                color,
+                startAngle = 0f,
+                sweepAngle = 180f,
+                useCenter = false,
+                topLeft = Offset(s * 0.16f, s * 0.34f),
+                size = Size(s * 0.68f, s * 0.24f),
+                style = stroke,
+            )
+            drawArc(
+                color,
+                startAngle = 0f,
+                sweepAngle = 180f,
+                useCenter = false,
+                topLeft = Offset(s * 0.16f, s * 0.56f),
+                size = Size(s * 0.68f, s * 0.24f),
+                style = stroke,
+            )
+            line(0.16f, 0.28f, 0.16f, 0.68f)
+            line(0.84f, 0.28f, 0.84f, 0.68f)
+        }
+        NaytiIcon.Export -> {
+            drawRoundRectOutline(color, stroke, 0.18f, 0.38f, 0.64f, 0.48f, s)
+            line(0.5f, 0.62f, 0.5f, 0.12f)
+            line(0.5f, 0.12f, 0.32f, 0.3f)
+            line(0.5f, 0.12f, 0.68f, 0.3f)
+        }
+        NaytiIcon.Delete -> {
+            drawRoundRectOutline(color, stroke, 0.27f, 0.3f, 0.46f, 0.58f, s)
+            line(0.2f, 0.24f, 0.8f, 0.24f)
+            line(0.4f, 0.14f, 0.6f, 0.14f)
+            line(0.42f, 0.44f, 0.42f, 0.72f)
+            line(0.58f, 0.44f, 0.58f, 0.72f)
+        }
+        NaytiIcon.About -> {
+            drawCircle(color, s * 0.38f, Offset(s * 0.5f, s * 0.5f), style = stroke)
+            line(0.5f, 0.46f, 0.5f, 0.72f)
+            drawCircle(color, s * 0.045f, Offset(s * 0.5f, s * 0.3f))
         }
     }
 }

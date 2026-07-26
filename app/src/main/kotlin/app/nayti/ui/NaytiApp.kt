@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -41,7 +42,6 @@ import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -130,17 +130,21 @@ import app.nayti.platform.media.MediaPermissionSnapshot
 import app.nayti.storage.OcrRegionEntity
 import app.nayti.storage.IndexOperationState
 import app.nayti.storage.SearchFilterFacets
+import app.nayti.ui.designsystem.icon.NaytiIcon
+import app.nayti.ui.designsystem.icon.NaytiIconMark
+import app.nayti.ui.designsystem.theme.NaytiTheme
+import app.nayti.ui.shell.ShellStatusBar
+import app.nayti.ui.shell.ShellStatusMapper
 import app.nayti.ui.theme.NaytiSpacing
-import app.nayti.ui.theme.NaytiTheme
 
 private enum class RootDestination(
     val route: String,
     @param:StringRes val title: Int,
-    val icon: ImageVector,
+    val icon: NaytiIcon,
 ) {
-    Search("search", R.string.nav_search, Icons.Outlined.Search),
-    Readiness("readiness", R.string.nav_readiness, Icons.Outlined.CheckCircle),
-    Data("data", R.string.nav_data, Icons.Outlined.Settings),
+    Search("search", R.string.nav_search, NaytiIcon.Search),
+    Readiness("readiness", R.string.nav_readiness, NaytiIcon.Check),
+    Data("data", R.string.nav_data, NaytiIcon.Settings),
 }
 
 private const val ViewerRoute = "viewer/{assetId}"
@@ -285,6 +289,7 @@ private fun NaytiAppContent(
     val currentEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentEntry?.destination?.route
     val showRootNavigation = RootDestination.entries.any { it.route == currentRoute }
+    val shellStatus = ShellStatusMapper.map(catalog, modelPack, indexing)
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val useNavigationRail = maxWidth >= NavigationRailBreakpoint
@@ -296,46 +301,65 @@ private fun NaytiAppContent(
                     currentRoute = currentRoute,
                     onNavigate = navController::navigateToRoot,
                 )
-                RootNavHost(
-                    navController = navController,
-                    catalog = catalog,
-                    modelPack = modelPack,
-                    indexing = indexing,
-                    search = search,
-                    searchFilterFacets = searchFilterFacets,
-                    similar = similar,
-                    duplicates = duplicates,
-                    viewerProbe = viewerProbe,
-                    onLoadThumbnail = onLoadThumbnail,
-                    localStorage = localStorage,
-                    diagnosticsExport = diagnosticsExport,
-                    searchDataReset = searchDataReset,
-                    modelPackRollback = modelPackRollback,
-                    onRequestAccess = onRequestAccess,
-                    onRefresh = onRefresh,
-                    onImportModelPack = onImportModelPack,
-                    onSearch = onSearch,
-                    onFindSimilar = onFindSimilar,
-                    onFindDuplicates = onFindDuplicates,
-                    onStartIndexing = onStartIndexing,
-                    onPauseIndexing = onPauseIndexing,
-                    onStopIndexing = onStopIndexing,
-                    onCancelIndexing = onCancelIndexing,
-                    onRetryIndexingGaps = onRetryIndexingGaps,
-                    onSelectIndexingMonths = onSelectIndexingMonths,
-                    onSelectIndexingStartDate = onSelectIndexingStartDate,
-                    onProbe = onProbe,
-                    onClearProbe = onClearProbe,
-                    onRefreshStorage = onRefreshStorage,
-                    onExportDiagnostics = onExportDiagnostics,
-                    onResetSearchData = onResetSearchData,
-                    onRollbackModelPack = onRollbackModelPack,
-                    modifier = Modifier.weight(1f),
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    ShellStatusBar(
+                        status = shellStatus,
+                        onOpenDetails = {
+                            navController.navigateToRoot(RootDestination.Readiness.route)
+                        },
+                    )
+                    RootNavHost(
+                        navController = navController,
+                        catalog = catalog,
+                        modelPack = modelPack,
+                        indexing = indexing,
+                        search = search,
+                        searchFilterFacets = searchFilterFacets,
+                        similar = similar,
+                        duplicates = duplicates,
+                        viewerProbe = viewerProbe,
+                        onLoadThumbnail = onLoadThumbnail,
+                        localStorage = localStorage,
+                        diagnosticsExport = diagnosticsExport,
+                        searchDataReset = searchDataReset,
+                        modelPackRollback = modelPackRollback,
+                        onRequestAccess = onRequestAccess,
+                        onRefresh = onRefresh,
+                        onImportModelPack = onImportModelPack,
+                        onSearch = onSearch,
+                        onFindSimilar = onFindSimilar,
+                        onFindDuplicates = onFindDuplicates,
+                        onStartIndexing = onStartIndexing,
+                        onPauseIndexing = onPauseIndexing,
+                        onStopIndexing = onStopIndexing,
+                        onCancelIndexing = onCancelIndexing,
+                        onRetryIndexingGaps = onRetryIndexingGaps,
+                        onSelectIndexingMonths = onSelectIndexingMonths,
+                        onSelectIndexingStartDate = onSelectIndexingStartDate,
+                        onProbe = onProbe,
+                        onClearProbe = onClearProbe,
+                        onRefreshStorage = onRefreshStorage,
+                        onExportDiagnostics = onExportDiagnostics,
+                        onResetSearchData = onResetSearchData,
+                        onRollbackModelPack = onRollbackModelPack,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         } else {
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.background,
+                topBar = {
+                    if (showRootNavigation) {
+                        ShellStatusBar(
+                            status = shellStatus,
+                            onOpenDetails = {
+                                navController.navigateToRoot(RootDestination.Readiness.route)
+                            },
+                            modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars),
+                        )
+                    }
+                },
                 bottomBar = {
                     if (showRootNavigation) {
                         RootNavigationBar(
@@ -396,7 +420,7 @@ private fun RootNavigationBar(
             NavigationBarItem(
                 selected = currentRoute == destination.route,
                 onClick = { onNavigate(destination.route) },
-                icon = { Icon(destination.icon, contentDescription = null) },
+                icon = { NaytiIconMark(destination.icon) },
                 label = { Text(stringResource(destination.title)) },
                 colors = NavigationBarItemDefaults.colors(
                     indicatorColor = MaterialTheme.colorScheme.primaryContainer,
@@ -416,7 +440,7 @@ private fun RootNavigationRail(
             NavigationRailItem(
                 selected = currentRoute == destination.route,
                 onClick = { onNavigate(destination.route) },
-                icon = { Icon(destination.icon, contentDescription = null) },
+                icon = { NaytiIconMark(destination.icon) },
                 label = { Text(stringResource(destination.title)) },
             )
         }

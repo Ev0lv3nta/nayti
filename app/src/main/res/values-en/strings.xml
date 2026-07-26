@@ -238,4 +238,22 @@
     <string name="indexing_notification_model_missing">Import a model pack first</string>
     <string name="indexing_notification_pause">Pause</string>
     <string name="indexing_notification_stop">Stop</string>
+    <string name="shell_status_checking_library">Checking the library</string>
+    <string name="shell_status_needs_access">Photo access is required</string>
+    <string name="shell_status_needs_models">Search needs its model file</string>
+    <string name="shell_status_checking_models">Checking search models</string>
+    <string name="shell_status_installing_models">Preparing search models</string>
+    <string name="shell_status_models_failed">The models did not pass verification</string>
+    <string name="shell_status_library_failed">The library could not be opened</string>
+    <string name="shell_status_search_ready_preparing">Search works · preparation continues</string>
+    <string name="shell_status_preparing">Preparing photos for search</string>
+    <string name="shell_status_ready_to_prepare">Ready to start preparation</string>
+    <string name="shell_status_search_available">Search already works</string>
+    <string name="shell_status_prepared_partially">Preparation is incomplete</string>
+    <string name="shell_status_paused_by_user">Preparation paused by you</string>
+    <string name="shell_status_paused_by_system">Preparation is waiting for Android</string>
+    <string name="shell_status_paused_by_constraint">Preparation is temporarily paused</string>
+    <string name="shell_status_completed">Everything selected is ready</string>
+    <string name="shell_status_completed_with_gaps">Finished with skipped photos</string>
+    <string name="shell_status_preparation_failed">Preparation needs attention</string>
 </resources>

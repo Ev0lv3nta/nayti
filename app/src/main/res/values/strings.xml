@@ -254,4 +254,22 @@
     <string name="indexing_notification_model_missing">Сначала импортируйте model pack</string>
     <string name="indexing_notification_pause">Пауза</string>
     <string name="indexing_notification_stop">Остановить</string>
+    <string name="shell_status_checking_library">Сверяем медиатеку</string>
+    <string name="shell_status_needs_access">Нужен доступ к фотографиям</string>
+    <string name="shell_status_needs_models">Поиск не готов: нужны модели</string>
+    <string name="shell_status_checking_models">Проверяем модели поиска</string>
+    <string name="shell_status_installing_models">Готовим модели поиска</string>
+    <string name="shell_status_models_failed">Модели не прошли проверку</string>
+    <string name="shell_status_library_failed">Не удалось открыть медиатеку</string>
+    <string name="shell_status_search_ready_preparing">Поиск работает · подготовка идёт</string>
+    <string name="shell_status_preparing">Готовим фотографии к поиску</string>
+    <string name="shell_status_ready_to_prepare">Можно начать подготовку</string>
+    <string name="shell_status_search_available">Поиск уже работает</string>
+    <string name="shell_status_prepared_partially">Подготовлено не всё</string>
+    <string name="shell_status_paused_by_user">Подготовка приостановлена вами</string>
+    <string name="shell_status_paused_by_system">Подготовка ждёт системного окна</string>
+    <string name="shell_status_paused_by_constraint">Подготовка временно приостановлена</string>
+    <string name="shell_status_completed">Всё выбранное готово</string>
+    <string name="shell_status_completed_with_gaps">Завершено с пропусками</string>
+    <string name="shell_status_preparation_failed">Подготовке требуется внимание</string>
 </resources>

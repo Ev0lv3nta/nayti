@@ -10,6 +10,9 @@ import app.nayti.BuildConfig
 import app.nayti.indexer.CatalogRuntime
 import app.nayti.indexer.CatalogRuntimeState
 import app.nayti.indexer.CatalogRuntimeStatus
+import app.nayti.indexer.CatalogItem
+import app.nayti.indexer.LibraryFeed
+import app.nayti.indexer.LibraryFilterFacets
 import app.nayti.indexer.ModelPackActivationRuntime
 import app.nayti.indexer.ModelPackRuntime
 import app.nayti.indexer.ModelPackRuntimeState
@@ -54,6 +57,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 
 sealed interface ViewerProbeState {
     data object Idle : ViewerProbeState
@@ -70,14 +74,20 @@ sealed interface ViewerProbeState {
 }
 
 data class SearchResultItem(
-    val asset: CatalogAssetEntity,
+    val asset: CatalogItem,
     val hit: UnifiedSearchHit,
 )
 
 sealed interface SearchUiState {
     data object Idle : SearchUiState
 
-    data object Searching : SearchUiState
+    data class Searching(
+        val query: String,
+        val filter: SearchFilter,
+        val channels: SearchChannelSelection,
+    ) : SearchUiState
+
+    data class Cancelled(val query: String) : SearchUiState
 
     data class Ready(
         val query: String,
@@ -89,6 +99,18 @@ sealed interface SearchUiState {
     ) : SearchUiState
 
     data class Failed(val code: String) : SearchUiState
+}
+
+data class LibraryUiState(
+    val items: List<CatalogItem> = emptyList(),
+    val totalCount: Long = 0,
+    val facets: LibraryFilterFacets = LibraryFilterFacets.Empty,
+    val initialLoading: Boolean = false,
+    val loadingMore: Boolean = false,
+    val errorCode: String? = null,
+) {
+    val canLoadMore: Boolean
+        get() = items.size.toLong() < totalCount
 }
 
 data class SimilarResultItem(
@@ -161,6 +183,7 @@ sealed interface ModelPackRollbackState {
 @HiltViewModel
 class CatalogViewModel @Inject constructor(
     private val runtime: CatalogRuntime,
+    private val libraryFeed: LibraryFeed,
     private val modelPacks: ModelPackRuntime,
     private val modelPackActivation: ModelPackActivationRuntime,
     private val ocrIndexing: OcrIndexingRuntime,
@@ -200,6 +223,8 @@ class CatalogViewModel @Inject constructor(
     val viewerProbe: StateFlow<ViewerProbeState> = mutableViewerProbe.asStateFlow()
     private val mutableSearch = MutableStateFlow<SearchUiState>(SearchUiState.Idle)
     val search: StateFlow<SearchUiState> = mutableSearch.asStateFlow()
+    private val mutableLibrary = MutableStateFlow(LibraryUiState(initialLoading = true))
+    val library: StateFlow<LibraryUiState> = mutableLibrary.asStateFlow()
     private val mutableSearchFilterFacets = MutableStateFlow(SearchFilterFacets(emptyList(), emptyList()))
     val searchFilterFacets: StateFlow<SearchFilterFacets> = mutableSearchFilterFacets.asStateFlow()
     private val mutableSimilar = MutableStateFlow<SimilarUiState>(SimilarUiState.Idle)
@@ -207,9 +232,11 @@ class CatalogViewModel @Inject constructor(
     private val mutableDuplicates = MutableStateFlow<DuplicateUiState>(DuplicateUiState.Idle)
     val duplicates: StateFlow<DuplicateUiState> = mutableDuplicates.asStateFlow()
     private val searchGeneration = AtomicLong(0)
+    private val libraryGeneration = AtomicLong(0)
     private val viewerGeneration = AtomicLong(0)
     private val similarGeneration = AtomicLong(0)
     private val duplicateGeneration = AtomicLong(0)
+    private var searchJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -227,6 +254,25 @@ class CatalogViewModel @Inject constructor(
                 .collect { (accessRevision, catalogRevision) ->
                     thumbnailLoader.onCatalogState(accessRevision, catalogRevision)
                     clearDerivedUiState()
+                }
+        }
+        viewModelScope.launch {
+            combine(
+                catalog.map { state ->
+                    Triple(state.status, state.access.value, state.catalogRevision)
+                },
+                indexing.map { state -> state.scope.revision },
+            ) { catalogKey, scopeRevision -> catalogKey to scopeRevision }
+                .distinctUntilChanged()
+                .collectLatest { (catalogKey, _) ->
+                    val (status, _, _) = catalogKey
+                    if (status == CatalogRuntimeStatus.Ready) {
+                        refreshLibrary()
+                    } else {
+                        libraryGeneration.incrementAndGet()
+                        mutableLibrary.value =
+                            LibraryUiState(initialLoading = status == CatalogRuntimeStatus.Reconciling)
+                    }
                 }
         }
         viewModelScope.launch {
@@ -296,6 +342,36 @@ class CatalogViewModel @Inject constructor(
 
     suspend fun loadThumbnail(key: MediaKey, accessRevision: Long) =
         thumbnailLoader.load(key, accessRevision)
+
+    fun loadMoreLibrary() {
+        val current = mutableLibrary.value
+        if (current.initialLoading || current.loadingMore || !current.canLoadMore) return
+        val generation = libraryGeneration.get()
+        val offset = current.items.size
+        mutableLibrary.value = current.copy(loadingMore = true, errorCode = null)
+        viewModelScope.launch {
+            val result = runCatching { libraryFeed.loadPage(offset, LibraryPageSize) }
+            if (libraryGeneration.get() != generation) return@launch
+            mutableLibrary.value =
+                result.fold(
+                    onSuccess = { page ->
+                        val existingIds = current.items.asSequence().map(CatalogItem::assetId).toHashSet()
+                        current.copy(
+                            items = current.items + page.items.filterNot { it.assetId in existingIds },
+                            totalCount = page.totalCount,
+                            facets = page.facets,
+                            loadingMore = false,
+                        )
+                    },
+                    onFailure = { failure ->
+                        if (failure is CancellationException) throw failure
+                        current.copy(loadingMore = false, errorCode = failure::class.java.simpleName.uppercase())
+                    },
+                )
+        }
+    }
+
+    fun retryLibrary() = refreshLibrary()
 
     fun refreshLocalStorage() {
         val modelBytes = modelPack.value.installed?.payloadBytes ?: 0L
@@ -429,6 +505,8 @@ class CatalogViewModel @Inject constructor(
     }
 
     private fun clearDerivedUiState() {
+        searchJob?.cancel()
+        searchJob = null
         searchGeneration.incrementAndGet()
         similarGeneration.incrementAndGet()
         duplicateGeneration.incrementAndGet()
@@ -523,6 +601,8 @@ class CatalogViewModel @Inject constructor(
         channels: SearchChannelSelection = SearchChannelSelection.All,
     ) {
         val normalizedQuery = query.trim()
+        searchJob?.cancel()
+        searchJob = null
         if (normalizedQuery.isEmpty()) {
             searchGeneration.incrementAndGet()
             mutableSearch.value = SearchUiState.Idle
@@ -534,8 +614,8 @@ class CatalogViewModel @Inject constructor(
             mutableSearch.value = SearchUiState.Failed("MODEL_PACK_REQUIRED")
             return
         }
-        mutableSearch.value = SearchUiState.Searching
-        viewModelScope.launch {
+        mutableSearch.value = SearchUiState.Searching(normalizedQuery, filter, channels)
+        searchJob = viewModelScope.launch {
             val result =
                 try {
                     val searchResult =
@@ -547,7 +627,7 @@ class CatalogViewModel @Inject constructor(
                             channels = channels,
                         )
                     val hydrated = searchResult.hits.mapNotNull { hit ->
-                        storage.catalogDao.asset(hit.assetId)?.let { asset -> SearchResultItem(asset, hit) }
+                        libraryFeed.item(hit.assetId)?.let { asset -> SearchResultItem(asset, hit) }
                     }
                     SearchUiState.Ready(
                         normalizedQuery,
@@ -557,11 +637,26 @@ class CatalogViewModel @Inject constructor(
                         searchResult.semanticStatus,
                         searchResult.visualStatus,
                     )
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
                 } catch (failure: Exception) {
                     SearchUiState.Failed(failure::class.java.simpleName.uppercase())
                 }
             if (searchGeneration.get() == generation) mutableSearch.value = result
         }
+    }
+
+    fun cancelSearch() {
+        val query = when (val state = mutableSearch.value) {
+            is SearchUiState.Searching -> state.query
+            is SearchUiState.Ready -> state.query
+            is SearchUiState.Cancelled -> state.query
+            else -> ""
+        }
+        searchGeneration.incrementAndGet()
+        searchJob?.cancel()
+        searchJob = null
+        mutableSearch.value = if (query.isBlank()) SearchUiState.Idle else SearchUiState.Cancelled(query)
     }
 
     fun findSimilar(sourceAssetId: Long) {
@@ -598,6 +693,33 @@ class CatalogViewModel @Inject constructor(
                 }
             if (duplicateGeneration.get() == generation) mutableDuplicates.value = result
         }
+    }
+
+    private fun refreshLibrary() {
+        val generation = libraryGeneration.incrementAndGet()
+        mutableLibrary.value = LibraryUiState(initialLoading = true)
+        viewModelScope.launch {
+            val result = runCatching { libraryFeed.loadPage(0, LibraryPageSize) }
+            if (libraryGeneration.get() != generation) return@launch
+            mutableLibrary.value =
+                result.fold(
+                    onSuccess = { page ->
+                        LibraryUiState(
+                            items = page.items,
+                            totalCount = page.totalCount,
+                            facets = page.facets,
+                        )
+                    },
+                    onFailure = { failure ->
+                        if (failure is CancellationException) throw failure
+                        LibraryUiState(errorCode = failure::class.java.simpleName.uppercase())
+                    },
+                )
+        }
+    }
+
+    private companion object {
+        const val LibraryPageSize = 120
     }
 }
 

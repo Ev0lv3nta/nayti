@@ -256,4 +256,62 @@
     <string name="shell_status_completed">Everything selected is ready</string>
     <string name="shell_status_completed_with_gaps">Finished with skipped photos</string>
     <string name="shell_status_preparation_failed">Preparation needs attention</string>
+    <string name="library_opening">Opening the library…</string>
+    <string name="library_empty_title">No photos in the selected period</string>
+    <string name="library_empty_body">Change the preparation period to see more photos.</string>
+    <string name="library_failed_title">The library could not be opened</string>
+    <string name="library_retry">Retry</string>
+    <string name="library_access_title">Choose photos for Nayti</string>
+    <string name="library_access_body">Android can grant access to the whole library or selected photos only.</string>
+    <string name="library_access_action">Choose photos</string>
+    <string name="library_photo_description">Photo, %1$s, %2$s</string>
+    <string name="library_unknown_date">No date</string>
+    <string name="library_unknown_album">no album</string>
+    <string name="library_loading_more">Loading more photos…</string>
+    <string name="search_surface_hint">Find by text, meaning, or content</string>
+    <string name="search_surface_where">Where to search</string>
+    <string name="search_surface_how">How to search</string>
+    <string name="search_surface_settings">Settings</string>
+    <string name="search_surface_model_required">Search needs its model file; you can already browse photos.</string>
+    <string name="search_surface_searching_long">Searching with the selected methods</string>
+    <string name="search_surface_cancel">Cancel</string>
+    <string name="search_surface_cancelled">Search cancelled. Your query and settings are preserved.</string>
+    <string name="search_surface_failed">Search did not finish. You can retry the same query.</string>
+    <string name="search_surface_empty_title">Nothing found among the photos prepared so far</string>
+    <string name="search_surface_empty_body">This does not mean the photo is absent from the whole library; coverage for each method is shown above.</string>
+    <string name="search_surface_coverage">Searched: %1$s</string>
+    <plurals name="search_surface_coverage_channel">
+        <item quantity="one">%1$s — %2$d photo</item>
+        <item quantity="other">%1$s — %2$d photos</item>
+    </plurals>
+    <plurals name="search_surface_results_limit">
+        <item quantity="one">Showing the most relevant result</item>
+        <item quantity="other">Showing the %1$d most relevant results</item>
+    </plurals>
+    <plurals name="search_surface_results">
+        <item quantity="one">%1$d result</item>
+        <item quantity="other">%1$d results</item>
+    </plurals>
+    <string name="search_where_title">Where to search</string>
+    <string name="search_where_period">Period</string>
+    <string name="search_where_all">All time</string>
+    <string name="search_where_month">30 days</string>
+    <string name="search_where_year">Year</string>
+    <string name="search_where_custom">Custom range</string>
+    <string name="search_where_album">Album</string>
+    <string name="search_where_file_type">File type</string>
+    <string name="search_where_any_album">All albums</string>
+    <string name="search_where_any_type">All types</string>
+    <string name="search_where_reset">Reset</string>
+    <string name="search_where_apply">Apply</string>
+    <string name="search_how_title">How to search</string>
+    <string name="search_how_note">This affects the next search only and does not change prepared data.</string>
+    <string name="search_how_literal">Text in photos</string>
+    <string name="search_how_semantic">Meaning of text</string>
+    <string name="search_how_visual">Photo content</string>
+    <plurals name="search_how_ready">
+        <item quantity="one">%1$d photo ready</item>
+        <item quantity="other">%1$d photos ready</item>
+    </plurals>
+    <string name="search_how_keep_one">At least one search method must stay enabled.</string>
 </resources>

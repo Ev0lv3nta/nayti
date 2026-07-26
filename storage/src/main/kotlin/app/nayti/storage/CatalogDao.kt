@@ -27,6 +27,18 @@ interface CatalogDao {
     suspend fun availableAssetsFrom(takenFromMillis: Long?): List<CatalogAssetEntity>
 
     @Query(
+        "SELECT * FROM catalog_asset WHERE availability = 'AVAILABLE' " +
+            "AND (:takenFromMillis IS NULL OR COALESCE(dateTakenMillis, dateModifiedSeconds * 1000) >= :takenFromMillis) " +
+            "ORDER BY COALESCE(dateTakenMillis, dateModifiedSeconds * 1000, 0) DESC, assetId DESC " +
+            "LIMIT :limit OFFSET :offset",
+    )
+    suspend fun availableAssetPageFrom(
+        takenFromMillis: Long?,
+        limit: Int,
+        offset: Int,
+    ): List<CatalogAssetEntity>
+
+    @Query(
         "SELECT assetId FROM catalog_asset WHERE availability = 'AVAILABLE' " +
             "AND (:takenFromMillis IS NULL OR COALESCE(dateTakenMillis, dateModifiedSeconds * 1000) >= :takenFromMillis) " +
             "ORDER BY assetId",
@@ -45,7 +57,8 @@ interface CatalogDao {
     @Query(
         "SELECT bucketId AS bucketId, COALESCE(NULLIF(TRIM(bucketDisplayName), ''), 'Без названия') AS displayName, " +
             "COUNT(*) AS assetCount FROM catalog_asset WHERE availability = 'AVAILABLE' AND bucketId IS NOT NULL " +
-            "GROUP BY bucketId, displayName ORDER BY displayName COLLATE NOCASE, bucketId",
+            "GROUP BY bucketId, COALESCE(NULLIF(TRIM(bucketDisplayName), ''), 'Без названия') " +
+            "ORDER BY displayName COLLATE NOCASE, bucketId",
     )
     suspend fun availableAlbumFacets(): List<SearchAlbumFacet>
 
@@ -59,7 +72,8 @@ interface CatalogDao {
         "SELECT bucketId AS bucketId, COALESCE(NULLIF(TRIM(bucketDisplayName), ''), 'Без названия') AS displayName, " +
             "COUNT(*) AS assetCount FROM catalog_asset WHERE availability = 'AVAILABLE' AND bucketId IS NOT NULL " +
             "AND (:takenFromMillis IS NULL OR COALESCE(dateTakenMillis, dateModifiedSeconds * 1000) >= :takenFromMillis) " +
-            "GROUP BY bucketId, displayName ORDER BY displayName COLLATE NOCASE, bucketId",
+            "GROUP BY bucketId, COALESCE(NULLIF(TRIM(bucketDisplayName), ''), 'Без названия') " +
+            "ORDER BY displayName COLLATE NOCASE, bucketId",
     )
     suspend fun availableAlbumFacetsFrom(takenFromMillis: Long?): List<SearchAlbumFacet>
 
@@ -390,6 +404,13 @@ interface CatalogDao {
     @Transaction
     suspend fun indexableAssets(): List<CatalogAssetEntity> =
         availableAssetsFrom(currentIndexingScope().takenFromMillis)
+
+    @Transaction
+    suspend fun indexableAssetPage(offset: Int, limit: Int): List<CatalogAssetEntity> {
+        require(offset >= 0)
+        require(limit in 1..500)
+        return availableAssetPageFrom(currentIndexingScope().takenFromMillis, limit, offset)
+    }
 
     @Transaction
     suspend fun indexableAssetIds(): List<Long> =

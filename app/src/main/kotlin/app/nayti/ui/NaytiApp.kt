@@ -79,6 +79,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
@@ -133,6 +134,7 @@ import app.nayti.storage.SearchFilterFacets
 import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
 import app.nayti.ui.designsystem.theme.NaytiTheme
+import app.nayti.ui.library.LibrarySearchScreen
 import app.nayti.ui.shell.ShellStatusBar
 import app.nayti.ui.shell.ShellStatusMapper
 import app.nayti.ui.theme.NaytiSpacing
@@ -164,6 +166,7 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
     val catalog by viewModel.catalog.collectAsStateWithLifecycle()
     val modelPack by viewModel.modelPack.collectAsStateWithLifecycle()
     val indexing by viewModel.indexing.collectAsStateWithLifecycle()
+    val library by viewModel.library.collectAsStateWithLifecycle()
     val search by viewModel.search.collectAsStateWithLifecycle()
     val searchFilterFacets by viewModel.searchFilterFacets.collectAsStateWithLifecycle()
     val similar by viewModel.similar.collectAsStateWithLifecycle()
@@ -217,6 +220,7 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
             catalog = catalog,
             modelPack = modelPack,
             indexing = indexing,
+            library = library,
             search = search,
             searchFilterFacets = searchFilterFacets,
             similar = similar,
@@ -231,6 +235,9 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
             onRefresh = { viewModel.refresh(forceFull = true) },
             onImportModelPack = { modelPackLauncher.launch(arrayOf("application/octet-stream")) },
             onSearch = viewModel::search,
+            onCancelSearch = viewModel::cancelSearch,
+            onLoadMoreLibrary = viewModel::loadMoreLibrary,
+            onRetryLibrary = viewModel::retryLibrary,
             onFindSimilar = viewModel::findSimilar,
             onFindDuplicates = viewModel::findDuplicates,
             onStartIndexing = startIndexing,
@@ -255,6 +262,7 @@ private fun NaytiAppContent(
     catalog: CatalogRuntimeState,
     modelPack: ModelPackRuntimeState,
     indexing: OcrIndexingState,
+    library: LibraryUiState,
     search: SearchUiState,
     searchFilterFacets: SearchFilterFacets,
     similar: SimilarUiState,
@@ -269,6 +277,9 @@ private fun NaytiAppContent(
     onRefresh: () -> Unit,
     onImportModelPack: () -> Unit,
     onSearch: (String, SearchFilter, SearchChannelSelection) -> Unit,
+    onCancelSearch: () -> Unit,
+    onLoadMoreLibrary: () -> Unit,
+    onRetryLibrary: () -> Unit,
     onFindSimilar: (Long) -> Unit,
     onFindDuplicates: (Long) -> Unit,
     onStartIndexing: () -> Unit,
@@ -313,6 +324,7 @@ private fun NaytiAppContent(
                         catalog = catalog,
                         modelPack = modelPack,
                         indexing = indexing,
+                        library = library,
                         search = search,
                         searchFilterFacets = searchFilterFacets,
                         similar = similar,
@@ -327,6 +339,9 @@ private fun NaytiAppContent(
                         onRefresh = onRefresh,
                         onImportModelPack = onImportModelPack,
                         onSearch = onSearch,
+                        onCancelSearch = onCancelSearch,
+                        onLoadMoreLibrary = onLoadMoreLibrary,
+                        onRetryLibrary = onRetryLibrary,
                         onFindSimilar = onFindSimilar,
                         onFindDuplicates = onFindDuplicates,
                         onStartIndexing = onStartIndexing,
@@ -360,20 +375,13 @@ private fun NaytiAppContent(
                         )
                     }
                 },
-                bottomBar = {
-                    if (showRootNavigation) {
-                        RootNavigationBar(
-                            currentRoute = currentRoute,
-                            onNavigate = navController::navigateToRoot,
-                        )
-                    }
-                },
             ) { innerPadding ->
                 RootNavHost(
                     navController = navController,
                     catalog = catalog,
                     modelPack = modelPack,
                     indexing = indexing,
+                    library = library,
                     search = search,
                     searchFilterFacets = searchFilterFacets,
                     similar = similar,
@@ -388,6 +396,9 @@ private fun NaytiAppContent(
                     onRefresh = onRefresh,
                     onImportModelPack = onImportModelPack,
                     onSearch = onSearch,
+                    onCancelSearch = onCancelSearch,
+                    onLoadMoreLibrary = onLoadMoreLibrary,
+                    onRetryLibrary = onRetryLibrary,
                     onFindSimilar = onFindSimilar,
                     onFindDuplicates = onFindDuplicates,
                     onStartIndexing = onStartIndexing,
@@ -463,6 +474,7 @@ private fun RootNavHost(
     catalog: CatalogRuntimeState,
     modelPack: ModelPackRuntimeState,
     indexing: OcrIndexingState,
+    library: LibraryUiState,
     search: SearchUiState,
     searchFilterFacets: SearchFilterFacets,
     similar: SimilarUiState,
@@ -477,6 +489,9 @@ private fun RootNavHost(
     onRefresh: () -> Unit,
     onImportModelPack: () -> Unit,
     onSearch: (String, SearchFilter, SearchChannelSelection) -> Unit,
+    onCancelSearch: () -> Unit,
+    onLoadMoreLibrary: () -> Unit,
+    onRetryLibrary: () -> Unit,
     onFindSimilar: (Long) -> Unit,
     onFindDuplicates: (Long) -> Unit,
     onStartIndexing: () -> Unit,
@@ -500,14 +515,26 @@ private fun RootNavHost(
         modifier = modifier,
     ) {
             composable(RootDestination.Search.route) {
-                SearchScreen(
-                    catalog = catalog,
-                    modelPack = modelPack,
+                LibrarySearchScreen(
+                    library = library,
                     search = search,
-                    searchFilterFacets = searchFilterFacets,
+                    indexing = indexing,
+                    accessScope = catalog.access.permission.scope,
+                    accessRevision = catalog.access.value,
+                    modelReady =
+                        catalog.access.permission.scope != MediaAccessScope.None &&
+                            modelPack.installed != null &&
+                            modelPack.status != ModelPackRuntimeStatus.Installing,
                     onLoadThumbnail = onLoadThumbnail,
+                    onLoadMore = onLoadMoreLibrary,
+                    onRetryLibrary = onRetryLibrary,
+                    onRequestAccess = onRequestAccess,
                     onSearch = onSearch,
+                    onCancelSearch = onCancelSearch,
                     onOpenAsset = { assetId -> navController.navigate("viewer/$assetId") },
+                    onOpenSettings = {
+                        navController.navigateToRoot(RootDestination.Data.route)
+                    },
                 )
             }
             composable(RootDestination.Readiness.route) {
@@ -555,7 +582,7 @@ private fun RootNavHost(
                 val searchResult = (search as? SearchUiState.Ready)?.results
                     ?.firstOrNull { result -> result.asset.assetId == assetId }
                 val item = catalog.recentItems.firstOrNull { it.assetId == assetId }
-                    ?: searchResult?.toCatalogItem()
+                    ?: searchResult?.asset
                     ?: (similar as? SimilarUiState.Ready)?.results
                         ?.firstOrNull { result -> result.asset.assetId == assetId }
                         ?.asset?.toCatalogItem()
@@ -734,7 +761,9 @@ private fun SearchScreen(
         item(span = { GridItemSpan(maxLineSpan) }) { LibraryStatusCard(catalog) }
         when (search) {
             SearchUiState.Idle,
-            SearchUiState.Searching,
+            -> Unit
+            is SearchUiState.Searching,
+            is SearchUiState.Cancelled,
             -> Unit
             is SearchUiState.Failed -> item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
@@ -973,7 +1002,7 @@ private fun SearchResultCard(
         Column {
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(1f)) {
                 PhotoThumbnail(
-                    key = MediaKey(result.asset.volumeName, result.asset.mediaStoreId),
+                    key = result.asset.key,
                     accessRevision = accessRevision,
                     description = result.asset.displayName,
                     onLoad = onLoadThumbnail,
@@ -1016,11 +1045,13 @@ private fun SearchResultCard(
 }
 
 @Composable
-private fun PhotoThumbnail(
+internal fun PhotoThumbnail(
     key: MediaKey,
     accessRevision: Long,
     description: String?,
     onLoad: suspend (MediaKey, Long) -> Bitmap?,
+    modifier: Modifier = Modifier,
+    shape: Shape = MaterialTheme.shapes.large,
 ) {
     val bitmap by produceState<Bitmap?>(
         initialValue = null,
@@ -1034,12 +1065,12 @@ private fun PhotoThumbnail(
         Image(
             bitmap = checkNotNull(bitmap).asImageBitmap(),
             contentDescription = description,
-            modifier = Modifier.fillMaxSize().clip(MaterialTheme.shapes.large),
+            modifier = modifier.fillMaxSize().clip(shape),
             contentScale = ContentScale.Crop,
         )
     } else {
         Box(
-            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
+            modifier = modifier.fillMaxSize().clip(shape).background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -2014,9 +2045,6 @@ private fun preparationIssue(code: String): String = stringResource(
     },
 )
 
-private fun SearchResultItem.toCatalogItem(): CatalogItem =
-    asset.toCatalogItem()
-
 private fun app.nayti.storage.CatalogAssetEntity.toCatalogItem(): CatalogItem =
     CatalogItem(
         assetId = assetId,
@@ -2063,6 +2091,7 @@ private fun NaytiPreview() {
                     lastSlicePublished = 0,
                     errorCode = null,
                 ),
+            library = LibraryUiState(),
             search = SearchUiState.Idle,
             searchFilterFacets = SearchFilterFacets(emptyList(), emptyList()),
             similar = SimilarUiState.Idle,
@@ -2077,6 +2106,9 @@ private fun NaytiPreview() {
             onRefresh = {},
             onImportModelPack = {},
             onSearch = { _, _, _ -> },
+            onCancelSearch = {},
+            onLoadMoreLibrary = {},
+            onRetryLibrary = {},
             onFindSimilar = {},
             onFindDuplicates = {},
             onStartIndexing = {},

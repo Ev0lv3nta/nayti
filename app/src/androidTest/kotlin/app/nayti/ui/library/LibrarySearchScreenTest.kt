@@ -1,14 +1,27 @@
 package app.nayti.ui.library
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.isToggleable
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.nayti.R
@@ -21,6 +34,7 @@ import app.nayti.platform.media.MediaAccessScope
 import app.nayti.platform.media.MediaKey
 import app.nayti.ui.LibraryUiState
 import app.nayti.ui.SearchUiState
+import app.nayti.ui.assertTouchHeightIsAtLeast
 import app.nayti.ui.designsystem.theme.NaytiTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -72,6 +86,101 @@ class LibrarySearchScreenTest {
         composeRule.runOnIdle { assertTrue(cancelled) }
     }
 
+    @Test
+    fun selectedSearchChannelsSurviveStateRestorationAndKeepOneEnabled() {
+        val restoration = StateRestorationTester(composeRule)
+        restoration.setContent { TestContent() }
+
+        composeRule.onNodeWithText(context.getString(R.string.search_surface_how)).performClick()
+        composeRule.onAllNodes(isToggleable())[0].performClick().assertIsOff()
+        composeRule.onAllNodes(isToggleable())[1].performClick().assertIsOff()
+        composeRule.onAllNodes(isToggleable())[2].performClick().assertIsOn()
+        composeRule.onAllNodes(isToggleable())[2].performClick().assertIsOn()
+        composeRule.onNodeWithText(context.getString(R.string.search_where_apply)).performClick()
+
+        restoration.emulateSavedInstanceStateRestore()
+
+        composeRule.onNodeWithText(context.getString(R.string.search_surface_how) + " •").performClick()
+        composeRule.onAllNodes(isToggleable())[0].assertIsOff()
+        composeRule.onAllNodes(isToggleable())[1].assertIsOff()
+        composeRule.onAllNodes(isToggleable())[2].assertIsOn()
+    }
+
+    @Test
+    fun libraryActionsRemainReachableAtTwoHundredPercentFontScale() {
+        composeRule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(density.density, fontScale = 2f),
+            ) {
+                TestContent()
+            }
+        }
+
+        composeRule.onNodeWithText(context.getString(R.string.search_surface_where))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.search_surface_how))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.search_surface_settings))
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun mediumLayoutUsesFivePhotoColumnsAndAccessibleSearchActions() {
+        composeRule.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(1f, fontScale = 1f)) {
+                TestContent(items = (1L..6L).map(::photo))
+            }
+        }
+
+        val firstRow = (1L..5L).map { id ->
+            composeRule.onNodeWithTag("library-photo-$id").fetchSemanticsNode().boundsInRoot.top
+        }
+        assertEquals(1, firstRow.distinct().size)
+        composeRule.onNode(
+            hasText(context.getString(R.string.search_surface_where)) and hasClickAction(),
+        )
+            .assertTouchHeightIsAtLeast(48.dp)
+        composeRule.onNode(
+            hasText(context.getString(R.string.search_surface_how)) and hasClickAction(),
+        )
+            .assertTouchHeightIsAtLeast(48.dp)
+        composeRule.onNode(
+            hasText(context.getString(R.string.search_surface_settings)) and hasClickAction(),
+        )
+            .assertTouchHeightIsAtLeast(48.dp)
+    }
+
+    @Composable
+    private fun TestContent(
+        search: SearchUiState = SearchUiState.Idle,
+        items: List<CatalogItem> = listOf(photo()),
+        onSearch: (String, SearchFilter, SearchChannelSelection) -> Unit = { _, _, _ -> },
+        onCancelSearch: () -> Unit = {},
+    ) {
+        NaytiTheme {
+            LibrarySearchScreen(
+                library = LibraryUiState(
+                    items = items,
+                    totalCount = items.size.toLong(),
+                ),
+                search = search,
+                indexing = indexing(),
+                accessScope = MediaAccessScope.Full,
+                accessRevision = 1,
+                modelReady = true,
+                onLoadThumbnail = { _, _ -> null },
+                onLoadMore = {},
+                onRetryLibrary = {},
+                onRequestAccess = {},
+                onSearch = onSearch,
+                onCancelSearch = onCancelSearch,
+                onOpenAsset = {},
+                onOpenSettings = {},
+            )
+        }
+    }
+
     private fun setContent(
         search: () -> SearchUiState = { SearchUiState.Idle },
         onSearch: (String, SearchFilter, SearchChannelSelection) -> Unit = { _, _, _ -> },
@@ -85,15 +194,7 @@ class LibrarySearchScreenTest {
                         totalCount = 1,
                     ),
                     search = search(),
-                    indexing = OcrIndexingState(
-                        status = OcrIndexingStatus.Ready,
-                        accessible = 1,
-                        committed = 1,
-                        permanentGaps = 0,
-                        outstanding = 0,
-                        lastSlicePublished = 1,
-                        errorCode = null,
-                    ),
+                    indexing = indexing(),
                     accessScope = MediaAccessScope.Full,
                     accessRevision = 1,
                     modelReady = true,
@@ -110,11 +211,21 @@ class LibrarySearchScreenTest {
         }
     }
 
-    private fun photo() = CatalogItem(
-        assetId = 1,
-        key = MediaKey("external_primary", 1),
-        displayName = "photo.jpg",
-        bucketDisplayName = "Camera",
+    private fun indexing() = OcrIndexingState(
+        status = OcrIndexingStatus.Ready,
+        accessible = 1,
+        committed = 1,
+        permanentGaps = 0,
+        outstanding = 0,
+        lastSlicePublished = 1,
+        errorCode = null,
+    )
+
+    private fun photo(assetId: Long = 1) = CatalogItem(
+        assetId = assetId,
+        key = MediaKey("external_primary", assetId),
+        displayName = "photo-$assetId.jpg",
+        bucketDisplayName = "Camera $assetId",
         mimeType = "image/jpeg",
         width = 1_080,
         height = 1_080,

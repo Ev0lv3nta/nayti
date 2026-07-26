@@ -4,8 +4,10 @@ import android.app.DatePickerDialog
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -49,6 +52,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,9 +61,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -137,7 +143,9 @@ fun LibrarySearchScreen(
     var customBefore by rememberSaveable { mutableStateOf<Long?>(null) }
     var bucketId by rememberSaveable { mutableStateOf<Long?>(null) }
     var mimeType by rememberSaveable { mutableStateOf<String?>(null) }
-    var channels by remember { mutableStateOf(SearchChannelSelection.All) }
+    var channels by rememberSaveable(stateSaver = SearchChannelSelectionSaver) {
+        mutableStateOf(SearchChannelSelection.All)
+    }
     var showWhere by rememberSaveable { mutableStateOf(false) }
     var showHow by rememberSaveable { mutableStateOf(false) }
     var longSearch by remember { mutableStateOf(false) }
@@ -172,47 +180,61 @@ fun LibrarySearchScreen(
         }
     }
 
-    Box(modifier.fillMaxSize()) {
-        LibraryOrResultsGrid(
-            library = library,
-            search = search,
-            indexing = indexing,
-            accessScope = accessScope,
-            accessRevision = accessRevision,
-            onLoadThumbnail = onLoadThumbnail,
-            onLoadMore = onLoadMore,
-            onRetryLibrary = onRetryLibrary,
-            onRequestAccess = onRequestAccess,
-            onOpenAsset = onOpenAsset,
-            modifier = Modifier.fillMaxSize().naytiBackdropSource(backdrop),
-        )
-        SearchChrome(
-            query = query,
-            onQueryChange = { query = it },
-            onSubmit = submit,
-            onClear = {
-                query = ""
-                onSearch("", SearchFilter.None, channels)
-            },
-            onOpenWhere = { showWhere = true },
-            onOpenHow = { showHow = true },
-            onOpenSettings = onOpenSettings,
-            canSubmit = query.isNotBlank() && modelReady && search !is SearchUiState.Searching,
-            searching = search is SearchUiState.Searching,
-            longSearch = longSearch,
-            imeVisible = imeVisible,
-            filtersActive =
-                dateScope != SearchDateScope.Any || bucketId != null || mimeType != null,
-            methodsActive = channels != SearchChannelSelection.All,
-            modelReady = modelReady,
-            onCancelSearch = onCancelSearch,
-            backdrop = backdrop,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .imePadding()
-                .padding(horizontal = NaytiSpacing.Screen, vertical = NaytiSpacing.Medium),
-        )
+    BoxWithConstraints(modifier.fillMaxSize()) {
+        val mediumLayout = maxWidth >= MediumLayoutMinWidth
+        Box(Modifier.fillMaxSize()) {
+            LibraryOrResultsGrid(
+                library = library,
+                search = search,
+                indexing = indexing,
+                accessScope = accessScope,
+                accessRevision = accessRevision,
+                onLoadThumbnail = onLoadThumbnail,
+                onLoadMore = onLoadMore,
+                onRetryLibrary = onRetryLibrary,
+                onRequestAccess = onRequestAccess,
+                onOpenAsset = onOpenAsset,
+                columns = if (mediumLayout) 5 else 3,
+                contentPadding =
+                    if (mediumLayout) {
+                        PaddingValues(vertical = NaytiSpacing.Small)
+                    } else {
+                        PaddingValues(bottom = SearchChromeClearance, top = NaytiSpacing.Small)
+                    },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = if (mediumLayout) MediumChromeWidth else 0.dp)
+                    .naytiBackdropSource(backdrop),
+            )
+            SearchChrome(
+                query = query,
+                onQueryChange = { query = it },
+                onSubmit = submit,
+                onClear = {
+                    query = ""
+                    onSearch("", SearchFilter.None, channels)
+                },
+                onOpenWhere = { showWhere = true },
+                onOpenHow = { showHow = true },
+                onOpenSettings = onOpenSettings,
+                canSubmit = query.isNotBlank() && modelReady && search !is SearchUiState.Searching,
+                searching = search is SearchUiState.Searching,
+                longSearch = longSearch,
+                imeVisible = imeVisible,
+                filtersActive =
+                    dateScope != SearchDateScope.Any || bucketId != null || mimeType != null,
+                methodsActive = channels != SearchChannelSelection.All,
+                modelReady = modelReady,
+                onCancelSearch = onCancelSearch,
+                backdrop = backdrop,
+                modifier = Modifier
+                    .align(if (mediumLayout) Alignment.BottomEnd else Alignment.BottomCenter)
+                    .then(if (mediumLayout) Modifier.width(MediumChromeWidth) else Modifier)
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(horizontal = NaytiSpacing.Screen, vertical = NaytiSpacing.Medium),
+            )
+        }
     }
 
     if (showWhere) {
@@ -254,6 +276,18 @@ fun LibrarySearchScreen(
     }
 }
 
+private val SearchChannelSelectionSaver =
+    listSaver<SearchChannelSelection, Boolean>(
+        save = { listOf(it.ocrLiteral, it.ocrSemantic, it.visual) },
+        restore = {
+            SearchChannelSelection(
+                ocrLiteral = it[0],
+                ocrSemantic = it[1],
+                visual = it[2],
+            )
+        },
+    )
+
 @Composable
 private fun LibraryOrResultsGrid(
     library: LibraryUiState,
@@ -266,6 +300,8 @@ private fun LibraryOrResultsGrid(
     onRetryLibrary: () -> Unit,
     onRequestAccess: () -> Unit,
     onOpenAsset: (Long) -> Unit,
+    columns: Int,
+    contentPadding: PaddingValues,
     modifier: Modifier,
 ) {
     val unknownDateLabel = stringResource(R.string.library_unknown_date)
@@ -278,10 +314,10 @@ private fun LibraryOrResultsGrid(
         if (search is SearchUiState.Ready) resultsGridState.scrollToItem(0)
     }
     LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
+        columns = GridCells.Fixed(columns),
         state = if (search is SearchUiState.Ready) resultsGridState else libraryGridState,
         modifier = modifier,
-        contentPadding = PaddingValues(bottom = SearchChromeClearance, top = NaytiSpacing.Small),
+        contentPadding = contentPadding,
         horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.PhotoGutter),
         verticalArrangement = Arrangement.spacedBy(NaytiSpacing.PhotoGutter),
     ) {
@@ -511,6 +547,7 @@ private fun LibraryPhotoTile(
         Modifier
             .fillMaxWidth()
             .aspectRatio(1f)
+            .testTag("library-photo-${item.assetId}")
             .clickable(onClick = onClick),
     ) {
         PhotoThumbnail(
@@ -871,7 +908,14 @@ private fun SearchMethodRow(
     onChecked: (Boolean) -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().height(56.dp),
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onChecked,
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         NaytiIconMark(icon, color = NaytiTheme.colors.inkMuted)
@@ -884,7 +928,7 @@ private fun SearchMethodRow(
                 color = NaytiTheme.colors.inkMuted,
             )
         }
-        Switch(checked = checked, onCheckedChange = onChecked)
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 
@@ -1014,4 +1058,6 @@ private fun showDateRangePicker(
 private const val LongSearchThresholdMillis = 800L
 private const val DayMillis = 24L * 60 * 60 * 1_000
 private const val SearchResultLimit = 50
+private val MediumLayoutMinWidth = 600.dp
+private val MediumChromeWidth = 320.dp
 private val SearchChromeClearance = 164.dp

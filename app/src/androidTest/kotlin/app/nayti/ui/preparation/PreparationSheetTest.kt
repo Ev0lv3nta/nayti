@@ -1,10 +1,19 @@
 package app.nayti.ui.preparation
 
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.nayti.R
@@ -26,6 +35,7 @@ import app.nayti.storage.IndexingScopeSummary
 import app.nayti.storage.ModelPackEntity
 import app.nayti.storage.ModelPackStatus
 import app.nayti.ui.designsystem.theme.NaytiTheme
+import app.nayti.ui.assertTouchHeightIsAtLeast
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -71,6 +81,41 @@ class PreparationSheetTest {
             .onNodeWithText(context.getString(R.string.preparation_period_change))
             .performClick()
         composeRule.runOnIdle { assertTrue(periodChangeRequested) }
+    }
+
+    @Test
+    fun preparationActionsRemainReachableAtTwoHundredPercentFontScale() {
+        composeRule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(density.density, fontScale = 2f),
+            ) {
+                NaytiTheme {
+                    val current = runningIndexing()
+                    PreparationOverview(
+                        state = PreparationUiMapper.map(catalog(), modelPack(), current),
+                        indexing = current,
+                        showMore = true,
+                        onPrimaryAction = {},
+                        onToggleMore = {},
+                        onChangePeriod = {},
+                        onRetryGaps = {},
+                        onCancel = {},
+                        onOpenSettings = {},
+                    )
+                }
+            }
+        }
+
+        val pause = context.getString(R.string.preparation_action_pause)
+        composeRule.onNode(hasText(pause) and hasClickAction())
+            .assertIsDisplayed()
+            .assertTouchHeightIsAtLeast(48.dp)
+        val settings = context.getString(R.string.preparation_open_settings)
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(settings))
+        composeRule.onNode(hasText(settings) and hasClickAction())
+            .assertIsDisplayed()
+            .assertTouchHeightIsAtLeast(48.dp)
     }
 
     private fun setContent(

@@ -1,12 +1,15 @@
 package app.nayti.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.nayti.R
@@ -98,8 +101,16 @@ class SetupScreenTest {
             }
         }
 
-        composeRule.onNodeWithText(context.getString(R.string.setup_skip)).assertIsDisplayed()
-        composeRule.onNodeWithText(context.getString(R.string.setup_action_pack)).assertIsDisplayed()
+        composeRule.onNode(
+            hasText(context.getString(R.string.setup_skip)) and hasClickAction(),
+        )
+            .assertIsDisplayed()
+            .assertTouchHeightIsAtLeast(48.dp)
+        composeRule.onNode(
+            hasText(context.getString(R.string.setup_action_pack)) and hasClickAction(),
+        )
+            .assertIsDisplayed()
+            .assertTouchHeightIsAtLeast(48.dp)
     }
 
     private fun catalogWithoutAccess() = CatalogRuntimeState(

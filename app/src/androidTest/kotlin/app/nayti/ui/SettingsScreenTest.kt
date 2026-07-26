@@ -1,6 +1,7 @@
 package app.nayti.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.hasScrollAction
@@ -11,6 +12,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.nayti.R
@@ -144,7 +146,9 @@ class SettingsScreenTest {
 
         val action = context.getString(R.string.reset_index_action)
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(action))
-        composeRule.onNodeWithText(action).assertIsDisplayed()
+        composeRule.onNode(hasText(action) and hasClickAction())
+            .assertIsDisplayed()
+            .assertTouchHeightIsAtLeast(48.dp)
     }
 
     private fun setContent(

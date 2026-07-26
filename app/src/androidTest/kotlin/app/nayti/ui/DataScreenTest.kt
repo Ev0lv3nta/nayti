@@ -23,7 +23,7 @@ import app.nayti.platform.media.MediaAccessScope
 import app.nayti.platform.media.MediaPermissionSnapshot
 import app.nayti.storage.IndexingScopeMode
 import app.nayti.storage.IndexingScopeSummary
-import app.nayti.ui.theme.NaytiTheme
+import app.nayti.ui.designsystem.theme.NaytiTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -81,8 +81,40 @@ class DataScreenTest {
         composeRule.runOnIdle { assertEquals(3L, selectedMonths) }
     }
 
+    @Test
+    fun retainedDataUsesTheSameExplicitFullResetConfirmation() {
+        var resetRequested = false
+        setContent(
+            retainedQuarantine = 4,
+            onResetSearchData = { resetRequested = true },
+        )
+
+        val action = context.getString(R.string.quarantine_reset_action)
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(action))
+        composeRule.onNodeWithText(action).performClick()
+        composeRule.runOnIdle { assertTrue(!resetRequested) }
+        composeRule.onNodeWithText(context.getString(R.string.reset_index_confirm_details))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.reset_index_confirm_action))
+            .performClick()
+
+        composeRule.runOnIdle { assertTrue(resetRequested) }
+    }
+
+    @Test
+    fun settingsUseProductLevelGroups() {
+        setContent()
+
+        composeRule.onNodeWithText(context.getString(R.string.settings_library_section))
+            .assertIsDisplayed()
+        val models = context.getString(R.string.settings_models_section)
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(models))
+        composeRule.onNodeWithText(models).assertIsDisplayed()
+    }
+
     private fun setContent(
         rollback: ModelPackRollbackState = ModelPackRollbackState.Unavailable("1.0"),
+        retainedQuarantine: Long = 0,
         onResetSearchData: () -> Unit = {},
         onRollback: () -> Unit = {},
         onSelectIndexingMonths: (Long?) -> Unit = {},
@@ -90,7 +122,7 @@ class DataScreenTest {
         composeRule.setContent {
             NaytiTheme {
                 DataScreen(
-                    catalog = catalog(),
+                    catalog = catalog(retainedQuarantine),
                     modelPack = modelPack(),
                     localStorage = LocalStorageSummary(indexBytes = 1_024, modelBytes = 2_048),
                     diagnosticsExport = DiagnosticsExportState.Idle,
@@ -109,13 +141,13 @@ class DataScreenTest {
         }
     }
 
-    private fun catalog() = CatalogRuntimeState(
+    private fun catalog(retainedQuarantine: Long) = CatalogRuntimeState(
         status = CatalogRuntimeStatus.Ready,
         access = AccessRevision(
             value = 1,
             permission = MediaPermissionSnapshot(MediaAccessScope.Full, true, false),
         ),
-        summary = CatalogSummary.Empty,
+        summary = CatalogSummary.Empty.copy(retainedQuarantine = retainedQuarantine),
         recentItems = emptyList(),
         lastErrorCode = null,
     )

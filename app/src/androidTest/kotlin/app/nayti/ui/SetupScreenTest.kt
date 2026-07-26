@@ -20,7 +20,7 @@ import app.nayti.indexer.OcrIndexingStatus
 import app.nayti.platform.media.AccessRevision
 import app.nayti.platform.media.MediaAccessScope
 import app.nayti.platform.media.MediaPermissionSnapshot
-import app.nayti.ui.theme.NaytiTheme
+import app.nayti.ui.designsystem.theme.NaytiTheme
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test

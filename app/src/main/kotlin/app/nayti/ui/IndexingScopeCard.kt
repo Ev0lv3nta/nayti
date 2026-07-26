@@ -6,13 +6,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.DateRange
-import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -20,11 +16,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import app.nayti.R
 import app.nayti.indexer.OcrIndexingStatus
 import app.nayti.indexer.OcrIndexingState
 import app.nayti.storage.IndexingScopeMode
-import app.nayti.ui.theme.NaytiSpacing
+import app.nayti.ui.designsystem.icon.NaytiIcon
+import app.nayti.ui.designsystem.icon.NaytiIconMark
+import app.nayti.ui.designsystem.theme.NaytiSpacing
+import app.nayti.ui.designsystem.theme.NaytiTheme
 import java.text.DateFormat
 import java.time.Instant
 import java.time.ZoneId
@@ -68,24 +68,33 @@ internal fun IndexingScopeCard(
             datePicker.maxDate = System.currentTimeMillis()
         }
 
-    Card(shape = MaterialTheme.shapes.large) {
+    Surface(
+        shape = NaytiTheme.shapes.card,
+        color = NaytiTheme.colors.surface,
+        contentColor = NaytiTheme.colors.ink,
+    ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Card),
-            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Item),
+            modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Screen),
+            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Compact),
+                horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Outlined.DateRange, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                NaytiIconMark(
+                    icon = NaytiIcon.Period,
+                    color = NaytiTheme.colors.accent,
+                    size = 22.dp,
+                )
                 Text(
                     text = stringResource(R.string.indexing_scope_title),
-                    style = MaterialTheme.typography.titleLarge,
+                    style = NaytiTheme.type.titleM,
                 )
             }
             Text(
                 text = indexingScopeDescription(indexing),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = NaytiTheme.type.bodyM,
+                color = NaytiTheme.colors.inkMuted,
             )
             indexing.estimatedAllMediaDurationMillis?.let { estimate ->
                 Text(
@@ -94,13 +103,13 @@ internal fun IndexingScopeCard(
                         formatDuration(indexing.activeDurationMillis),
                         formatDuration(estimate),
                     ),
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.labelLarge,
+                    color = NaytiTheme.colors.accent,
+                    style = NaytiTheme.type.labelL,
                 )
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Compact),
+                horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
             ) {
                 FilterChip(
                     modifier = Modifier.weight(1f),
@@ -117,11 +126,11 @@ internal fun IndexingScopeCard(
                     label = { Text(stringResource(R.string.indexing_scope_since_date)) },
                 )
             }
-            Column(verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Compact)) {
+            Column(verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Small)) {
                 listOf(1L, 3L, 6L, 12L).chunked(2).forEach { presets ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Compact),
+                        horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
                     ) {
                         presets.forEach { months ->
                             OutlinedButton(
@@ -129,7 +138,7 @@ internal fun IndexingScopeCard(
                                 onClick = { onSelectMonths(months) },
                                 enabled = enabled,
                                 contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                    horizontal = NaytiSpacing.Item,
+                                    horizontal = NaytiSpacing.Medium,
                                 ),
                             ) {
                                 Text(stringResource(R.string.indexing_scope_months_short, months))
@@ -141,15 +150,15 @@ internal fun IndexingScopeCard(
             if (!enabled) {
                 Text(
                     text = stringResource(R.string.indexing_scope_pause_first),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = NaytiTheme.type.labelS,
+                    color = NaytiTheme.colors.inkMuted,
                 )
             }
             if (summary.mode == IndexingScopeMode.SINCE_DATE && summary.unknownDateAssets > 0) {
                 Text(
                     text = stringResource(R.string.indexing_scope_unknown_dates, summary.unknownDateAssets),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = NaytiTheme.type.labelS,
+                    color = NaytiTheme.colors.inkMuted,
                 )
             }
         }

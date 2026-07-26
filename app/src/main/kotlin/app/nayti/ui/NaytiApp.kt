@@ -135,6 +135,7 @@ import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
 import app.nayti.ui.designsystem.theme.NaytiTheme
 import app.nayti.ui.library.LibrarySearchScreen
+import app.nayti.ui.preparation.PreparationSheet
 import app.nayti.ui.shell.ShellStatusBar
 import app.nayti.ui.shell.ShellStatusMapper
 import app.nayti.ui.theme.NaytiSpacing
@@ -145,7 +146,6 @@ private enum class RootDestination(
     val icon: NaytiIcon,
 ) {
     Search("search", R.string.nav_search, NaytiIcon.Search),
-    Readiness("readiness", R.string.nav_readiness, NaytiIcon.Check),
     Data("data", R.string.nav_data, NaytiIcon.Settings),
 }
 
@@ -242,7 +242,6 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
             onFindDuplicates = viewModel::findDuplicates,
             onStartIndexing = startIndexing,
             onPauseIndexing = viewModel::pauseIndexing,
-            onStopIndexing = viewModel::stopIndexingForNow,
             onCancelIndexing = viewModel::cancelIndexing,
             onRetryIndexingGaps = viewModel::retryIndexingGaps,
             onSelectIndexingMonths = viewModel::setIndexingScopeMonths,
@@ -284,7 +283,6 @@ private fun NaytiAppContent(
     onFindDuplicates: (Long) -> Unit,
     onStartIndexing: () -> Unit,
     onPauseIndexing: () -> Unit,
-    onStopIndexing: () -> Unit,
     onCancelIndexing: () -> Unit,
     onRetryIndexingGaps: () -> Unit,
     onSelectIndexingMonths: (Long?) -> Unit,
@@ -301,6 +299,7 @@ private fun NaytiAppContent(
     val currentRoute = currentEntry?.destination?.route
     val showRootNavigation = RootDestination.entries.any { it.route == currentRoute }
     val shellStatus = ShellStatusMapper.map(catalog, modelPack, indexing)
+    var showPreparation by rememberSaveable { mutableStateOf(false) }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val useNavigationRail = maxWidth >= NavigationRailBreakpoint
@@ -315,9 +314,7 @@ private fun NaytiAppContent(
                 Column(modifier = Modifier.weight(1f)) {
                     ShellStatusBar(
                         status = shellStatus,
-                        onOpenDetails = {
-                            navController.navigateToRoot(RootDestination.Readiness.route)
-                        },
+                        onOpenDetails = { showPreparation = true },
                     )
                     RootNavHost(
                         navController = navController,
@@ -344,11 +341,6 @@ private fun NaytiAppContent(
                         onRetryLibrary = onRetryLibrary,
                         onFindSimilar = onFindSimilar,
                         onFindDuplicates = onFindDuplicates,
-                        onStartIndexing = onStartIndexing,
-                        onPauseIndexing = onPauseIndexing,
-                        onStopIndexing = onStopIndexing,
-                        onCancelIndexing = onCancelIndexing,
-                        onRetryIndexingGaps = onRetryIndexingGaps,
                         onSelectIndexingMonths = onSelectIndexingMonths,
                         onSelectIndexingStartDate = onSelectIndexingStartDate,
                         onProbe = onProbe,
@@ -368,9 +360,7 @@ private fun NaytiAppContent(
                     if (showRootNavigation) {
                         ShellStatusBar(
                             status = shellStatus,
-                            onOpenDetails = {
-                                navController.navigateToRoot(RootDestination.Readiness.route)
-                            },
+                            onOpenDetails = { showPreparation = true },
                             modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars),
                         )
                     }
@@ -401,11 +391,6 @@ private fun NaytiAppContent(
                     onRetryLibrary = onRetryLibrary,
                     onFindSimilar = onFindSimilar,
                     onFindDuplicates = onFindDuplicates,
-                    onStartIndexing = onStartIndexing,
-                    onPauseIndexing = onPauseIndexing,
-                    onStopIndexing = onStopIndexing,
-                    onCancelIndexing = onCancelIndexing,
-                    onRetryIndexingGaps = onRetryIndexingGaps,
                     onSelectIndexingMonths = onSelectIndexingMonths,
                     onSelectIndexingStartDate = onSelectIndexingStartDate,
                     onProbe = onProbe,
@@ -418,6 +403,32 @@ private fun NaytiAppContent(
                 )
             }
         }
+    }
+    if (showPreparation) {
+        PreparationSheet(
+            catalog = catalog,
+            modelPack = modelPack,
+            indexing = indexing,
+            onDismiss = { showPreparation = false },
+            onRequestAccess = {
+                showPreparation = false
+                onRequestAccess()
+            },
+            onImportModels = {
+                showPreparation = false
+                onImportModelPack()
+            },
+            onStart = onStartIndexing,
+            onPause = onPauseIndexing,
+            onCancel = onCancelIndexing,
+            onRetryGaps = onRetryIndexingGaps,
+            onSelectMonths = onSelectIndexingMonths,
+            onSelectStartDate = onSelectIndexingStartDate,
+            onOpenSettings = {
+                showPreparation = false
+                navController.navigateToRoot(RootDestination.Data.route)
+            },
+        )
     }
 }
 
@@ -494,11 +505,6 @@ private fun RootNavHost(
     onRetryLibrary: () -> Unit,
     onFindSimilar: (Long) -> Unit,
     onFindDuplicates: (Long) -> Unit,
-    onStartIndexing: () -> Unit,
-    onPauseIndexing: () -> Unit,
-    onStopIndexing: () -> Unit,
-    onCancelIndexing: () -> Unit,
-    onRetryIndexingGaps: () -> Unit,
     onSelectIndexingMonths: (Long?) -> Unit,
     onSelectIndexingStartDate: (Long) -> Unit,
     onProbe: (Long) -> Unit,
@@ -535,24 +541,6 @@ private fun RootNavHost(
                     onOpenSettings = {
                         navController.navigateToRoot(RootDestination.Data.route)
                     },
-                )
-            }
-            composable(RootDestination.Readiness.route) {
-                ReadinessScreen(
-                    catalog = catalog,
-                    modelPack = modelPack,
-                    indexing = indexing,
-                    onLoadThumbnail = onLoadThumbnail,
-                    onRequestAccess = onRequestAccess,
-                    onRefresh = onRefresh,
-                    onStartIndexing = onStartIndexing,
-                    onPauseIndexing = onPauseIndexing,
-                    onStopIndexing = onStopIndexing,
-                    onCancelIndexing = onCancelIndexing,
-                    onRetryIndexingGaps = onRetryIndexingGaps,
-                    onSelectIndexingMonths = onSelectIndexingMonths,
-                    onSelectIndexingStartDate = onSelectIndexingStartDate,
-                    onOpenItem = { item -> navController.navigate("viewer/${item.assetId}") },
                 )
             }
             composable(RootDestination.Data.route) {
@@ -2113,7 +2101,6 @@ private fun NaytiPreview() {
             onFindDuplicates = {},
             onStartIndexing = {},
             onPauseIndexing = {},
-            onStopIndexing = {},
             onCancelIndexing = {},
             onRetryIndexingGaps = {},
             onSelectIndexingMonths = {},

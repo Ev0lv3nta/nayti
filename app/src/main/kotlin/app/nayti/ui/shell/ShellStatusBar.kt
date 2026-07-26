@@ -92,7 +92,7 @@ fun ShellStatusBar(
     }
 }
 
-private val ShellStatusMessage.stringResource: Int
+internal val ShellStatusMessage.stringResource: Int
     get() = when (this) {
         ShellStatusMessage.CheckingLibrary -> R.string.shell_status_checking_library
         ShellStatusMessage.NeedsAccess -> R.string.shell_status_needs_access
@@ -109,6 +109,12 @@ private val ShellStatusMessage.stringResource: Int
         ShellStatusMessage.PausedByUser -> R.string.shell_status_paused_by_user
         ShellStatusMessage.PausedBySystem -> R.string.shell_status_paused_by_system
         ShellStatusMessage.PausedByConstraint -> R.string.shell_status_paused_by_constraint
+        ShellStatusMessage.PausedThermal -> R.string.shell_status_paused_thermal
+        ShellStatusMessage.PausedMemory -> R.string.shell_status_paused_memory
+        ShellStatusMessage.PausedStorage -> R.string.shell_status_paused_storage
+        ShellStatusMessage.PausedBatterySaver -> R.string.shell_status_paused_battery_saver
+        ShellStatusMessage.PausedBatteryLow -> R.string.shell_status_paused_battery_low
+        ShellStatusMessage.PausedCharging -> R.string.shell_status_paused_charging
         ShellStatusMessage.Completed -> R.string.shell_status_completed
         ShellStatusMessage.CompletedWithGaps -> R.string.shell_status_completed_with_gaps
         ShellStatusMessage.PreparationFailed -> R.string.shell_status_preparation_failed

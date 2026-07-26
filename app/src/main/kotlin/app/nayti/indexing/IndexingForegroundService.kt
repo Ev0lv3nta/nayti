@@ -16,6 +16,8 @@ import app.nayti.indexer.ModelPackRuntime
 import app.nayti.indexer.ModelPackRuntimeStatus
 import app.nayti.indexer.OcrIndexingRuntime
 import app.nayti.indexer.OcrIndexingState
+import app.nayti.ui.shell.ShellStatusMapper
+import app.nayti.ui.shell.stringResource
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -160,11 +162,7 @@ class IndexingForegroundService : Service() {
                     if (modelMissing) {
                         getString(R.string.indexing_notification_model_missing)
                     } else {
-                        getString(
-                            R.string.indexing_notification_progress,
-                            state.committed,
-                            state.accessible,
-                        )
+                        getString(ShellStatusMapper.mapPreparation(state).message.stringResource)
                     },
                 )
                 .setContentIntent(contentIntent)
@@ -181,18 +179,12 @@ class IndexingForegroundService : Service() {
                 )
                 .addAction(
                     0,
-                    getString(R.string.indexing_notification_stop),
-                    serviceAction(ActionStopForNow, RequestStop),
+                    getString(R.string.indexing_notification_open),
+                    contentIntent,
                 )
-            if (state.accessible > 0) {
-                builder.setProgress(
-                    state.accessible.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
-                    (state.committed + state.permanentGaps).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
-                    false,
-                )
-            } else {
-                builder.setProgress(0, 0, true)
-            }
+            // No single active channel is exposed here. Showing an indeterminate bar avoids
+            // presenting one channel's count as total preparation.
+            builder.setProgress(0, 0, true)
         }
         return builder.build()
     }
@@ -215,7 +207,6 @@ class IndexingForegroundService : Service() {
         private const val NotificationId = 1_001
         private const val RequestOpen = 1
         private const val RequestPause = 2
-        private const val RequestStop = 3
         private const val ModelMissingNoticeMillis = 1_000L
     }
 }

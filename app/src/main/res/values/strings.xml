@@ -24,6 +24,13 @@
     <string name="indexing_scope_estimate">Выбранный период занял %1$s активной работы. Предварительная оценка всей медиатеки: %2$s.</string>
     <string name="indexing_scope_duration_minutes">%1$d мин</string>
     <string name="indexing_scope_duration_hours">%1$d ч %2$d мин</string>
+    <string name="indexing_scope_action_empty">В выбранном периоде нет доступных фотографий.</string>
+    <string name="indexing_scope_action_running">Фотографии за выбранный период уже обрабатываются.</string>
+    <string name="indexing_scope_action_ready">Все фотографии за выбранный период уже готовы. Повторная обработка не нужна.</string>
+    <string name="indexing_scope_action_pending">Период выбран. Запустите обработку — готовые ранее фотографии не будут обрабатываться повторно.</string>
+    <string name="indexing_scope_action_attention">Откройте подготовку, чтобы проверить, что требуется для выбранного периода.</string>
+    <string name="indexing_scope_action_start">Обработать выбранные фото</string>
+    <string name="indexing_scope_action_details">Открыть подготовку</string>
     <string name="setup_eyebrow">Первый запуск</string>
     <string name="setup_title">Поиск по фотографиям, который понимает контекст</string>
     <string name="setup_subtitle">Nayti находит снимки по тексту, смыслу и содержимому — даже если вы помните только одну деталь.</string>

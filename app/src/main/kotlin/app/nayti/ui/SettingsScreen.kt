@@ -41,6 +41,8 @@ import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
 import app.nayti.ui.designsystem.theme.NaytiSpacing
 import app.nayti.ui.designsystem.theme.NaytiTheme
+import app.nayti.ui.preparation.PreparationPrimaryAction
+import app.nayti.ui.preparation.PreparationUiMapper
 
 @Composable
 internal fun SettingsScreen(
@@ -57,6 +59,8 @@ internal fun SettingsScreen(
     onExportDiagnostics: () -> Unit,
     onResetSearchData: () -> Unit,
     onRollbackModelPack: () -> Unit,
+    onStartIndexing: () -> Unit = {},
+    onOpenPreparation: () -> Unit = {},
     onSelectIndexingMonths: (Long?) -> Unit = {},
     onSelectIndexingStartDate: (Long) -> Unit = {},
 ) {
@@ -126,10 +130,53 @@ internal fun SettingsScreen(
 
         item {
             SettingsSection(title = stringResource(R.string.settings_period_section)) {
+                val preparation = PreparationUiMapper.map(catalog, modelPack, indexing)
+                val hasSelectedPhotos = indexing.scope.eligibleAssets > 0
+                val hasOutstandingWork =
+                    indexing.outstanding > 0 ||
+                        indexing.capabilities.any { capability -> capability.outstanding > 0 }
+                val scopeReady =
+                    hasSelectedPhotos &&
+                        preparation.primaryAction == null &&
+                        !hasOutstandingWork &&
+                        indexing.permanentGaps == 0L &&
+                        indexing.capabilities.all { capability -> capability.permanentGaps == 0L } &&
+                        (
+                            indexing.committed > 0 ||
+                                indexing.capabilities.any { capability -> capability.committed > 0 }
+                        )
+                val actionSupportingText =
+                    stringResource(
+                        when {
+                            !hasSelectedPhotos -> R.string.indexing_scope_action_empty
+                            preparation.isRunning -> R.string.indexing_scope_action_running
+                            scopeReady -> R.string.indexing_scope_action_ready
+                            preparation.primaryAction == PreparationPrimaryAction.Start ->
+                                R.string.indexing_scope_action_pending
+                            else -> R.string.indexing_scope_action_attention
+                        },
+                    )
+                val startsImmediately =
+                    preparation.primaryAction == PreparationPrimaryAction.Start
                 IndexingScopeCard(
                     indexing = indexing,
                     onSelectMonths = onSelectIndexingMonths,
                     onSelectStartDate = onSelectIndexingStartDate,
+                    actionSupportingText = actionSupportingText,
+                    actionLabel =
+                        if (startsImmediately) {
+                            stringResource(R.string.indexing_scope_action_start)
+                        } else if (hasSelectedPhotos) {
+                            stringResource(R.string.indexing_scope_action_details)
+                        } else {
+                            null
+                        },
+                    onAction =
+                        if (startsImmediately) {
+                            onStartIndexing
+                        } else {
+                            onOpenPreparation
+                        },
                 )
             }
         }

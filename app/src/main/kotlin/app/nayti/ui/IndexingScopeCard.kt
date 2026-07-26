@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.dp
 import app.nayti.R
 import app.nayti.indexer.OcrIndexingStatus
 import app.nayti.indexer.OcrIndexingState
-import app.nayti.storage.IndexingScopeMode
 import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
 import app.nayti.ui.designsystem.theme.NaytiSpacing
@@ -38,6 +37,7 @@ internal fun IndexingScopeCard(
     onSelectStartDate: (Long) -> Unit,
 ) {
     val summary = indexing.scope
+    val allMedia = summary.takenFromMillis == null
     val enabled = indexing.status != OcrIndexingStatus.Running
     val context = LocalContext.current
     val initial =
@@ -113,14 +113,14 @@ internal fun IndexingScopeCard(
             ) {
                 FilterChip(
                     modifier = Modifier.weight(1f),
-                    selected = summary.mode == IndexingScopeMode.ALL,
+                    selected = allMedia,
                     onClick = { onSelectMonths(null) },
                     enabled = enabled,
                     label = { Text(stringResource(R.string.indexing_scope_all)) },
                 )
                 FilterChip(
                     modifier = Modifier.weight(1f),
-                    selected = summary.mode == IndexingScopeMode.SINCE_DATE,
+                    selected = !allMedia,
                     onClick = datePicker::show,
                     enabled = enabled,
                     label = { Text(stringResource(R.string.indexing_scope_since_date)) },
@@ -154,7 +154,7 @@ internal fun IndexingScopeCard(
                     color = NaytiTheme.colors.inkMuted,
                 )
             }
-            if (summary.mode == IndexingScopeMode.SINCE_DATE && summary.unknownDateAssets > 0) {
+            if (!allMedia && summary.unknownDateAssets > 0) {
                 Text(
                     text = stringResource(R.string.indexing_scope_unknown_dates, summary.unknownDateAssets),
                     style = NaytiTheme.type.labelS,
@@ -180,7 +180,7 @@ private fun formatDuration(durationMillis: Long): String {
 @Composable
 private fun indexingScopeDescription(indexing: OcrIndexingState): String {
     val summary = indexing.scope
-    return if (summary.mode == IndexingScopeMode.ALL) {
+    return if (summary.takenFromMillis == null) {
         pluralStringResource(
             R.plurals.indexing_scope_all_details,
             summary.eligibleAssets.asQuantity(),

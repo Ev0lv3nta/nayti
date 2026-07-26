@@ -18,7 +18,7 @@ subprojects {
 
 val verifyArchitecture = tasks.register("verifyArchitecture") {
     group = "verification"
-    description = "Checks that project dependencies follow the approved module graph."
+    description = "Checks the approved module graph and production frontend boundaries."
 
     inputs.property("violations", "")
 
@@ -28,6 +28,17 @@ val verifyArchitecture = tasks.register("verifyArchitecture") {
             "Module graph violations:\n$violations"
         }
     }
+}
+
+val verifyFrontendBoundaries = tasks.register<Exec>("verifyFrontendBoundaries") {
+    group = "verification"
+    description = "Checks that production UI has one theme and does not import storage contracts."
+    workingDir = rootDir
+    commandLine("python3", "scripts/verify_frontend_boundaries.py")
+}
+
+verifyArchitecture.configure {
+    dependsOn(verifyFrontendBoundaries)
 }
 
 gradle.projectsEvaluated {

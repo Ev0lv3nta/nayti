@@ -43,7 +43,7 @@ import app.nayti.ui.designsystem.theme.NaytiSpacing
 import app.nayti.ui.designsystem.theme.NaytiTheme
 
 @Composable
-internal fun DataScreen(
+internal fun SettingsScreen(
     catalog: CatalogRuntimeState,
     modelPack: ModelPackRuntimeState,
     localStorage: LocalStorageSummary,

@@ -40,7 +40,6 @@ import app.nayti.platform.media.MediaDecodeIoException
 import app.nayti.platform.media.MediaKey
 import app.nayti.ml.runtime.pack.SafModelPackSource
 import app.nayti.storage.CatalogStorage
-import app.nayti.storage.SearchFilterFacets
 import app.nayti.search.engine.similarity.PerceptualHashMatch
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -268,8 +267,6 @@ class CatalogViewModel @Inject constructor(
     val search: StateFlow<SearchUiState> = mutableSearch.asStateFlow()
     private val mutableLibrary = MutableStateFlow(LibraryUiState(initialLoading = true))
     val library: StateFlow<LibraryUiState> = mutableLibrary.asStateFlow()
-    private val mutableSearchFilterFacets = MutableStateFlow(SearchFilterFacets(emptyList(), emptyList()))
-    val searchFilterFacets: StateFlow<SearchFilterFacets> = mutableSearchFilterFacets.asStateFlow()
     private val mutableSimilar = MutableStateFlow<SimilarUiState>(SimilarUiState.Idle)
     val similar: StateFlow<SimilarUiState> = mutableSimilar.asStateFlow()
     private val mutableDuplicates = MutableStateFlow<DuplicateUiState>(DuplicateUiState.Idle)
@@ -325,16 +322,6 @@ class CatalogViewModel @Inject constructor(
                 .collect { refreshModelPackRollback() }
         }
         viewModelScope.launch {
-            catalog.collectLatest { state ->
-                mutableSearchFilterFacets.value =
-                    if (state.access.permission.scope == app.nayti.platform.media.MediaAccessScope.None) {
-                        SearchFilterFacets(emptyList(), emptyList())
-                    } else {
-                        storage.catalogDao.searchFilterFacets()
-                    }
-            }
-        }
-        viewModelScope.launch {
             catalog
                 .map { state -> state.status to state.access.value }
                 .distinctUntilChanged()
@@ -351,10 +338,6 @@ class CatalogViewModel @Inject constructor(
                     }
                 }
         }
-    }
-
-    fun refresh(forceFull: Boolean = false) {
-        runtime.refreshAccess(forceFull)
     }
 
     fun onPermissionResult() {
@@ -377,7 +360,6 @@ class CatalogViewModel @Inject constructor(
         viewModelScope.launch {
             if (ocrIndexing.setIndexingScope(takenFromMillis)) {
                 clearDerivedUiState()
-                mutableSearchFilterFacets.value = storage.catalogDao.searchFilterFacets()
                 runtime.refreshIndexingScope()
             }
         }

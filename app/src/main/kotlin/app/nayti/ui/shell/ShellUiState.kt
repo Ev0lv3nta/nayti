@@ -32,6 +32,12 @@ enum class ShellStatusMessage {
     PausedByUser,
     PausedBySystem,
     PausedByConstraint,
+    PausedThermal,
+    PausedMemory,
+    PausedStorage,
+    PausedBatterySaver,
+    PausedBatteryLow,
+    PausedCharging,
     Completed,
     CompletedWithGaps,
     PreparationFailed,
@@ -105,7 +111,11 @@ object ShellStatusMapper {
             )
         }
 
-        return when (indexing.operationState) {
+        return mapPreparation(indexing)
+    }
+
+    fun mapPreparation(indexing: OcrIndexingState): ShellStatusUi =
+        when (indexing.operationState) {
             IndexOperationState.COMPLETED -> ShellStatusUi(
                 ShellStatusMessage.Completed,
                 ShellStatusTone.Ready,
@@ -122,7 +132,7 @@ object ShellStatusMapper {
                 actionable = true,
             )
             IndexOperationState.PAUSED_CONSTRAINT -> ShellStatusUi(
-                ShellStatusMessage.PausedByConstraint,
+                constraintMessage(indexing.errorCode),
                 ShellStatusTone.Attention,
                 actionable = true,
             )
@@ -143,7 +153,6 @@ object ShellStatusMapper {
             )
             else -> mapNonTerminal(indexing)
         }
-    }
 
     private fun mapNonTerminal(indexing: OcrIndexingState): ShellStatusUi {
         val hasPublishedWork =
@@ -164,7 +173,11 @@ object ShellStatusMapper {
                 actionable = true,
             )
             OcrIndexingStatus.Waiting -> ShellStatusUi(
-                ShellStatusMessage.PausedBySystem,
+                if (indexing.operationState == IndexOperationState.PAUSED_CONSTRAINT) {
+                    constraintMessage(indexing.errorCode)
+                } else {
+                    ShellStatusMessage.PausedBySystem
+                },
                 ShellStatusTone.Attention,
                 actionable = true,
             )
@@ -185,4 +198,15 @@ object ShellStatusMapper {
             )
         }
     }
+
+    private fun constraintMessage(errorCode: String?): ShellStatusMessage =
+        when (errorCode) {
+            "THERMAL_SEVERE" -> ShellStatusMessage.PausedThermal
+            "MEMORY_PRESSURE" -> ShellStatusMessage.PausedMemory
+            "STORAGE_RESERVE" -> ShellStatusMessage.PausedStorage
+            "BATTERY_SAVER" -> ShellStatusMessage.PausedBatterySaver
+            "BATTERY_LOW" -> ShellStatusMessage.PausedBatteryLow
+            "CHARGING_REQUIRED" -> ShellStatusMessage.PausedCharging
+            else -> ShellStatusMessage.PausedByConstraint
+        }
 }

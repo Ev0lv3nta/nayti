@@ -28,6 +28,8 @@ import app.nayti.platform.media.MediaAccessScope
 import app.nayti.platform.media.MediaPermissionSnapshot
 import app.nayti.storage.IndexingScopeMode
 import app.nayti.storage.IndexingScopeSummary
+import app.nayti.storage.ModelPackEntity
+import app.nayti.storage.ModelPackStatus
 import app.nayti.ui.designsystem.theme.NaytiTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -84,6 +86,35 @@ class SettingsScreenTest {
             .performClick()
 
         composeRule.runOnIdle { assertEquals(3L, selectedMonths) }
+    }
+
+    @Test
+    fun unfinishedSelectedPeriodShowsDirectPreparationAction() {
+        var startRequested = false
+        setContent(
+            indexing = indexing(committed = 80, outstanding = 40),
+            onStartIndexing = { startRequested = true },
+        )
+
+        val action = context.getString(R.string.indexing_scope_action_start)
+        composeRule.onNodeWithText(action).performScrollTo().performClick()
+
+        composeRule.runOnIdle { assertTrue(startRequested) }
+    }
+
+    @Test
+    fun completedSelectedPeriodExplainsWhyRestartIsNotOffered() {
+        var detailsRequested = false
+        setContent(onOpenPreparation = { detailsRequested = true })
+
+        composeRule.onNodeWithText(context.getString(R.string.indexing_scope_action_ready))
+            .performScrollTo()
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.indexing_scope_action_details))
+            .performScrollTo()
+            .performClick()
+
+        composeRule.runOnIdle { assertTrue(detailsRequested) }
     }
 
     @Test
@@ -157,6 +188,9 @@ class SettingsScreenTest {
         onResetSearchData: () -> Unit = {},
         onRollback: () -> Unit = {},
         onSelectIndexingMonths: (Long?) -> Unit = {},
+        indexing: OcrIndexingState = indexing(),
+        onStartIndexing: () -> Unit = {},
+        onOpenPreparation: () -> Unit = {},
     ) {
         composeRule.setContent {
             NaytiTheme {
@@ -167,7 +201,7 @@ class SettingsScreenTest {
                     diagnosticsExport = DiagnosticsExportState.Idle,
                     searchDataReset = SearchDataResetState.Idle,
                     modelPackRollback = rollback,
-                    indexing = indexing(),
+                    indexing = indexing,
                     onRequestAccess = {},
                     onImportModelPack = {},
                     onRefreshStorage = {},
@@ -175,6 +209,8 @@ class SettingsScreenTest {
                     onResetSearchData = onResetSearchData,
                     onRollbackModelPack = onRollback,
                     onSelectIndexingMonths = onSelectIndexingMonths,
+                    onStartIndexing = onStartIndexing,
+                    onOpenPreparation = onOpenPreparation,
                 )
             }
         }
@@ -193,18 +229,31 @@ class SettingsScreenTest {
 
     private fun modelPack() = ModelPackRuntimeState(
         status = ModelPackRuntimeStatus.Ready,
-        installed = null,
+        installed =
+            ModelPackEntity(
+                packId = "test-pack",
+                packVersion = "1",
+                keyId = "test-key",
+                manifestSha256 = "0".repeat(64),
+                relativeDirectory = "test-pack/1",
+                payloadBytes = 1,
+                installedAtMillis = 1,
+                status = ModelPackStatus.INSTALLED_CANDIDATE,
+            ),
         candidate = null,
         errorCode = null,
     )
 
-    private fun indexing() =
+    private fun indexing(
+        committed: Long = 120,
+        outstanding: Long = 0,
+    ) =
         OcrIndexingState(
             status = OcrIndexingStatus.Ready,
             accessible = 120,
-            committed = 120,
+            committed = committed,
             permanentGaps = 0,
-            outstanding = 0,
+            outstanding = outstanding,
             lastSlicePublished = 0,
             errorCode = null,
             scope =

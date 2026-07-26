@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -35,6 +36,9 @@ internal fun IndexingScopeCard(
     indexing: OcrIndexingState,
     onSelectMonths: (Long?) -> Unit,
     onSelectStartDate: (Long) -> Unit,
+    actionSupportingText: String? = null,
+    actionLabel: String? = null,
+    onAction: () -> Unit = {},
 ) {
     val summary = indexing.scope
     val allMedia = summary.takenFromMillis == null
@@ -160,6 +164,21 @@ internal fun IndexingScopeCard(
                     style = NaytiTheme.type.labelS,
                     color = NaytiTheme.colors.inkMuted,
                 )
+            }
+            actionSupportingText?.let { supportingText ->
+                Text(
+                    text = supportingText,
+                    style = NaytiTheme.type.bodyM,
+                    color = NaytiTheme.colors.ink,
+                )
+            }
+            actionLabel?.let { label ->
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onAction,
+                ) {
+                    Text(label)
+                }
             }
         }
     }

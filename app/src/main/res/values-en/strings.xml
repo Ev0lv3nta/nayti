@@ -20,6 +20,13 @@
     <string name="indexing_scope_estimate">The selected period took %1$s of active work. Preliminary estimate for the entire library: %2$s.</string>
     <string name="indexing_scope_duration_minutes">%1$d min</string>
     <string name="indexing_scope_duration_hours">%1$d h %2$d min</string>
+    <string name="indexing_scope_action_empty">There are no available photos in the selected period.</string>
+    <string name="indexing_scope_action_running">Photos from the selected period are already being processed.</string>
+    <string name="indexing_scope_action_ready">All photos from the selected period are ready. They do not need to be processed again.</string>
+    <string name="indexing_scope_action_pending">The period is selected. Start processing — photos that are already ready will not be processed again.</string>
+    <string name="indexing_scope_action_attention">Open preparation to see what the selected period needs.</string>
+    <string name="indexing_scope_action_start">Process selected photos</string>
+    <string name="indexing_scope_action_details">Open preparation</string>
     <string name="setup_eyebrow">First launch</string>
     <string name="setup_title">Photo search that understands context</string>
     <string name="setup_subtitle">Nayti finds photos by text, meaning, and visual content — even when you remember a single detail.</string>

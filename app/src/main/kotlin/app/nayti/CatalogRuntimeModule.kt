@@ -11,6 +11,7 @@ import app.nayti.indexer.CandidateChannelContractResolver
 import app.nayti.indexer.CatalogRuntime
 import app.nayti.indexer.IndexResourceGovernor
 import app.nayti.indexer.IndexExecutionGate
+import app.nayti.indexer.LibraryFeed
 import app.nayti.indexer.InstalledOcrPackResolver
 import app.nayti.indexer.InstalledSiglip2TextQuerySessionFactory
 import app.nayti.indexer.InstalledUser2QuerySessionFactory
@@ -63,6 +64,10 @@ object CatalogRuntimeModule {
         @ApplicationContext context: Context,
         storage: CatalogStorage,
     ): CatalogRuntime = CatalogRuntime.create(context, storage).also(CatalogRuntime::start)
+
+    @Provides
+    @Singleton
+    fun provideLibraryFeed(storage: CatalogStorage): LibraryFeed = LibraryFeed(storage)
 
     @Provides
     @Singleton

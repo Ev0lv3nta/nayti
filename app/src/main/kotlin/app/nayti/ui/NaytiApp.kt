@@ -7,7 +7,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -24,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -41,7 +41,6 @@ import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -68,7 +67,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -78,9 +76,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
@@ -127,20 +124,25 @@ import app.nayti.platform.media.MediaAccessScope
 import app.nayti.platform.media.MediaKey
 import app.nayti.platform.media.MediaPermissionEvaluator
 import app.nayti.platform.media.MediaPermissionSnapshot
-import app.nayti.storage.OcrRegionEntity
 import app.nayti.storage.IndexOperationState
 import app.nayti.storage.SearchFilterFacets
+import app.nayti.ui.designsystem.icon.NaytiIcon
+import app.nayti.ui.designsystem.icon.NaytiIconMark
+import app.nayti.ui.designsystem.theme.NaytiTheme
+import app.nayti.ui.library.LibrarySearchScreen
+import app.nayti.ui.preparation.PreparationSheet
+import app.nayti.ui.shell.ShellStatusBar
+import app.nayti.ui.shell.ShellStatusMapper
 import app.nayti.ui.theme.NaytiSpacing
-import app.nayti.ui.theme.NaytiTheme
+import app.nayti.ui.viewer.PhotoViewerScreen
 
 private enum class RootDestination(
     val route: String,
     @param:StringRes val title: Int,
-    val icon: ImageVector,
+    val icon: NaytiIcon,
 ) {
-    Search("search", R.string.nav_search, Icons.Outlined.Search),
-    Readiness("readiness", R.string.nav_readiness, Icons.Outlined.CheckCircle),
-    Data("data", R.string.nav_data, Icons.Outlined.Settings),
+    Search("search", R.string.nav_search, NaytiIcon.Search),
+    Data("data", R.string.nav_data, NaytiIcon.Settings),
 }
 
 private const val ViewerRoute = "viewer/{assetId}"
@@ -160,11 +162,12 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
     val catalog by viewModel.catalog.collectAsStateWithLifecycle()
     val modelPack by viewModel.modelPack.collectAsStateWithLifecycle()
     val indexing by viewModel.indexing.collectAsStateWithLifecycle()
+    val library by viewModel.library.collectAsStateWithLifecycle()
     val search by viewModel.search.collectAsStateWithLifecycle()
     val searchFilterFacets by viewModel.searchFilterFacets.collectAsStateWithLifecycle()
     val similar by viewModel.similar.collectAsStateWithLifecycle()
     val duplicates by viewModel.duplicates.collectAsStateWithLifecycle()
-    val viewerProbe by viewModel.viewerProbe.collectAsStateWithLifecycle()
+    val viewer by viewModel.viewer.collectAsStateWithLifecycle()
     val onboardingCompleted by viewModel.onboardingCompleted.collectAsStateWithLifecycle()
     val localStorage by viewModel.localStorage.collectAsStateWithLifecycle()
     val diagnosticsExport by viewModel.diagnosticsExport.collectAsStateWithLifecycle()
@@ -213,11 +216,12 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
             catalog = catalog,
             modelPack = modelPack,
             indexing = indexing,
+            library = library,
             search = search,
             searchFilterFacets = searchFilterFacets,
             similar = similar,
             duplicates = duplicates,
-            viewerProbe = viewerProbe,
+            viewer = viewer,
             onLoadThumbnail = viewModel::loadThumbnail,
             localStorage = localStorage,
             diagnosticsExport = diagnosticsExport,
@@ -227,17 +231,19 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
             onRefresh = { viewModel.refresh(forceFull = true) },
             onImportModelPack = { modelPackLauncher.launch(arrayOf("application/octet-stream")) },
             onSearch = viewModel::search,
+            onCancelSearch = viewModel::cancelSearch,
+            onLoadMoreLibrary = viewModel::loadMoreLibrary,
+            onRetryLibrary = viewModel::retryLibrary,
             onFindSimilar = viewModel::findSimilar,
             onFindDuplicates = viewModel::findDuplicates,
             onStartIndexing = startIndexing,
             onPauseIndexing = viewModel::pauseIndexing,
-            onStopIndexing = viewModel::stopIndexingForNow,
             onCancelIndexing = viewModel::cancelIndexing,
             onRetryIndexingGaps = viewModel::retryIndexingGaps,
             onSelectIndexingMonths = viewModel::setIndexingScopeMonths,
             onSelectIndexingStartDate = viewModel::setIndexingScopeFrom,
-            onProbe = viewModel::probe,
-            onClearProbe = viewModel::clearProbe,
+            onOpenViewer = viewModel::openViewer,
+            onCloseViewer = viewModel::closeViewer,
             onRefreshStorage = viewModel::refreshLocalStorage,
             onExportDiagnostics = { diagnosticsLauncher.launch("nayti-diagnostics.json") },
             onResetSearchData = viewModel::resetSearchData,
@@ -251,11 +257,12 @@ private fun NaytiAppContent(
     catalog: CatalogRuntimeState,
     modelPack: ModelPackRuntimeState,
     indexing: OcrIndexingState,
+    library: LibraryUiState,
     search: SearchUiState,
     searchFilterFacets: SearchFilterFacets,
     similar: SimilarUiState,
     duplicates: DuplicateUiState,
-    viewerProbe: ViewerProbeState,
+    viewer: ViewerUiState,
     onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
     localStorage: LocalStorageSummary,
     diagnosticsExport: DiagnosticsExportState,
@@ -265,17 +272,19 @@ private fun NaytiAppContent(
     onRefresh: () -> Unit,
     onImportModelPack: () -> Unit,
     onSearch: (String, SearchFilter, SearchChannelSelection) -> Unit,
+    onCancelSearch: () -> Unit,
+    onLoadMoreLibrary: () -> Unit,
+    onRetryLibrary: () -> Unit,
     onFindSimilar: (Long) -> Unit,
     onFindDuplicates: (Long) -> Unit,
     onStartIndexing: () -> Unit,
     onPauseIndexing: () -> Unit,
-    onStopIndexing: () -> Unit,
     onCancelIndexing: () -> Unit,
     onRetryIndexingGaps: () -> Unit,
     onSelectIndexingMonths: (Long?) -> Unit,
     onSelectIndexingStartDate: (Long) -> Unit,
-    onProbe: (Long) -> Unit,
-    onClearProbe: () -> Unit,
+    onOpenViewer: (Long) -> Unit,
+    onCloseViewer: (Long) -> Unit,
     onRefreshStorage: () -> Unit,
     onExportDiagnostics: () -> Unit,
     onResetSearchData: () -> Unit,
@@ -285,6 +294,8 @@ private fun NaytiAppContent(
     val currentEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentEntry?.destination?.route
     val showRootNavigation = RootDestination.entries.any { it.route == currentRoute }
+    val shellStatus = ShellStatusMapper.map(catalog, modelPack, indexing)
+    var showPreparation by rememberSaveable { mutableStateOf(false) }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val useNavigationRail = maxWidth >= NavigationRailBreakpoint
@@ -296,51 +307,57 @@ private fun NaytiAppContent(
                     currentRoute = currentRoute,
                     onNavigate = navController::navigateToRoot,
                 )
-                RootNavHost(
-                    navController = navController,
-                    catalog = catalog,
-                    modelPack = modelPack,
-                    indexing = indexing,
-                    search = search,
-                    searchFilterFacets = searchFilterFacets,
-                    similar = similar,
-                    duplicates = duplicates,
-                    viewerProbe = viewerProbe,
-                    onLoadThumbnail = onLoadThumbnail,
-                    localStorage = localStorage,
-                    diagnosticsExport = diagnosticsExport,
-                    searchDataReset = searchDataReset,
-                    modelPackRollback = modelPackRollback,
-                    onRequestAccess = onRequestAccess,
-                    onRefresh = onRefresh,
-                    onImportModelPack = onImportModelPack,
-                    onSearch = onSearch,
-                    onFindSimilar = onFindSimilar,
-                    onFindDuplicates = onFindDuplicates,
-                    onStartIndexing = onStartIndexing,
-                    onPauseIndexing = onPauseIndexing,
-                    onStopIndexing = onStopIndexing,
-                    onCancelIndexing = onCancelIndexing,
-                    onRetryIndexingGaps = onRetryIndexingGaps,
-                    onSelectIndexingMonths = onSelectIndexingMonths,
-                    onSelectIndexingStartDate = onSelectIndexingStartDate,
-                    onProbe = onProbe,
-                    onClearProbe = onClearProbe,
-                    onRefreshStorage = onRefreshStorage,
-                    onExportDiagnostics = onExportDiagnostics,
-                    onResetSearchData = onResetSearchData,
-                    onRollbackModelPack = onRollbackModelPack,
-                    modifier = Modifier.weight(1f),
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    ShellStatusBar(
+                        status = shellStatus,
+                        onOpenDetails = { showPreparation = true },
+                    )
+                    RootNavHost(
+                        navController = navController,
+                        catalog = catalog,
+                        modelPack = modelPack,
+                        indexing = indexing,
+                        library = library,
+                        search = search,
+                        searchFilterFacets = searchFilterFacets,
+                        similar = similar,
+                        duplicates = duplicates,
+                        viewer = viewer,
+                        onLoadThumbnail = onLoadThumbnail,
+                        localStorage = localStorage,
+                        diagnosticsExport = diagnosticsExport,
+                        searchDataReset = searchDataReset,
+                        modelPackRollback = modelPackRollback,
+                        onRequestAccess = onRequestAccess,
+                        onRefresh = onRefresh,
+                        onImportModelPack = onImportModelPack,
+                        onSearch = onSearch,
+                        onCancelSearch = onCancelSearch,
+                        onLoadMoreLibrary = onLoadMoreLibrary,
+                        onRetryLibrary = onRetryLibrary,
+                        onFindSimilar = onFindSimilar,
+                        onFindDuplicates = onFindDuplicates,
+                        onSelectIndexingMonths = onSelectIndexingMonths,
+                        onSelectIndexingStartDate = onSelectIndexingStartDate,
+                        onOpenViewer = onOpenViewer,
+                        onCloseViewer = onCloseViewer,
+                        onRefreshStorage = onRefreshStorage,
+                        onExportDiagnostics = onExportDiagnostics,
+                        onResetSearchData = onResetSearchData,
+                        onRollbackModelPack = onRollbackModelPack,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         } else {
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.background,
-                bottomBar = {
+                topBar = {
                     if (showRootNavigation) {
-                        RootNavigationBar(
-                            currentRoute = currentRoute,
-                            onNavigate = navController::navigateToRoot,
+                        ShellStatusBar(
+                            status = shellStatus,
+                            onOpenDetails = { showPreparation = true },
+                            modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars),
                         )
                     }
                 },
@@ -350,11 +367,12 @@ private fun NaytiAppContent(
                     catalog = catalog,
                     modelPack = modelPack,
                     indexing = indexing,
+                    library = library,
                     search = search,
                     searchFilterFacets = searchFilterFacets,
                     similar = similar,
                     duplicates = duplicates,
-                    viewerProbe = viewerProbe,
+                    viewer = viewer,
                     onLoadThumbnail = onLoadThumbnail,
                     localStorage = localStorage,
                     diagnosticsExport = diagnosticsExport,
@@ -364,17 +382,15 @@ private fun NaytiAppContent(
                     onRefresh = onRefresh,
                     onImportModelPack = onImportModelPack,
                     onSearch = onSearch,
+                    onCancelSearch = onCancelSearch,
+                    onLoadMoreLibrary = onLoadMoreLibrary,
+                    onRetryLibrary = onRetryLibrary,
                     onFindSimilar = onFindSimilar,
                     onFindDuplicates = onFindDuplicates,
-                    onStartIndexing = onStartIndexing,
-                    onPauseIndexing = onPauseIndexing,
-                    onStopIndexing = onStopIndexing,
-                    onCancelIndexing = onCancelIndexing,
-                    onRetryIndexingGaps = onRetryIndexingGaps,
                     onSelectIndexingMonths = onSelectIndexingMonths,
                     onSelectIndexingStartDate = onSelectIndexingStartDate,
-                    onProbe = onProbe,
-                    onClearProbe = onClearProbe,
+                    onOpenViewer = onOpenViewer,
+                    onCloseViewer = onCloseViewer,
                     onRefreshStorage = onRefreshStorage,
                     onExportDiagnostics = onExportDiagnostics,
                     onResetSearchData = onResetSearchData,
@@ -383,6 +399,32 @@ private fun NaytiAppContent(
                 )
             }
         }
+    }
+    if (showPreparation) {
+        PreparationSheet(
+            catalog = catalog,
+            modelPack = modelPack,
+            indexing = indexing,
+            onDismiss = { showPreparation = false },
+            onRequestAccess = {
+                showPreparation = false
+                onRequestAccess()
+            },
+            onImportModels = {
+                showPreparation = false
+                onImportModelPack()
+            },
+            onStart = onStartIndexing,
+            onPause = onPauseIndexing,
+            onCancel = onCancelIndexing,
+            onRetryGaps = onRetryIndexingGaps,
+            onSelectMonths = onSelectIndexingMonths,
+            onSelectStartDate = onSelectIndexingStartDate,
+            onOpenSettings = {
+                showPreparation = false
+                navController.navigateToRoot(RootDestination.Data.route)
+            },
+        )
     }
 }
 
@@ -396,7 +438,7 @@ private fun RootNavigationBar(
             NavigationBarItem(
                 selected = currentRoute == destination.route,
                 onClick = { onNavigate(destination.route) },
-                icon = { Icon(destination.icon, contentDescription = null) },
+                icon = { NaytiIconMark(destination.icon) },
                 label = { Text(stringResource(destination.title)) },
                 colors = NavigationBarItemDefaults.colors(
                     indicatorColor = MaterialTheme.colorScheme.primaryContainer,
@@ -416,7 +458,7 @@ private fun RootNavigationRail(
             NavigationRailItem(
                 selected = currentRoute == destination.route,
                 onClick = { onNavigate(destination.route) },
-                icon = { Icon(destination.icon, contentDescription = null) },
+                icon = { NaytiIconMark(destination.icon) },
                 label = { Text(stringResource(destination.title)) },
             )
         }
@@ -433,17 +475,52 @@ private fun NavHostController.navigateToRoot(route: String) {
     }
 }
 
+private fun NavHostController.navigateToViewer(
+    assetId: Long,
+    replaceCurrent: Boolean = false,
+) {
+    navigate("viewer/$assetId") {
+        if (replaceCurrent) {
+            popUpTo(ViewerRoute) {
+                inclusive = true
+            }
+        }
+        launchSingleTop = true
+    }
+}
+
+internal fun viewerSequence(
+    assetId: Long,
+    library: LibraryUiState,
+    search: SearchUiState,
+    similar: SimilarUiState,
+    duplicates: DuplicateUiState,
+): List<Long> {
+    val candidates =
+        listOf(
+            (search as? SearchUiState.Ready)?.results?.map { result -> result.asset.assetId },
+            (similar as? SimilarUiState.Ready)?.results?.map { result -> result.asset.assetId },
+            (duplicates as? DuplicateUiState.Ready)?.results?.map { result -> result.asset.assetId },
+            library.items.map { item -> item.assetId },
+        )
+    return candidates
+        .firstOrNull { ids -> ids?.contains(assetId) == true }
+        .orEmpty()
+        .ifEmpty { listOf(assetId) }
+}
+
 @Composable
 private fun RootNavHost(
     navController: NavHostController,
     catalog: CatalogRuntimeState,
     modelPack: ModelPackRuntimeState,
     indexing: OcrIndexingState,
+    library: LibraryUiState,
     search: SearchUiState,
     searchFilterFacets: SearchFilterFacets,
     similar: SimilarUiState,
     duplicates: DuplicateUiState,
-    viewerProbe: ViewerProbeState,
+    viewer: ViewerUiState,
     onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
     localStorage: LocalStorageSummary,
     diagnosticsExport: DiagnosticsExportState,
@@ -453,17 +530,15 @@ private fun RootNavHost(
     onRefresh: () -> Unit,
     onImportModelPack: () -> Unit,
     onSearch: (String, SearchFilter, SearchChannelSelection) -> Unit,
+    onCancelSearch: () -> Unit,
+    onLoadMoreLibrary: () -> Unit,
+    onRetryLibrary: () -> Unit,
     onFindSimilar: (Long) -> Unit,
     onFindDuplicates: (Long) -> Unit,
-    onStartIndexing: () -> Unit,
-    onPauseIndexing: () -> Unit,
-    onStopIndexing: () -> Unit,
-    onCancelIndexing: () -> Unit,
-    onRetryIndexingGaps: () -> Unit,
     onSelectIndexingMonths: (Long?) -> Unit,
     onSelectIndexingStartDate: (Long) -> Unit,
-    onProbe: (Long) -> Unit,
-    onClearProbe: () -> Unit,
+    onOpenViewer: (Long) -> Unit,
+    onCloseViewer: (Long) -> Unit,
     onRefreshStorage: () -> Unit,
     onExportDiagnostics: () -> Unit,
     onResetSearchData: () -> Unit,
@@ -476,32 +551,26 @@ private fun RootNavHost(
         modifier = modifier,
     ) {
             composable(RootDestination.Search.route) {
-                SearchScreen(
-                    catalog = catalog,
-                    modelPack = modelPack,
+                LibrarySearchScreen(
+                    library = library,
                     search = search,
-                    searchFilterFacets = searchFilterFacets,
-                    onLoadThumbnail = onLoadThumbnail,
-                    onSearch = onSearch,
-                    onOpenAsset = { assetId -> navController.navigate("viewer/$assetId") },
-                )
-            }
-            composable(RootDestination.Readiness.route) {
-                ReadinessScreen(
-                    catalog = catalog,
-                    modelPack = modelPack,
                     indexing = indexing,
+                    accessScope = catalog.access.permission.scope,
+                    accessRevision = catalog.access.value,
+                    modelReady =
+                        catalog.access.permission.scope != MediaAccessScope.None &&
+                            modelPack.installed != null &&
+                            modelPack.status != ModelPackRuntimeStatus.Installing,
                     onLoadThumbnail = onLoadThumbnail,
+                    onLoadMore = onLoadMoreLibrary,
+                    onRetryLibrary = onRetryLibrary,
                     onRequestAccess = onRequestAccess,
-                    onRefresh = onRefresh,
-                    onStartIndexing = onStartIndexing,
-                    onPauseIndexing = onPauseIndexing,
-                    onStopIndexing = onStopIndexing,
-                    onCancelIndexing = onCancelIndexing,
-                    onRetryIndexingGaps = onRetryIndexingGaps,
-                    onSelectIndexingMonths = onSelectIndexingMonths,
-                    onSelectIndexingStartDate = onSelectIndexingStartDate,
-                    onOpenItem = { item -> navController.navigate("viewer/${item.assetId}") },
+                    onSearch = onSearch,
+                    onCancelSearch = onCancelSearch,
+                    onOpenAsset = { assetId -> navController.navigateToViewer(assetId) },
+                    onOpenSettings = {
+                        navController.navigateToRoot(RootDestination.Data.route)
+                    },
                 )
             }
             composable(RootDestination.Data.route) {
@@ -530,28 +599,24 @@ private fun RootNavHost(
                 val assetId = checkNotNull(entry.arguments?.getLong("assetId"))
                 val searchResult = (search as? SearchUiState.Ready)?.results
                     ?.firstOrNull { result -> result.asset.assetId == assetId }
-                val item = catalog.recentItems.firstOrNull { it.assetId == assetId }
-                    ?: searchResult?.toCatalogItem()
-                    ?: (similar as? SimilarUiState.Ready)?.results
-                        ?.firstOrNull { result -> result.asset.assetId == assetId }
-                        ?.asset?.toCatalogItem()
-                    ?: (duplicates as? DuplicateUiState.Ready)?.results
-                        ?.firstOrNull { result -> result.asset.assetId == assetId }
-                        ?.asset?.toCatalogItem()
-                ViewerScreen(
-                    item = item,
+                val sequence = viewerSequence(assetId, library, search, similar, duplicates)
+                val position = sequence.indexOf(assetId)
+                PhotoViewerScreen(
+                    assetId = assetId,
+                    state = viewer,
                     searchProvenance = searchResult?.hit,
+                    previousAssetId = sequence.getOrNull(position - 1),
+                    nextAssetId = sequence.getOrNull(position + 1),
                     accessRevision = catalog.access.value,
-                    probeState = viewerProbe,
                     similarState = similar,
                     duplicateState = duplicates,
                     onLoadThumbnail = onLoadThumbnail,
                     onBack = navController::popBackStack,
-                    onProbe = { onProbe(assetId) },
+                    onOpen = { onOpenViewer(assetId) },
+                    onClose = onCloseViewer,
+                    onOpenAsset = { target -> navController.navigateToViewer(target, replaceCurrent = true) },
                     onFindSimilar = { onFindSimilar(assetId) },
                     onFindDuplicates = { onFindDuplicates(assetId) },
-                    onOpenSimilar = { similarAssetId -> navController.navigate("viewer/$similarAssetId") },
-                    onClearProbe = onClearProbe,
                 )
             }
         }
@@ -710,7 +775,9 @@ private fun SearchScreen(
         item(span = { GridItemSpan(maxLineSpan) }) { LibraryStatusCard(catalog) }
         when (search) {
             SearchUiState.Idle,
-            SearchUiState.Searching,
+            -> Unit
+            is SearchUiState.Searching,
+            is SearchUiState.Cancelled,
             -> Unit
             is SearchUiState.Failed -> item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
@@ -949,7 +1016,7 @@ private fun SearchResultCard(
         Column {
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(1f)) {
                 PhotoThumbnail(
-                    key = MediaKey(result.asset.volumeName, result.asset.mediaStoreId),
+                    key = result.asset.key,
                     accessRevision = accessRevision,
                     description = result.asset.displayName,
                     onLoad = onLoadThumbnail,
@@ -992,11 +1059,13 @@ private fun SearchResultCard(
 }
 
 @Composable
-private fun PhotoThumbnail(
+internal fun PhotoThumbnail(
     key: MediaKey,
     accessRevision: Long,
     description: String?,
     onLoad: suspend (MediaKey, Long) -> Bitmap?,
+    modifier: Modifier = Modifier,
+    shape: Shape = MaterialTheme.shapes.large,
 ) {
     val bitmap by produceState<Bitmap?>(
         initialValue = null,
@@ -1010,12 +1079,12 @@ private fun PhotoThumbnail(
         Image(
             bitmap = checkNotNull(bitmap).asImageBitmap(),
             contentDescription = description,
-            modifier = Modifier.fillMaxSize().clip(MaterialTheme.shapes.large),
+            modifier = modifier.fillMaxSize().clip(shape),
             contentScale = ContentScale.Crop,
         )
     } else {
         Box(
-            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
+            modifier = modifier.fillMaxSize().clip(shape).background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -1557,408 +1626,6 @@ private fun CatalogItemCard(
     }
 }
 
-@Composable
-private fun ViewerScreen(
-    item: CatalogItem?,
-    searchProvenance: app.nayti.indexer.UnifiedSearchHit?,
-    accessRevision: Long,
-    probeState: ViewerProbeState,
-    similarState: SimilarUiState,
-    duplicateState: DuplicateUiState,
-    onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
-    onBack: () -> Unit,
-    onProbe: () -> Unit,
-    onFindSimilar: () -> Unit,
-    onFindDuplicates: () -> Unit,
-    onOpenSimilar: (Long) -> Unit,
-    onClearProbe: () -> Unit,
-) {
-    LaunchedEffect(item?.assetId, accessRevision) {
-        if (item != null) onProbe()
-    }
-    DisposableEffect(Unit) { onDispose(onClearProbe) }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
-    ) {
-        item { TextButton(onClick = onBack) { Text(stringResource(R.string.viewer_back)) } }
-        if (item == null) {
-            item {
-                ScreenHeader(
-                    eyebrow = stringResource(R.string.viewer_eyebrow),
-                    title = stringResource(R.string.viewer_access_changed),
-                    subtitle = stringResource(R.string.viewer_access_changed_details),
-                )
-            }
-            searchProvenance?.let { provenance ->
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        ),
-                        shape = MaterialTheme.shapes.large,
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Card),
-                            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Compact),
-                        ) {
-                            Text(
-                                text = stringResource(R.string.viewer_match_reason_title),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
-                            Text(
-                                text = evidenceLabel(provenance.reason),
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                            provenance.displaySnippet?.takeIf(String::isNotBlank)?.let { snippet ->
-                                Text(
-                                    text = snippet,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 3,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            item {
-                ScreenHeader(
-                    eyebrow = stringResource(R.string.viewer_eyebrow),
-                    title = item.displayName ?: stringResource(R.string.catalog_unnamed_photo, item.assetId),
-                    subtitle = stringResource(R.string.viewer_subtitle),
-                )
-            }
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                    shape = RoundedCornerShape(28.dp),
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(260.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        when (probeState) {
-                            ViewerProbeState.Idle,
-                            ViewerProbeState.Loading,
-                            -> CircularProgressIndicator()
-                            is ViewerProbeState.Ready -> {
-                                DisposableEffect(probeState.image) {
-                                    onDispose(probeState.image::close)
-                                }
-                                Image(
-                                    bitmap = probeState.image.bitmap.asImageBitmap(),
-                                    contentDescription = null,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Fit,
-                                )
-                                OcrRegionOverlay(
-                                    imageWidth = probeState.image.decodedWidth,
-                                    imageHeight = probeState.image.decodedHeight,
-                                    regions = probeState.regions,
-                                    matchedOrdinals = probeState.matchedRegionOrdinals,
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            }
-                            is ViewerProbeState.Failed ->
-                                Text(
-                                    text = stringResource(R.string.viewer_read_failed),
-                                    color = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.padding(24.dp),
-                                )
-                        }
-                    }
-                }
-            }
-            item {
-                Text(
-                    text =
-                        if (probeState is ViewerProbeState.Ready) {
-                            stringResource(
-                                R.string.viewer_ocr_details,
-                                probeState.image.sourceWidth,
-                                probeState.image.sourceHeight,
-                                probeState.regions.size,
-                            )
-                        } else {
-                            stringResource(R.string.viewer_privacy_note)
-                        },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            item {
-                FilledTonalButton(
-                    onClick = onFindSimilar,
-                    enabled = similarState !is SimilarUiState.Searching,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    if (similarState is SimilarUiState.Searching && similarState.sourceAssetId == item.assetId) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text(stringResource(R.string.viewer_find_similar))
-                    }
-                }
-            }
-            item {
-                OutlinedButton(
-                    onClick = onFindDuplicates,
-                    enabled = duplicateState !is DuplicateUiState.Searching,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    if (duplicateState is DuplicateUiState.Searching && duplicateState.sourceAssetId == item.assetId) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text(stringResource(R.string.viewer_find_duplicates))
-                    }
-                }
-            }
-            when (similarState) {
-                SimilarUiState.Idle,
-                is SimilarUiState.Searching,
-                -> Unit
-                is SimilarUiState.Failed -> if (similarState.sourceAssetId == item.assetId) {
-                    item {
-                        Text(
-                            text = stringResource(R.string.viewer_similar_failed),
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                }
-                is SimilarUiState.Ready -> if (similarState.sourceAssetId == item.assetId) {
-                    if (similarState.status != VisualSimilaritySearchStatus.READY) {
-                        item {
-                            Text(
-                                text =
-                                    stringResource(
-                                        if (similarState.status == VisualSimilaritySearchStatus.SOURCE_OUTSIDE_SCOPE) {
-                                            R.string.viewer_similar_outside_scope
-                                        } else {
-                                            R.string.viewer_similar_not_ready
-                                        },
-                                    ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    } else if (similarState.results.isEmpty()) {
-                        item { Text(stringResource(R.string.viewer_similar_empty)) }
-                    } else {
-                        item {
-                            Text(
-                                text = stringResource(R.string.viewer_similar_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                        items(similarState.results, key = { result -> result.asset.assetId }) { result ->
-                            SimilarResultCard(
-                                result = result,
-                                accessRevision = accessRevision,
-                                onLoadThumbnail = onLoadThumbnail,
-                                onClick = { onOpenSimilar(result.asset.assetId) },
-                            )
-                        }
-                    }
-                }
-            }
-            when (duplicateState) {
-                DuplicateUiState.Idle,
-                is DuplicateUiState.Searching,
-                -> Unit
-                is DuplicateUiState.Failed -> if (duplicateState.sourceAssetId == item.assetId) {
-                    item {
-                        Text(
-                            text = stringResource(R.string.viewer_duplicates_failed),
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                }
-                is DuplicateUiState.Ready -> if (duplicateState.sourceAssetId == item.assetId) {
-                    if (duplicateState.status != PerceptualHashSearchStatus.READY) {
-                        item {
-                            Text(
-                                text =
-                                    stringResource(
-                                        if (
-                                            duplicateState.status ==
-                                            PerceptualHashSearchStatus.SOURCE_OUTSIDE_SCOPE
-                                        ) {
-                                            R.string.viewer_duplicates_outside_scope
-                                        } else {
-                                            R.string.viewer_duplicates_not_ready
-                                        },
-                                    ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    } else if (duplicateState.results.isEmpty()) {
-                        item { Text(stringResource(R.string.viewer_duplicates_empty)) }
-                    } else {
-                        item {
-                            Text(
-                                text = stringResource(R.string.viewer_duplicates_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                        items(duplicateState.results, key = { result -> result.asset.assetId }) { result ->
-                            DuplicateResultCard(
-                                result = result,
-                                accessRevision = accessRevision,
-                                onLoadThumbnail = onLoadThumbnail,
-                                onClick = { onOpenSimilar(result.asset.assetId) },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SimilarResultCard(
-    result: SimilarResultItem,
-    accessRevision: Long,
-    onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
-    onClick: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Item),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(modifier = Modifier.size(72.dp).clip(MaterialTheme.shapes.medium)) {
-                PhotoThumbnail(
-                    key = MediaKey(result.asset.volumeName, result.asset.mediaStoreId),
-                    accessRevision = accessRevision,
-                    description = result.asset.displayName,
-                    onLoad = onLoadThumbnail,
-                )
-            }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = result.asset.displayName ?: stringResource(
-                        R.string.catalog_unnamed_photo,
-                        result.asset.assetId,
-                    ),
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = stringResource(R.string.evidence_visual),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DuplicateResultCard(
-    result: DuplicateResultItem,
-    accessRevision: Long,
-    onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
-    onClick: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Item),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(modifier = Modifier.size(72.dp).clip(MaterialTheme.shapes.medium)) {
-                PhotoThumbnail(
-                    key = MediaKey(result.asset.volumeName, result.asset.mediaStoreId),
-                    accessRevision = accessRevision,
-                    description = result.asset.displayName,
-                    onLoad = onLoadThumbnail,
-                )
-            }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = result.asset.displayName ?: stringResource(
-                        R.string.catalog_unnamed_photo,
-                        result.asset.assetId,
-                    ),
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = stringResource(
-                        if (result.match.distance == 0) {
-                            R.string.viewer_duplicate_exact
-                        } else {
-                            R.string.viewer_duplicate_near
-                        },
-                    ),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun OcrRegionOverlay(
-    imageWidth: Int,
-    imageHeight: Int,
-    regions: List<OcrRegionEntity>,
-    matchedOrdinals: Set<Int>,
-    modifier: Modifier = Modifier,
-) {
-    val regularColor = MaterialTheme.colorScheme.tertiary
-    val matchedColor = MaterialTheme.colorScheme.primary
-    Canvas(modifier) {
-        val imageAspect = imageWidth.toFloat() / imageHeight
-        val canvasAspect = size.width / size.height
-        val renderedWidth: Float
-        val renderedHeight: Float
-        val offsetX: Float
-        val offsetY: Float
-        if (canvasAspect > imageAspect) {
-            renderedHeight = size.height
-            renderedWidth = renderedHeight * imageAspect
-            offsetX = (size.width - renderedWidth) / 2f
-            offsetY = 0f
-        } else {
-            renderedWidth = size.width
-            renderedHeight = renderedWidth / imageAspect
-            offsetX = 0f
-            offsetY = (size.height - renderedHeight) / 2f
-        }
-        regions.forEach { region ->
-            fun x(value: Int) = offsetX + value / 1_000_000f * renderedWidth
-            fun y(value: Int) = offsetY + value / 1_000_000f * renderedHeight
-            val path =
-                Path().apply {
-                    moveTo(x(region.x0Micros), y(region.y0Micros))
-                    lineTo(x(region.x1Micros), y(region.y1Micros))
-                    lineTo(x(region.x2Micros), y(region.y2Micros))
-                    lineTo(x(region.x3Micros), y(region.y3Micros))
-                    close()
-                }
-            drawPath(
-                path = path,
-                color = if (region.ordinal in matchedOrdinals) matchedColor else regularColor,
-                style = Stroke(width = if (region.ordinal in matchedOrdinals) 5f else 2.5f),
-            )
-        }
-    }
-}
 
 @Composable
 private fun MetricCard(title: String, value: String, supporting: String, icon: ImageVector) {
@@ -1989,21 +1656,6 @@ private fun preparationIssue(code: String): String = stringResource(
         else -> R.string.ocr_index_failed
     },
 )
-
-private fun SearchResultItem.toCatalogItem(): CatalogItem =
-    asset.toCatalogItem()
-
-private fun app.nayti.storage.CatalogAssetEntity.toCatalogItem(): CatalogItem =
-    CatalogItem(
-        assetId = assetId,
-        key = app.nayti.platform.media.MediaKey(volumeName, mediaStoreId),
-        displayName = displayName,
-        bucketDisplayName = bucketDisplayName,
-        mimeType = mimeType,
-        width = width,
-        height = height,
-        dateTakenMillis = dateTakenMillis,
-    )
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
 @Composable
@@ -2039,11 +1691,12 @@ private fun NaytiPreview() {
                     lastSlicePublished = 0,
                     errorCode = null,
                 ),
+            library = LibraryUiState(),
             search = SearchUiState.Idle,
             searchFilterFacets = SearchFilterFacets(emptyList(), emptyList()),
             similar = SimilarUiState.Idle,
             duplicates = DuplicateUiState.Idle,
-            viewerProbe = ViewerProbeState.Idle,
+            viewer = ViewerUiState.Idle,
             onLoadThumbnail = { _, _ -> null },
             localStorage = LocalStorageSummary(0L, 0L),
             diagnosticsExport = DiagnosticsExportState.Idle,
@@ -2053,17 +1706,19 @@ private fun NaytiPreview() {
             onRefresh = {},
             onImportModelPack = {},
             onSearch = { _, _, _ -> },
+            onCancelSearch = {},
+            onLoadMoreLibrary = {},
+            onRetryLibrary = {},
             onFindSimilar = {},
             onFindDuplicates = {},
             onStartIndexing = {},
             onPauseIndexing = {},
-            onStopIndexing = {},
             onCancelIndexing = {},
             onRetryIndexingGaps = {},
             onSelectIndexingMonths = {},
             onSelectIndexingStartDate = {},
-            onProbe = {},
-            onClearProbe = {},
+            onOpenViewer = {},
+            onCloseViewer = {},
             onRefreshStorage = {},
             onExportDiagnostics = {},
             onResetSearchData = {},

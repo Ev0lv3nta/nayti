@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.Nayti.Starting" parent="Theme.Nayti">
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_mark</item>
+        <item name="android:windowSplashScreenAnimationDuration">180</item>
+    </style>
+</resources>

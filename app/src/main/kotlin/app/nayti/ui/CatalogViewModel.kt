@@ -13,6 +13,8 @@ import app.nayti.indexer.CatalogRuntimeStatus
 import app.nayti.indexer.CatalogItem
 import app.nayti.indexer.LibraryFeed
 import app.nayti.indexer.LibraryFilterFacets
+import app.nayti.indexer.PhotoAvailability
+import app.nayti.indexer.PhotoEvidence
 import app.nayti.indexer.ModelPackActivationRuntime
 import app.nayti.indexer.ModelPackRuntime
 import app.nayti.indexer.ModelPackRuntimeState
@@ -32,12 +34,12 @@ import app.nayti.indexer.VisualSimilaritySearch
 import app.nayti.indexer.VisualSimilaritySearchStatus
 import app.nayti.indexer.VisualTextSearchStatus
 import app.nayti.platform.media.DecodedMediaImage
+import app.nayti.platform.media.MediaDecodeAccessException
+import app.nayti.platform.media.MediaDecodeContentException
+import app.nayti.platform.media.MediaDecodeIoException
 import app.nayti.platform.media.MediaKey
 import app.nayti.ml.runtime.pack.SafModelPackSource
-import app.nayti.storage.CatalogAssetEntity
 import app.nayti.storage.CatalogStorage
-import app.nayti.storage.IndexChannel
-import app.nayti.storage.OcrRegionEntity
 import app.nayti.storage.SearchFilterFacets
 import app.nayti.search.engine.similarity.PerceptualHashMatch
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -59,19 +61,60 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 
-sealed interface ViewerProbeState {
-    data object Idle : ViewerProbeState
+enum class ViewerUnavailableReason {
+    AccessRemoved,
+    AccessChanged,
+    VolumeOffline,
+    Pending,
+    Trashed,
+    Missing,
+    CannotDecode,
+    TemporarilyUnavailable,
+}
 
-    data object Loading : ViewerProbeState
+private val PhotoAvailability.unavailableReason: ViewerUnavailableReason?
+    get() =
+        when (this) {
+            PhotoAvailability.Available -> null
+            PhotoAvailability.AccessRemoved -> ViewerUnavailableReason.AccessRemoved
+            PhotoAvailability.VolumeOffline -> ViewerUnavailableReason.VolumeOffline
+            PhotoAvailability.Pending -> ViewerUnavailableReason.Pending
+            PhotoAvailability.Trashed -> ViewerUnavailableReason.Trashed
+            PhotoAvailability.Missing -> ViewerUnavailableReason.Missing
+        }
+
+sealed interface ViewerUiState {
+    data object Idle : ViewerUiState
+
+    data class Loading(val assetId: Long) : ViewerUiState
 
     data class Ready(
+        val evidence: PhotoEvidence,
         val image: DecodedMediaImage,
-        val regions: List<OcrRegionEntity>,
         val matchedRegionOrdinals: Set<Int>,
-    ) : ViewerProbeState
+    ) : ViewerUiState
 
-    data class Failed(val code: String) : ViewerProbeState
+    data class Unavailable(
+        val assetId: Long,
+        val reason: ViewerUnavailableReason,
+        val evidence: PhotoEvidence? = null,
+    ) : ViewerUiState
+
+    data class Failed(
+        val assetId: Long,
+        val code: String,
+    ) : ViewerUiState
 }
+
+private val ViewerUiState.assetId: Long?
+    get() =
+        when (this) {
+            ViewerUiState.Idle -> null
+            is ViewerUiState.Loading -> assetId
+            is ViewerUiState.Ready -> evidence.item.assetId
+            is ViewerUiState.Unavailable -> assetId
+            is ViewerUiState.Failed -> assetId
+        }
 
 data class SearchResultItem(
     val asset: CatalogItem,
@@ -114,7 +157,7 @@ data class LibraryUiState(
 }
 
 data class SimilarResultItem(
-    val asset: CatalogAssetEntity,
+    val asset: CatalogItem,
     val hit: VisualSimilarityHit,
 )
 
@@ -133,7 +176,7 @@ sealed interface SimilarUiState {
 }
 
 data class DuplicateResultItem(
-    val asset: CatalogAssetEntity,
+    val asset: CatalogItem,
     val match: PerceptualHashMatch,
 )
 
@@ -219,8 +262,8 @@ class CatalogViewModel @Inject constructor(
         MutableStateFlow<ModelPackRollbackState>(ModelPackRollbackState.Loading)
     val modelPackRollback: StateFlow<ModelPackRollbackState> = mutableModelPackRollback.asStateFlow()
 
-    private val mutableViewerProbe = MutableStateFlow<ViewerProbeState>(ViewerProbeState.Idle)
-    val viewerProbe: StateFlow<ViewerProbeState> = mutableViewerProbe.asStateFlow()
+    private val mutableViewer = MutableStateFlow<ViewerUiState>(ViewerUiState.Idle)
+    val viewer: StateFlow<ViewerUiState> = mutableViewer.asStateFlow()
     private val mutableSearch = MutableStateFlow<SearchUiState>(SearchUiState.Idle)
     val search: StateFlow<SearchUiState> = mutableSearch.asStateFlow()
     private val mutableLibrary = MutableStateFlow(LibraryUiState(initialLoading = true))
@@ -511,67 +554,77 @@ class CatalogViewModel @Inject constructor(
         similarGeneration.incrementAndGet()
         duplicateGeneration.incrementAndGet()
         viewerGeneration.incrementAndGet()
-        closeViewerImage()
         mutableSearch.value = SearchUiState.Idle
         mutableSimilar.value = SimilarUiState.Idle
         mutableDuplicates.value = DuplicateUiState.Idle
-        mutableViewerProbe.value = ViewerProbeState.Idle
+        replaceViewerState(ViewerUiState.Idle)
     }
 
-    fun probe(assetId: Long) {
+    fun openViewer(assetId: Long) {
         val accessPin = catalog.value.access
         val generation = viewerGeneration.incrementAndGet()
-        mutableViewerProbe.value = ViewerProbeState.Loading
+        replaceViewerState(ViewerUiState.Loading(assetId))
         viewModelScope.launch {
             val result =
                 try {
-                    val image = runtime.decode(assetId, accessPin)
-                    try {
-                        val activeSnapshotId = storage.vectorIndexDao.activeSnapshotId()
-                        val ocrComponent = activeSnapshotId?.let { snapshotId ->
-                            storage.vectorIndexDao.snapshotChannel(snapshotId, IndexChannel.OCR)
-                        }
-                        val evidence =
-                            if (ocrComponent == null || !storage.catalogDao.isAssetIndexable(assetId)) {
-                                null
-                            } else {
-                                storage.ocrDao.eligibleAsset(
-                                    assetId,
-                                    ocrComponent.pipelineVersion,
-                                    ocrComponent.componentHash,
-                                )
-                            }
+                    val evidence = libraryFeed.photoEvidence(assetId)
+                        ?: return@launch publishViewerResult(
+                            generation,
+                            ViewerUiState.Unavailable(assetId, ViewerUnavailableReason.Missing),
+                        )
+                    val unavailableReason = evidence.availability.unavailableReason
+                    if (unavailableReason != null) {
+                        ViewerUiState.Unavailable(assetId, unavailableReason, evidence)
+                    } else {
+                        val image = runtime.decode(assetId, accessPin)
                         val matched =
                             (search.value as? SearchUiState.Ready)?.results
                                 ?.firstOrNull { result -> result.asset.assetId == assetId }
                                 ?.hit?.matchedRegionOrdinals.orEmpty().toSet()
-                        ViewerProbeState.Ready(image, evidence?.regions.orEmpty(), matched)
-                    } catch (failure: Exception) {
-                        image.close()
-                        throw failure
+                        ViewerUiState.Ready(evidence, image, matched)
                     }
+                } catch (_: MediaDecodeAccessException) {
+                    ViewerUiState.Unavailable(assetId, ViewerUnavailableReason.AccessChanged)
+                } catch (_: MediaDecodeContentException) {
+                    ViewerUiState.Unavailable(assetId, ViewerUnavailableReason.CannotDecode)
+                } catch (_: MediaDecodeIoException) {
+                    ViewerUiState.Unavailable(assetId, ViewerUnavailableReason.TemporarilyUnavailable)
+                } catch (_: SecurityException) {
+                    ViewerUiState.Unavailable(assetId, ViewerUnavailableReason.AccessChanged)
+                } catch (_: IllegalStateException) {
+                    ViewerUiState.Unavailable(assetId, ViewerUnavailableReason.AccessChanged)
                 } catch (failure: Exception) {
-                    ViewerProbeState.Failed(failure::class.java.simpleName.uppercase())
+                    ViewerUiState.Failed(assetId, failure::class.java.simpleName.uppercase())
                 }
-            if (viewerGeneration.get() == generation) {
-                mutableViewerProbe.value = result
-            } else {
-                (result as? ViewerProbeState.Ready)?.image?.close()
-            }
+            publishViewerResult(generation, result)
         }
     }
 
-    fun clearProbe() {
-        viewerGeneration.incrementAndGet()
-        mutableViewerProbe.value = ViewerProbeState.Idle
+    fun closeViewer(assetId: Long) {
+        if (mutableViewer.value.assetId == assetId) {
+            viewerGeneration.incrementAndGet()
+            replaceViewerState(ViewerUiState.Idle)
+        }
     }
 
     override fun onCleared() {
-        closeViewerImage()
+        replaceViewerState(ViewerUiState.Idle)
     }
 
-    private fun closeViewerImage() {
-        (mutableViewerProbe.value as? ViewerProbeState.Ready)?.image?.close()
+    private fun publishViewerResult(generation: Long, result: ViewerUiState) {
+        if (viewerGeneration.get() == generation) {
+            replaceViewerState(result)
+        } else {
+            (result as? ViewerUiState.Ready)?.image?.close()
+        }
+    }
+
+    private fun replaceViewerState(next: ViewerUiState) {
+        val previous = mutableViewer.value
+        mutableViewer.value = next
+        if (previous !== next) {
+            (previous as? ViewerUiState.Ready)?.image?.close()
+        }
     }
 
     fun importModelPack(uri: Uri) {
@@ -667,7 +720,7 @@ class CatalogViewModel @Inject constructor(
                 try {
                     val searchResult = visualSimilarity.searchSimilar(sourceAssetId)
                     val hydrated = searchResult.hits.mapNotNull { hit ->
-                        storage.catalogDao.asset(hit.assetId)?.let { asset -> SimilarResultItem(asset, hit) }
+                        libraryFeed.item(hit.assetId)?.let { asset -> SimilarResultItem(asset, hit) }
                     }
                     SimilarUiState.Ready(sourceAssetId, searchResult.status, hydrated)
                 } catch (failure: Exception) {
@@ -685,7 +738,7 @@ class CatalogViewModel @Inject constructor(
                 try {
                     val searchResult = perceptualHashes.nearDuplicates(sourceAssetId)
                     val hydrated = searchResult.hits.mapNotNull { match ->
-                        storage.catalogDao.asset(match.assetId)?.let { asset -> DuplicateResultItem(asset, match) }
+                        libraryFeed.item(match.assetId)?.let { asset -> DuplicateResultItem(asset, match) }
                     }
                     DuplicateUiState.Ready(sourceAssetId, searchResult.status, hydrated)
                 } catch (failure: Exception) {

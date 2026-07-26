@@ -171,6 +171,33 @@ class CatalogDatabaseInstrumentedTest {
         assertFalse(dao.isAssetOutsideIndexingScope(checkNotNull(dao.asset("external_primary", 1)).assetId))
     }
 
+    @Test
+    fun indexablePagesAreScopedStableAndNewestFirst() = runBlocking {
+        completeRun(
+            "external_primary",
+            1,
+            (1L..5L).map { mediaStoreId ->
+                draft("external_primary", mediaStoreId).copy(
+                    dateTakenMillis = mediaStoreId * 1_000,
+                    bucketId = if (mediaStoreId < 4) 10 else 20,
+                    bucketDisplayName = if (mediaStoreId < 4) "Camera" else "Downloads",
+                )
+            },
+        )
+        dao.updateIndexingScope(IndexingScopeMode.SINCE_DATE, 2_500, tick())
+
+        assertEquals(listOf(5L, 4L), dao.indexableAssetPage(offset = 0, limit = 2).map { it.mediaStoreId })
+        assertEquals(listOf(3L), dao.indexableAssetPage(offset = 2, limit = 2).map { it.mediaStoreId })
+        assertTrue(dao.indexableAssetPage(offset = 3, limit = 2).isEmpty())
+
+        val facets = dao.searchFilterFacets()
+        assertEquals(
+            mapOf("Camera" to 1L, "Downloads" to 2L),
+            facets.albums.associate { it.displayName to it.assetCount },
+        )
+        assertEquals(3L, facets.mimeTypes.single().assetCount)
+    }
+
     private suspend fun completeRun(
         volumeName: String,
         generation: Long,

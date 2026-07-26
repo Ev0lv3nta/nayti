@@ -7,7 +7,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -68,7 +67,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -78,10 +76,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
@@ -128,7 +124,6 @@ import app.nayti.platform.media.MediaAccessScope
 import app.nayti.platform.media.MediaKey
 import app.nayti.platform.media.MediaPermissionEvaluator
 import app.nayti.platform.media.MediaPermissionSnapshot
-import app.nayti.storage.OcrRegionEntity
 import app.nayti.storage.IndexOperationState
 import app.nayti.storage.SearchFilterFacets
 import app.nayti.ui.designsystem.icon.NaytiIcon
@@ -139,6 +134,7 @@ import app.nayti.ui.preparation.PreparationSheet
 import app.nayti.ui.shell.ShellStatusBar
 import app.nayti.ui.shell.ShellStatusMapper
 import app.nayti.ui.theme.NaytiSpacing
+import app.nayti.ui.viewer.PhotoViewerScreen
 
 private enum class RootDestination(
     val route: String,
@@ -171,7 +167,7 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
     val searchFilterFacets by viewModel.searchFilterFacets.collectAsStateWithLifecycle()
     val similar by viewModel.similar.collectAsStateWithLifecycle()
     val duplicates by viewModel.duplicates.collectAsStateWithLifecycle()
-    val viewerProbe by viewModel.viewerProbe.collectAsStateWithLifecycle()
+    val viewer by viewModel.viewer.collectAsStateWithLifecycle()
     val onboardingCompleted by viewModel.onboardingCompleted.collectAsStateWithLifecycle()
     val localStorage by viewModel.localStorage.collectAsStateWithLifecycle()
     val diagnosticsExport by viewModel.diagnosticsExport.collectAsStateWithLifecycle()
@@ -225,7 +221,7 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
             searchFilterFacets = searchFilterFacets,
             similar = similar,
             duplicates = duplicates,
-            viewerProbe = viewerProbe,
+            viewer = viewer,
             onLoadThumbnail = viewModel::loadThumbnail,
             localStorage = localStorage,
             diagnosticsExport = diagnosticsExport,
@@ -246,8 +242,8 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
             onRetryIndexingGaps = viewModel::retryIndexingGaps,
             onSelectIndexingMonths = viewModel::setIndexingScopeMonths,
             onSelectIndexingStartDate = viewModel::setIndexingScopeFrom,
-            onProbe = viewModel::probe,
-            onClearProbe = viewModel::clearProbe,
+            onOpenViewer = viewModel::openViewer,
+            onCloseViewer = viewModel::closeViewer,
             onRefreshStorage = viewModel::refreshLocalStorage,
             onExportDiagnostics = { diagnosticsLauncher.launch("nayti-diagnostics.json") },
             onResetSearchData = viewModel::resetSearchData,
@@ -266,7 +262,7 @@ private fun NaytiAppContent(
     searchFilterFacets: SearchFilterFacets,
     similar: SimilarUiState,
     duplicates: DuplicateUiState,
-    viewerProbe: ViewerProbeState,
+    viewer: ViewerUiState,
     onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
     localStorage: LocalStorageSummary,
     diagnosticsExport: DiagnosticsExportState,
@@ -287,8 +283,8 @@ private fun NaytiAppContent(
     onRetryIndexingGaps: () -> Unit,
     onSelectIndexingMonths: (Long?) -> Unit,
     onSelectIndexingStartDate: (Long) -> Unit,
-    onProbe: (Long) -> Unit,
-    onClearProbe: () -> Unit,
+    onOpenViewer: (Long) -> Unit,
+    onCloseViewer: (Long) -> Unit,
     onRefreshStorage: () -> Unit,
     onExportDiagnostics: () -> Unit,
     onResetSearchData: () -> Unit,
@@ -326,7 +322,7 @@ private fun NaytiAppContent(
                         searchFilterFacets = searchFilterFacets,
                         similar = similar,
                         duplicates = duplicates,
-                        viewerProbe = viewerProbe,
+                        viewer = viewer,
                         onLoadThumbnail = onLoadThumbnail,
                         localStorage = localStorage,
                         diagnosticsExport = diagnosticsExport,
@@ -343,8 +339,8 @@ private fun NaytiAppContent(
                         onFindDuplicates = onFindDuplicates,
                         onSelectIndexingMonths = onSelectIndexingMonths,
                         onSelectIndexingStartDate = onSelectIndexingStartDate,
-                        onProbe = onProbe,
-                        onClearProbe = onClearProbe,
+                        onOpenViewer = onOpenViewer,
+                        onCloseViewer = onCloseViewer,
                         onRefreshStorage = onRefreshStorage,
                         onExportDiagnostics = onExportDiagnostics,
                         onResetSearchData = onResetSearchData,
@@ -376,7 +372,7 @@ private fun NaytiAppContent(
                     searchFilterFacets = searchFilterFacets,
                     similar = similar,
                     duplicates = duplicates,
-                    viewerProbe = viewerProbe,
+                    viewer = viewer,
                     onLoadThumbnail = onLoadThumbnail,
                     localStorage = localStorage,
                     diagnosticsExport = diagnosticsExport,
@@ -393,8 +389,8 @@ private fun NaytiAppContent(
                     onFindDuplicates = onFindDuplicates,
                     onSelectIndexingMonths = onSelectIndexingMonths,
                     onSelectIndexingStartDate = onSelectIndexingStartDate,
-                    onProbe = onProbe,
-                    onClearProbe = onClearProbe,
+                    onOpenViewer = onOpenViewer,
+                    onCloseViewer = onCloseViewer,
                     onRefreshStorage = onRefreshStorage,
                     onExportDiagnostics = onExportDiagnostics,
                     onResetSearchData = onResetSearchData,
@@ -479,6 +475,40 @@ private fun NavHostController.navigateToRoot(route: String) {
     }
 }
 
+private fun NavHostController.navigateToViewer(
+    assetId: Long,
+    replaceCurrent: Boolean = false,
+) {
+    navigate("viewer/$assetId") {
+        if (replaceCurrent) {
+            popUpTo(ViewerRoute) {
+                inclusive = true
+            }
+        }
+        launchSingleTop = true
+    }
+}
+
+internal fun viewerSequence(
+    assetId: Long,
+    library: LibraryUiState,
+    search: SearchUiState,
+    similar: SimilarUiState,
+    duplicates: DuplicateUiState,
+): List<Long> {
+    val candidates =
+        listOf(
+            (search as? SearchUiState.Ready)?.results?.map { result -> result.asset.assetId },
+            (similar as? SimilarUiState.Ready)?.results?.map { result -> result.asset.assetId },
+            (duplicates as? DuplicateUiState.Ready)?.results?.map { result -> result.asset.assetId },
+            library.items.map { item -> item.assetId },
+        )
+    return candidates
+        .firstOrNull { ids -> ids?.contains(assetId) == true }
+        .orEmpty()
+        .ifEmpty { listOf(assetId) }
+}
+
 @Composable
 private fun RootNavHost(
     navController: NavHostController,
@@ -490,7 +520,7 @@ private fun RootNavHost(
     searchFilterFacets: SearchFilterFacets,
     similar: SimilarUiState,
     duplicates: DuplicateUiState,
-    viewerProbe: ViewerProbeState,
+    viewer: ViewerUiState,
     onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
     localStorage: LocalStorageSummary,
     diagnosticsExport: DiagnosticsExportState,
@@ -507,8 +537,8 @@ private fun RootNavHost(
     onFindDuplicates: (Long) -> Unit,
     onSelectIndexingMonths: (Long?) -> Unit,
     onSelectIndexingStartDate: (Long) -> Unit,
-    onProbe: (Long) -> Unit,
-    onClearProbe: () -> Unit,
+    onOpenViewer: (Long) -> Unit,
+    onCloseViewer: (Long) -> Unit,
     onRefreshStorage: () -> Unit,
     onExportDiagnostics: () -> Unit,
     onResetSearchData: () -> Unit,
@@ -537,7 +567,7 @@ private fun RootNavHost(
                     onRequestAccess = onRequestAccess,
                     onSearch = onSearch,
                     onCancelSearch = onCancelSearch,
-                    onOpenAsset = { assetId -> navController.navigate("viewer/$assetId") },
+                    onOpenAsset = { assetId -> navController.navigateToViewer(assetId) },
                     onOpenSettings = {
                         navController.navigateToRoot(RootDestination.Data.route)
                     },
@@ -569,28 +599,24 @@ private fun RootNavHost(
                 val assetId = checkNotNull(entry.arguments?.getLong("assetId"))
                 val searchResult = (search as? SearchUiState.Ready)?.results
                     ?.firstOrNull { result -> result.asset.assetId == assetId }
-                val item = catalog.recentItems.firstOrNull { it.assetId == assetId }
-                    ?: searchResult?.asset
-                    ?: (similar as? SimilarUiState.Ready)?.results
-                        ?.firstOrNull { result -> result.asset.assetId == assetId }
-                        ?.asset?.toCatalogItem()
-                    ?: (duplicates as? DuplicateUiState.Ready)?.results
-                        ?.firstOrNull { result -> result.asset.assetId == assetId }
-                        ?.asset?.toCatalogItem()
-                ViewerScreen(
-                    item = item,
+                val sequence = viewerSequence(assetId, library, search, similar, duplicates)
+                val position = sequence.indexOf(assetId)
+                PhotoViewerScreen(
+                    assetId = assetId,
+                    state = viewer,
                     searchProvenance = searchResult?.hit,
+                    previousAssetId = sequence.getOrNull(position - 1),
+                    nextAssetId = sequence.getOrNull(position + 1),
                     accessRevision = catalog.access.value,
-                    probeState = viewerProbe,
                     similarState = similar,
                     duplicateState = duplicates,
                     onLoadThumbnail = onLoadThumbnail,
                     onBack = navController::popBackStack,
-                    onProbe = { onProbe(assetId) },
+                    onOpen = { onOpenViewer(assetId) },
+                    onClose = onCloseViewer,
+                    onOpenAsset = { target -> navController.navigateToViewer(target, replaceCurrent = true) },
                     onFindSimilar = { onFindSimilar(assetId) },
                     onFindDuplicates = { onFindDuplicates(assetId) },
-                    onOpenSimilar = { similarAssetId -> navController.navigate("viewer/$similarAssetId") },
-                    onClearProbe = onClearProbe,
                 )
             }
         }
@@ -1600,408 +1626,6 @@ private fun CatalogItemCard(
     }
 }
 
-@Composable
-private fun ViewerScreen(
-    item: CatalogItem?,
-    searchProvenance: app.nayti.indexer.UnifiedSearchHit?,
-    accessRevision: Long,
-    probeState: ViewerProbeState,
-    similarState: SimilarUiState,
-    duplicateState: DuplicateUiState,
-    onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
-    onBack: () -> Unit,
-    onProbe: () -> Unit,
-    onFindSimilar: () -> Unit,
-    onFindDuplicates: () -> Unit,
-    onOpenSimilar: (Long) -> Unit,
-    onClearProbe: () -> Unit,
-) {
-    LaunchedEffect(item?.assetId, accessRevision) {
-        if (item != null) onProbe()
-    }
-    DisposableEffect(Unit) { onDispose(onClearProbe) }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
-    ) {
-        item { TextButton(onClick = onBack) { Text(stringResource(R.string.viewer_back)) } }
-        if (item == null) {
-            item {
-                ScreenHeader(
-                    eyebrow = stringResource(R.string.viewer_eyebrow),
-                    title = stringResource(R.string.viewer_access_changed),
-                    subtitle = stringResource(R.string.viewer_access_changed_details),
-                )
-            }
-            searchProvenance?.let { provenance ->
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        ),
-                        shape = MaterialTheme.shapes.large,
-                    ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Card),
-                            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Compact),
-                        ) {
-                            Text(
-                                text = stringResource(R.string.viewer_match_reason_title),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            )
-                            Text(
-                                text = evidenceLabel(provenance.reason),
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                            provenance.displaySnippet?.takeIf(String::isNotBlank)?.let { snippet ->
-                                Text(
-                                    text = snippet,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 3,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            item {
-                ScreenHeader(
-                    eyebrow = stringResource(R.string.viewer_eyebrow),
-                    title = item.displayName ?: stringResource(R.string.catalog_unnamed_photo, item.assetId),
-                    subtitle = stringResource(R.string.viewer_subtitle),
-                )
-            }
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                    shape = RoundedCornerShape(28.dp),
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(260.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        when (probeState) {
-                            ViewerProbeState.Idle,
-                            ViewerProbeState.Loading,
-                            -> CircularProgressIndicator()
-                            is ViewerProbeState.Ready -> {
-                                DisposableEffect(probeState.image) {
-                                    onDispose(probeState.image::close)
-                                }
-                                Image(
-                                    bitmap = probeState.image.bitmap.asImageBitmap(),
-                                    contentDescription = null,
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Fit,
-                                )
-                                OcrRegionOverlay(
-                                    imageWidth = probeState.image.decodedWidth,
-                                    imageHeight = probeState.image.decodedHeight,
-                                    regions = probeState.regions,
-                                    matchedOrdinals = probeState.matchedRegionOrdinals,
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            }
-                            is ViewerProbeState.Failed ->
-                                Text(
-                                    text = stringResource(R.string.viewer_read_failed),
-                                    color = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.padding(24.dp),
-                                )
-                        }
-                    }
-                }
-            }
-            item {
-                Text(
-                    text =
-                        if (probeState is ViewerProbeState.Ready) {
-                            stringResource(
-                                R.string.viewer_ocr_details,
-                                probeState.image.sourceWidth,
-                                probeState.image.sourceHeight,
-                                probeState.regions.size,
-                            )
-                        } else {
-                            stringResource(R.string.viewer_privacy_note)
-                        },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            item {
-                FilledTonalButton(
-                    onClick = onFindSimilar,
-                    enabled = similarState !is SimilarUiState.Searching,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    if (similarState is SimilarUiState.Searching && similarState.sourceAssetId == item.assetId) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text(stringResource(R.string.viewer_find_similar))
-                    }
-                }
-            }
-            item {
-                OutlinedButton(
-                    onClick = onFindDuplicates,
-                    enabled = duplicateState !is DuplicateUiState.Searching,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    if (duplicateState is DuplicateUiState.Searching && duplicateState.sourceAssetId == item.assetId) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text(stringResource(R.string.viewer_find_duplicates))
-                    }
-                }
-            }
-            when (similarState) {
-                SimilarUiState.Idle,
-                is SimilarUiState.Searching,
-                -> Unit
-                is SimilarUiState.Failed -> if (similarState.sourceAssetId == item.assetId) {
-                    item {
-                        Text(
-                            text = stringResource(R.string.viewer_similar_failed),
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                }
-                is SimilarUiState.Ready -> if (similarState.sourceAssetId == item.assetId) {
-                    if (similarState.status != VisualSimilaritySearchStatus.READY) {
-                        item {
-                            Text(
-                                text =
-                                    stringResource(
-                                        if (similarState.status == VisualSimilaritySearchStatus.SOURCE_OUTSIDE_SCOPE) {
-                                            R.string.viewer_similar_outside_scope
-                                        } else {
-                                            R.string.viewer_similar_not_ready
-                                        },
-                                    ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    } else if (similarState.results.isEmpty()) {
-                        item { Text(stringResource(R.string.viewer_similar_empty)) }
-                    } else {
-                        item {
-                            Text(
-                                text = stringResource(R.string.viewer_similar_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                        items(similarState.results, key = { result -> result.asset.assetId }) { result ->
-                            SimilarResultCard(
-                                result = result,
-                                accessRevision = accessRevision,
-                                onLoadThumbnail = onLoadThumbnail,
-                                onClick = { onOpenSimilar(result.asset.assetId) },
-                            )
-                        }
-                    }
-                }
-            }
-            when (duplicateState) {
-                DuplicateUiState.Idle,
-                is DuplicateUiState.Searching,
-                -> Unit
-                is DuplicateUiState.Failed -> if (duplicateState.sourceAssetId == item.assetId) {
-                    item {
-                        Text(
-                            text = stringResource(R.string.viewer_duplicates_failed),
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                }
-                is DuplicateUiState.Ready -> if (duplicateState.sourceAssetId == item.assetId) {
-                    if (duplicateState.status != PerceptualHashSearchStatus.READY) {
-                        item {
-                            Text(
-                                text =
-                                    stringResource(
-                                        if (
-                                            duplicateState.status ==
-                                            PerceptualHashSearchStatus.SOURCE_OUTSIDE_SCOPE
-                                        ) {
-                                            R.string.viewer_duplicates_outside_scope
-                                        } else {
-                                            R.string.viewer_duplicates_not_ready
-                                        },
-                                    ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    } else if (duplicateState.results.isEmpty()) {
-                        item { Text(stringResource(R.string.viewer_duplicates_empty)) }
-                    } else {
-                        item {
-                            Text(
-                                text = stringResource(R.string.viewer_duplicates_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                        items(duplicateState.results, key = { result -> result.asset.assetId }) { result ->
-                            DuplicateResultCard(
-                                result = result,
-                                accessRevision = accessRevision,
-                                onLoadThumbnail = onLoadThumbnail,
-                                onClick = { onOpenSimilar(result.asset.assetId) },
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SimilarResultCard(
-    result: SimilarResultItem,
-    accessRevision: Long,
-    onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
-    onClick: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Item),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(modifier = Modifier.size(72.dp).clip(MaterialTheme.shapes.medium)) {
-                PhotoThumbnail(
-                    key = MediaKey(result.asset.volumeName, result.asset.mediaStoreId),
-                    accessRevision = accessRevision,
-                    description = result.asset.displayName,
-                    onLoad = onLoadThumbnail,
-                )
-            }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = result.asset.displayName ?: stringResource(
-                        R.string.catalog_unnamed_photo,
-                        result.asset.assetId,
-                    ),
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = stringResource(R.string.evidence_visual),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DuplicateResultCard(
-    result: DuplicateResultItem,
-    accessRevision: Long,
-    onLoadThumbnail: suspend (MediaKey, Long) -> Bitmap?,
-    onClick: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Item),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(modifier = Modifier.size(72.dp).clip(MaterialTheme.shapes.medium)) {
-                PhotoThumbnail(
-                    key = MediaKey(result.asset.volumeName, result.asset.mediaStoreId),
-                    accessRevision = accessRevision,
-                    description = result.asset.displayName,
-                    onLoad = onLoadThumbnail,
-                )
-            }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = result.asset.displayName ?: stringResource(
-                        R.string.catalog_unnamed_photo,
-                        result.asset.assetId,
-                    ),
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = stringResource(
-                        if (result.match.distance == 0) {
-                            R.string.viewer_duplicate_exact
-                        } else {
-                            R.string.viewer_duplicate_near
-                        },
-                    ),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun OcrRegionOverlay(
-    imageWidth: Int,
-    imageHeight: Int,
-    regions: List<OcrRegionEntity>,
-    matchedOrdinals: Set<Int>,
-    modifier: Modifier = Modifier,
-) {
-    val regularColor = MaterialTheme.colorScheme.tertiary
-    val matchedColor = MaterialTheme.colorScheme.primary
-    Canvas(modifier) {
-        val imageAspect = imageWidth.toFloat() / imageHeight
-        val canvasAspect = size.width / size.height
-        val renderedWidth: Float
-        val renderedHeight: Float
-        val offsetX: Float
-        val offsetY: Float
-        if (canvasAspect > imageAspect) {
-            renderedHeight = size.height
-            renderedWidth = renderedHeight * imageAspect
-            offsetX = (size.width - renderedWidth) / 2f
-            offsetY = 0f
-        } else {
-            renderedWidth = size.width
-            renderedHeight = renderedWidth / imageAspect
-            offsetX = 0f
-            offsetY = (size.height - renderedHeight) / 2f
-        }
-        regions.forEach { region ->
-            fun x(value: Int) = offsetX + value / 1_000_000f * renderedWidth
-            fun y(value: Int) = offsetY + value / 1_000_000f * renderedHeight
-            val path =
-                Path().apply {
-                    moveTo(x(region.x0Micros), y(region.y0Micros))
-                    lineTo(x(region.x1Micros), y(region.y1Micros))
-                    lineTo(x(region.x2Micros), y(region.y2Micros))
-                    lineTo(x(region.x3Micros), y(region.y3Micros))
-                    close()
-                }
-            drawPath(
-                path = path,
-                color = if (region.ordinal in matchedOrdinals) matchedColor else regularColor,
-                style = Stroke(width = if (region.ordinal in matchedOrdinals) 5f else 2.5f),
-            )
-        }
-    }
-}
 
 @Composable
 private fun MetricCard(title: String, value: String, supporting: String, icon: ImageVector) {
@@ -2032,18 +1656,6 @@ private fun preparationIssue(code: String): String = stringResource(
         else -> R.string.ocr_index_failed
     },
 )
-
-private fun app.nayti.storage.CatalogAssetEntity.toCatalogItem(): CatalogItem =
-    CatalogItem(
-        assetId = assetId,
-        key = app.nayti.platform.media.MediaKey(volumeName, mediaStoreId),
-        displayName = displayName,
-        bucketDisplayName = bucketDisplayName,
-        mimeType = mimeType,
-        width = width,
-        height = height,
-        dateTakenMillis = dateTakenMillis,
-    )
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
 @Composable
@@ -2084,7 +1696,7 @@ private fun NaytiPreview() {
             searchFilterFacets = SearchFilterFacets(emptyList(), emptyList()),
             similar = SimilarUiState.Idle,
             duplicates = DuplicateUiState.Idle,
-            viewerProbe = ViewerProbeState.Idle,
+            viewer = ViewerUiState.Idle,
             onLoadThumbnail = { _, _ -> null },
             localStorage = LocalStorageSummary(0L, 0L),
             diagnosticsExport = DiagnosticsExportState.Idle,
@@ -2105,8 +1717,8 @@ private fun NaytiPreview() {
             onRetryIndexingGaps = {},
             onSelectIndexingMonths = {},
             onSelectIndexingStartDate = {},
-            onProbe = {},
-            onClearProbe = {},
+            onOpenViewer = {},
+            onCloseViewer = {},
             onRefreshStorage = {},
             onExportDiagnostics = {},
             onResetSearchData = {},

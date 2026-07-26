@@ -8,6 +8,9 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.nayti.R
@@ -31,7 +34,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class DataScreenTest {
+class SettingsScreenTest {
     @get:Rule
     val composeRule = createComposeRule()
 
@@ -112,6 +115,38 @@ class DataScreenTest {
         composeRule.onNodeWithText(models).assertIsDisplayed()
     }
 
+    @Test
+    fun destructiveActionRemainsReachableAtTwoHundredPercentFontScale() {
+        composeRule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(density.density, fontScale = 2f),
+            ) {
+                NaytiTheme {
+                    SettingsScreen(
+                        catalog = catalog(0),
+                        modelPack = modelPack(),
+                        localStorage = LocalStorageSummary(1_024, 2_048),
+                        diagnosticsExport = DiagnosticsExportState.Idle,
+                        searchDataReset = SearchDataResetState.Idle,
+                        modelPackRollback = ModelPackRollbackState.Unavailable("1.0"),
+                        indexing = indexing(),
+                        onRequestAccess = {},
+                        onImportModelPack = {},
+                        onRefreshStorage = {},
+                        onExportDiagnostics = {},
+                        onResetSearchData = {},
+                        onRollbackModelPack = {},
+                    )
+                }
+            }
+        }
+
+        val action = context.getString(R.string.reset_index_action)
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(action))
+        composeRule.onNodeWithText(action).assertIsDisplayed()
+    }
+
     private fun setContent(
         rollback: ModelPackRollbackState = ModelPackRollbackState.Unavailable("1.0"),
         retainedQuarantine: Long = 0,
@@ -121,7 +156,7 @@ class DataScreenTest {
     ) {
         composeRule.setContent {
             NaytiTheme {
-                DataScreen(
+                SettingsScreen(
                     catalog = catalog(retainedQuarantine),
                     modelPack = modelPack(),
                     localStorage = LocalStorageSummary(indexBytes = 1_024, modelBytes = 2_048),

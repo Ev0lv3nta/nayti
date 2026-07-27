@@ -2,21 +2,28 @@ package app.nayti.ui.preparation
 
 import android.app.DatePickerDialog
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -31,11 +38,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.nayti.R
@@ -43,23 +49,120 @@ import app.nayti.indexer.CatalogRuntimeState
 import app.nayti.indexer.ModelPackRuntimeState
 import app.nayti.indexer.OcrIndexingState
 import app.nayti.indexer.SearchCapability
-import app.nayti.indexer.SearchCapabilityCoverage
+import app.nayti.ui.designsystem.icon.NaytiIcon
+import app.nayti.ui.designsystem.icon.NaytiIconMark
 import app.nayti.ui.designsystem.theme.NaytiSpacing
 import app.nayti.ui.designsystem.theme.NaytiTheme
-import app.nayti.ui.shell.ShellStatusMessage
-import app.nayti.ui.shell.stringResource
 import java.text.DateFormat
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Date
-import kotlin.math.floor
 
-private enum class PreparationSheetPage {
-    Overview,
-    Period,
+sealed interface ReadinessPeriodSelection {
+    data class ExtendByMonths(val months: Long) : ReadinessPeriodSelection
+
+    data object AllMedia : ReadinessPeriodSelection
+
+    data class SinceDate(val epochMillis: Long) : ReadinessPeriodSelection
 }
 
+/**
+ * Full child destination for preparation readiness.
+ *
+ * [onChangePeriod] owns the durable runtime orchestration. When preparation is running it must
+ * perform the existing pause -> scope update -> resume sequence; this composable confirms that
+ * transition before invoking the callback.
+ */
+@Composable
+fun ReadinessScreen(
+    catalog: CatalogRuntimeState,
+    modelPack: ModelPackRuntimeState,
+    indexing: OcrIndexingState,
+    onBack: () -> Unit,
+    onRequestAccess: () -> Unit,
+    onImportModels: () -> Unit,
+    onStart: () -> Unit,
+    onPause: () -> Unit,
+    onCancel: () -> Unit,
+    onRetryGaps: () -> Unit,
+    onChangePeriod: (ReadinessPeriodSelection) -> Unit,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val state = PreparationUiMapper.map(catalog, modelPack, indexing)
+    var showDetails by rememberSaveable { mutableStateOf(false) }
+    var confirmCancel by rememberSaveable { mutableStateOf(false) }
+    var pendingPeriodChange by remember { mutableStateOf<ReadinessPeriodSelection?>(null) }
+
+    ReadinessContent(
+        state = state,
+        indexing = indexing,
+        showBack = true,
+        showDetails = showDetails,
+        onBack = onBack,
+        onPrimaryAction = {
+            dispatchPrimaryAction(
+                action = state.primaryAction,
+                onRequestAccess = onRequestAccess,
+                onImportModels = onImportModels,
+                onStart = onStart,
+                onPause = onPause,
+                onRetryGaps = onRetryGaps,
+            )
+        },
+        onToggleDetails = { showDetails = !showDetails },
+        onPeriodChange = { selection ->
+            if (state.periodChangeRequiresPause) {
+                pendingPeriodChange = selection
+            } else {
+                onChangePeriod(selection)
+            }
+        },
+        onRetryGaps = onRetryGaps,
+        onCancel = { confirmCancel = true },
+        onOpenSettings = onOpenSettings,
+        modifier = modifier,
+    )
+
+    pendingPeriodChange?.let { selection ->
+        AlertDialog(
+            onDismissRequest = { pendingPeriodChange = null },
+            title = { Text(stringResource(R.string.readiness_period_pause_title)) },
+            text = { Text(stringResource(R.string.readiness_period_pause_body)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        pendingPeriodChange = null
+                        onChangePeriod(selection)
+                    },
+                ) {
+                    Text(stringResource(R.string.readiness_period_pause_action))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingPeriodChange = null }) {
+                    Text(stringResource(R.string.readiness_keep_running))
+                }
+            },
+        )
+    }
+
+    if (confirmCancel) {
+        CancelPreparationDialog(
+            onDismiss = { confirmCancel = false },
+            onConfirm = {
+                confirmCancel = false
+                onCancel()
+            },
+        )
+    }
+}
+
+/**
+ * Compatibility adapter for the current root sheet. The full-screen [ReadinessScreen] should be
+ * used by the new readiness route.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PreparationSheet(
@@ -78,17 +181,19 @@ fun PreparationSheet(
     onOpenSettings: () -> Unit,
 ) {
     val state = PreparationUiMapper.map(catalog, modelPack, indexing)
-    var page by rememberSaveable { mutableStateOf(PreparationSheetPage.Overview) }
-    var showMore by rememberSaveable { mutableStateOf(false) }
+    var showDetails by rememberSaveable { mutableStateOf(false) }
     var confirmCancel by rememberSaveable { mutableStateOf(false) }
-    var confirmPauseForPeriod by rememberSaveable { mutableStateOf(false) }
-    var openPeriodAfterPause by rememberSaveable { mutableStateOf(false) }
+    var pendingAfterPause by remember {
+        mutableStateOf<ReadinessPeriodSelection?>(null)
+    }
+    var confirmPause by remember { mutableStateOf<ReadinessPeriodSelection?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    LaunchedEffect(indexing.status, openPeriodAfterPause) {
-        if (openPeriodAfterPause && !state.isRunning) {
-            openPeriodAfterPause = false
-            page = PreparationSheetPage.Period
+    LaunchedEffect(state.isRunning, pendingAfterPause) {
+        val pending = pendingAfterPause
+        if (!state.isRunning && pending != null) {
+            pendingAfterPause = null
+            dispatchLegacyPeriodSelection(pending, onSelectMonths, onSelectStartDate)
         }
     }
 
@@ -96,95 +201,67 @@ fun PreparationSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {
-        when (page) {
-            PreparationSheetPage.Overview -> {
-                PreparationOverview(
-                    state = state,
-                    indexing = indexing,
-                    showMore = showMore,
-                    onPrimaryAction = {
-                        when (state.primaryAction) {
-                            PreparationPrimaryAction.RequestAccess -> onRequestAccess()
-                            PreparationPrimaryAction.ImportModels -> onImportModels()
-                            PreparationPrimaryAction.Start -> onStart()
-                            PreparationPrimaryAction.Pause -> onPause()
-                            PreparationPrimaryAction.RetryGaps -> onRetryGaps()
-                            null -> Unit
-                        }
-                    },
-                    onToggleMore = { showMore = !showMore },
-                    onChangePeriod = {
-                        if (state.periodChangeRequiresPause) {
-                            confirmPauseForPeriod = true
-                        } else {
-                            page = PreparationSheetPage.Period
-                        }
-                    },
+        ReadinessContent(
+            state = state,
+            indexing = indexing,
+            showBack = false,
+            showDetails = showDetails,
+            onBack = onDismiss,
+            onPrimaryAction = {
+                dispatchPrimaryAction(
+                    action = state.primaryAction,
+                    onRequestAccess = onRequestAccess,
+                    onImportModels = onImportModels,
+                    onStart = onStart,
+                    onPause = onPause,
                     onRetryGaps = onRetryGaps,
-                    onCancel = { confirmCancel = true },
-                    onOpenSettings = onOpenSettings,
                 )
-            }
-            PreparationSheetPage.Period -> {
-                PreparationPeriodPage(
-                    indexing = indexing,
-                    onBack = { page = PreparationSheetPage.Overview },
-                    onSelectMonths = { months ->
-                        onSelectMonths(months)
-                        page = PreparationSheetPage.Overview
-                    },
-                    onSelectStartDate = { millis ->
-                        onSelectStartDate(millis)
-                        page = PreparationSheetPage.Overview
-                    },
-                )
-            }
-        }
+            },
+            onToggleDetails = { showDetails = !showDetails },
+            onPeriodChange = { selection ->
+                if (state.periodChangeRequiresPause) {
+                    confirmPause = selection
+                } else {
+                    dispatchLegacyPeriodSelection(selection, onSelectMonths, onSelectStartDate)
+                }
+            },
+            onRetryGaps = onRetryGaps,
+            onCancel = { confirmCancel = true },
+            onOpenSettings = onOpenSettings,
+            modifier = Modifier.fillMaxHeight(0.94f),
+        )
     }
 
-    if (confirmPauseForPeriod) {
+    confirmPause?.let { selection ->
         AlertDialog(
-            onDismissRequest = { confirmPauseForPeriod = false },
-            title = { Text(stringResource(R.string.preparation_period_pause_title)) },
-            text = { Text(stringResource(R.string.preparation_period_pause_body)) },
+            onDismissRequest = { confirmPause = null },
+            title = { Text(stringResource(R.string.readiness_period_pause_title)) },
+            text = { Text(stringResource(R.string.readiness_period_pause_body)) },
             confirmButton = {
                 Button(
                     onClick = {
-                        confirmPauseForPeriod = false
-                        openPeriodAfterPause = true
+                        confirmPause = null
+                        pendingAfterPause = selection
                         onPause()
                     },
                 ) {
-                    Text(stringResource(R.string.preparation_period_pause_action))
+                    Text(stringResource(R.string.readiness_period_pause_action))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmPauseForPeriod = false }) {
-                    Text(stringResource(R.string.preparation_keep_running))
+                TextButton(onClick = { confirmPause = null }) {
+                    Text(stringResource(R.string.readiness_keep_running))
                 }
             },
         )
     }
 
     if (confirmCancel) {
-        AlertDialog(
-            onDismissRequest = { confirmCancel = false },
-            title = { Text(stringResource(R.string.preparation_cancel_title)) },
-            text = { Text(stringResource(R.string.preparation_cancel_body)) },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        confirmCancel = false
-                        onCancel()
-                    },
-                ) {
-                    Text(stringResource(R.string.preparation_cancel_action))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmCancel = false }) {
-                    Text(stringResource(R.string.preparation_keep_task))
-                }
+        CancelPreparationDialog(
+            onDismiss = { confirmCancel = false },
+            onConfirm = {
+                confirmCancel = false
+                onCancel()
             },
         )
     }
@@ -202,126 +279,154 @@ internal fun PreparationOverview(
     onCancel: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    LazyColumn(
+    ReadinessContent(
+        state = state,
+        indexing = indexing,
+        showBack = false,
+        showDetails = showMore,
+        onBack = {},
+        onPrimaryAction = onPrimaryAction,
+        onToggleDetails = onToggleMore,
+        onPeriodChange = { onChangePeriod() },
+        onRetryGaps = onRetryGaps,
+        onCancel = onCancel,
+        onOpenSettings = onOpenSettings,
         modifier = Modifier.fillMaxHeight(0.94f),
-        contentPadding = PaddingValues(
-            start = NaytiSpacing.Screen,
-            end = NaytiSpacing.Screen,
-            bottom = NaytiSpacing.Section,
-        ),
+    )
+}
+
+@Composable
+private fun ReadinessContent(
+    state: PreparationUiState,
+    indexing: OcrIndexingState,
+    showBack: Boolean,
+    showDetails: Boolean,
+    onBack: () -> Unit,
+    onPrimaryAction: () -> Unit,
+    onToggleDetails: () -> Unit,
+    onPeriodChange: (ReadinessPeriodSelection) -> Unit,
+    onRetryGaps: () -> Unit,
+    onCancel: () -> Unit,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding =
+            PaddingValues(
+                start = NaytiSpacing.Screen,
+                top = NaytiSpacing.Medium,
+                end = NaytiSpacing.Screen,
+                bottom = NaytiSpacing.Section,
+            ),
         verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
     ) {
         item {
-            Text(
-                text = stringResource(R.string.preparation_sheet_title),
-                modifier = Modifier.semantics { heading() },
-                style = NaytiTheme.type.titleL,
-                color = NaytiTheme.colors.ink,
-            )
+            ReadinessHeader(showBack = showBack, onBack = onBack)
         }
         item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { liveRegion = LiveRegionMode.Polite },
-                verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
-            ) {
-                Text(
-                    text = stringResource(state.status.message.stringResource),
-                    style = NaytiTheme.type.titleM,
-                    color = statusColor(state.status.message),
-                )
-                Text(
-                    text = stringResource(state.supportingText),
-                    style = NaytiTheme.type.bodyM,
-                    color = NaytiTheme.colors.inkMuted,
-                )
-            }
+            ReadinessStatusCard(state)
         }
-        state.primaryAction?.let { action ->
+        state.primaryAction?.let {
             item {
                 Button(
                     onClick = onPrimaryAction,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
                 ) {
-                    Text(stringResource(action.label(state.issue)))
+                    Text(stringResource(it.label))
                 }
             }
         }
         item {
             Text(
-                text = stringResource(R.string.preparation_channels_title),
+                text = stringResource(R.string.readiness_channels_title),
                 modifier = Modifier.semantics { heading() },
                 style = NaytiTheme.type.titleM,
                 color = NaytiTheme.colors.ink,
             )
         }
-        if (indexing.capabilities.isEmpty()) {
-            item {
-                Text(
-                    text = stringResource(R.string.preparation_channels_waiting),
-                    style = NaytiTheme.type.bodyM,
-                    color = NaytiTheme.colors.inkMuted,
-                )
-            }
-        } else {
-            items(
-                items = indexing.capabilities.sortedBy { coverage -> coverage.capability.ordinal },
-                key = { coverage -> coverage.capability },
-            ) { coverage ->
-                PreparationChannelRow(coverage)
-            }
+        items(
+            items = state.channels,
+            key = { channel -> channel.capability },
+        ) { channel ->
+            ReadinessChannelCard(channel)
         }
         item {
-            HorizontalDivider(color = NaytiTheme.colors.hairline)
-        }
-        item {
-            PreparationPeriodRow(
+            ReadinessPeriodCard(
                 indexing = indexing,
-                onChangePeriod = onChangePeriod,
+                onExtendOneMonth = {
+                    onPeriodChange(ReadinessPeriodSelection.ExtendByMonths(1))
+                },
+                onExtendThreeMonths = {
+                    onPeriodChange(ReadinessPeriodSelection.ExtendByMonths(3))
+                },
+                onSelectAll = {
+                    onPeriodChange(ReadinessPeriodSelection.AllMedia)
+                },
+                onSelectDate = {
+                    showStartDatePicker(
+                        initialMillis = indexing.scope.takenFromMillis,
+                        onSelected = { millis ->
+                            onPeriodChange(ReadinessPeriodSelection.SinceDate(millis))
+                        },
+                        context = context,
+                    )
+                },
             )
         }
         item {
-            TextButton(onClick = onToggleMore) {
+            TextButton(
+                onClick = onToggleDetails,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
                 Text(
                     stringResource(
-                        if (showMore) {
-                            R.string.preparation_less_actions
+                        if (showDetails) {
+                            R.string.readiness_hide_details
                         } else {
-                            R.string.preparation_more_actions
+                            R.string.readiness_show_details
                         },
                     ),
                 )
             }
         }
-        if (showMore) {
+        if (showDetails) {
             if (state.canRetryGaps) {
                 item {
-                    TextButton(onClick = onRetryGaps) {
-                        Text(stringResource(R.string.preparation_retry_gaps))
+                    OutlinedButton(
+                        onClick = onRetryGaps,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.readiness_retry_gaps))
                     }
                 }
             }
             if (state.canCancel) {
                 item {
-                    TextButton(onClick = onCancel) {
+                    OutlinedButton(
+                        onClick = onCancel,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
                         Text(
-                            text = stringResource(R.string.preparation_cancel_menu),
+                            text = stringResource(R.string.readiness_cancel),
                             color = NaytiTheme.colors.error,
                         )
                     }
                 }
             }
             item {
-                TextButton(onClick = onOpenSettings) {
-                    Text(stringResource(R.string.preparation_open_settings))
+                TextButton(
+                    onClick = onOpenSettings,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.readiness_open_settings))
                 }
             }
         }
         item {
             Text(
-                text = stringResource(R.string.preparation_saved_footer),
-                modifier = Modifier.padding(top = NaytiSpacing.Small),
+                text = stringResource(R.string.readiness_progress_saved),
                 style = NaytiTheme.type.labelS,
                 color = NaytiTheme.colors.inkMuted,
             )
@@ -330,178 +435,335 @@ internal fun PreparationOverview(
 }
 
 @Composable
-private fun PreparationChannelRow(coverage: SearchCapabilityCoverage) {
-    val title = stringResource(coverage.capability.title)
-    val percent =
-        if (coverage.accessible == 0L) {
-            0
-        } else {
-            floor(coverage.committed.toDouble() * 100.0 / coverage.accessible.toDouble())
-                .toInt()
-                .coerceIn(0, 100)
-        }
-    val stateLabel =
-        stringResource(
-            R.string.preparation_channel_state_description,
-            title,
-            coverage.committed,
-            coverage.accessible,
-            percent,
-            coverage.permanentGaps,
-        )
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics { stateDescription = stateLabel },
-        verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = title,
-                modifier = Modifier.weight(1f),
-                style = NaytiTheme.type.bodyM,
-                color = NaytiTheme.colors.ink,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = stringResource(R.string.preparation_channel_percent, percent),
-                style = NaytiTheme.type.labelL,
-                color = NaytiTheme.colors.ink,
-            )
-        }
-        LinearProgressIndicator(
-            progress = {
-                if (coverage.accessible == 0L) {
-                    0f
-                } else {
-                    (coverage.committed.toFloat() / coverage.accessible.toFloat()).coerceIn(0f, 1f)
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            color = NaytiTheme.colors.ready,
-            trackColor = NaytiTheme.colors.surfaceHigh,
-        )
-        Text(
-            text =
-                if (coverage.permanentGaps == 0L) {
-                    stringResource(
-                        R.string.preparation_channel_counts,
-                        coverage.committed,
-                        coverage.accessible,
-                    )
-                } else {
-                    stringResource(
-                        R.string.preparation_channel_counts_with_gaps,
-                        coverage.committed,
-                        coverage.accessible,
-                        coverage.permanentGaps,
-                    )
-                },
-            style = NaytiTheme.type.labelS,
-            color = NaytiTheme.colors.inkMuted,
-        )
-    }
-}
-
-@Composable
-private fun PreparationPeriodRow(
-    indexing: OcrIndexingState,
-    onChangePeriod: () -> Unit,
+private fun ReadinessHeader(
+    showBack: Boolean,
+    onBack: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
     ) {
+        if (showBack) {
+            IconButton(onClick = onBack) {
+                NaytiIconMark(
+                    icon = NaytiIcon.Back,
+                    color = NaytiTheme.colors.ink,
+                )
+            }
+        }
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
         ) {
             Text(
-                text = stringResource(R.string.preparation_period_title),
-                style = NaytiTheme.type.labelL,
-                color = NaytiTheme.colors.inkMuted,
-            )
-            Text(
-                text = periodDescription(indexing),
-                style = NaytiTheme.type.bodyM,
+                text = stringResource(R.string.readiness_title),
+                modifier = Modifier.semantics { heading() },
+                style = NaytiTheme.type.hero,
                 color = NaytiTheme.colors.ink,
             )
-        }
-        TextButton(onClick = onChangePeriod) {
-            Text(stringResource(R.string.preparation_period_change))
+            Text(
+                text = stringResource(R.string.readiness_subtitle),
+                style = NaytiTheme.type.bodyM,
+                color = NaytiTheme.colors.inkMuted,
+            )
         }
     }
 }
 
 @Composable
-private fun PreparationPeriodPage(
+private fun ReadinessStatusCard(state: PreparationUiState) {
+    Surface(
+        color = NaytiTheme.colors.surface,
+        contentColor = NaytiTheme.colors.ink,
+        shape = NaytiTheme.shapes.card,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Screen),
+            horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Surface(
+                color = NaytiTheme.colors.surfaceHigh,
+                contentColor = state.qualitativeStatus.color(),
+                shape = NaytiTheme.shapes.control,
+            ) {
+                Box(
+                    modifier = Modifier.size(48.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    NaytiIconMark(
+                        icon = state.qualitativeStatus.icon,
+                        size = 24.dp,
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
+            ) {
+                Text(
+                    text = stringResource(state.qualitativeStatus.title),
+                    style = NaytiTheme.type.titleM,
+                    color = state.qualitativeStatus.color(),
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = stringResource(state.qualitativeStatus.body(state.issue)),
+                    style = NaytiTheme.type.bodyM,
+                    color = NaytiTheme.colors.inkMuted,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadinessChannelCard(channel: PreparationChannelUi) {
+    val title = stringResource(channel.capability.title)
+    val stateLabel =
+        if (channel.hasRuntimeCoverage) {
+            stringResource(
+                R.string.readiness_channel_state,
+                title,
+                channel.ready,
+                channel.total,
+                channel.gaps,
+            )
+        } else {
+            stringResource(R.string.readiness_channel_waiting_state, title)
+        }
+    val progress =
+        if (channel.total <= 0) {
+            0f
+        } else {
+            (channel.ready.toFloat() / channel.total.toFloat()).coerceIn(0f, 1f)
+        }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = NaytiTheme.colors.surface,
+        contentColor = NaytiTheme.colors.ink,
+        shape = NaytiTheme.shapes.card,
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .semantics(mergeDescendants = true) {
+                        stateDescription = stateLabel
+                    }
+                    .padding(NaytiSpacing.Screen),
+            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                NaytiIconMark(
+                    icon = channel.capability.icon,
+                    color = NaytiTheme.colors.accent,
+                    size = 22.dp,
+                )
+                Text(
+                    text = title,
+                    modifier = Modifier.weight(1f),
+                    style = NaytiTheme.type.titleM,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (channel.hasRuntimeCoverage) {
+                    Text(
+                        text =
+                            stringResource(
+                                R.string.readiness_channel_counts,
+                                channel.ready,
+                                channel.total,
+                            ),
+                        style = NaytiTheme.type.labelL,
+                    )
+                }
+            }
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .semantics {
+                            progressBarRangeInfo =
+                                androidx.compose.ui.semantics.ProgressBarRangeInfo(
+                                    current = channel.ready.toFloat(),
+                                    range = 0f..channel.total.coerceAtLeast(0).toFloat(),
+                                )
+                        },
+                color =
+                    if (channel.gaps > 0) {
+                        NaytiTheme.colors.attention
+                    } else {
+                        NaytiTheme.colors.ready
+                    },
+                trackColor = NaytiTheme.colors.surfaceHigh,
+            )
+            Text(
+                text =
+                    when {
+                        !channel.hasRuntimeCoverage ->
+                            stringResource(R.string.readiness_channel_waiting)
+                        channel.gaps > 0 ->
+                            stringResource(R.string.readiness_channel_gaps, channel.gaps)
+                        else ->
+                            stringResource(R.string.readiness_channel_no_gaps)
+                    },
+                style = NaytiTheme.type.labelS,
+                color = NaytiTheme.colors.inkMuted,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReadinessPeriodCard(
     indexing: OcrIndexingState,
-    onBack: () -> Unit,
+    onExtendOneMonth: () -> Unit,
+    onExtendThreeMonths: () -> Unit,
+    onSelectAll: () -> Unit,
+    onSelectDate: () -> Unit,
+) {
+    Surface(
+        color = NaytiTheme.colors.surface,
+        contentColor = NaytiTheme.colors.ink,
+        shape = NaytiTheme.shapes.card,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Screen),
+            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                NaytiIconMark(
+                    icon = NaytiIcon.Period,
+                    color = NaytiTheme.colors.accent,
+                    size = 22.dp,
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
+                ) {
+                    Text(
+                        text = stringResource(R.string.readiness_period_title),
+                        style = NaytiTheme.type.titleM,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = periodDescription(indexing),
+                        style = NaytiTheme.type.bodyM,
+                        color = NaytiTheme.colors.inkMuted,
+                    )
+                }
+            }
+            Text(
+                text = stringResource(R.string.readiness_period_reuse),
+                style = NaytiTheme.type.bodyM,
+                color = NaytiTheme.colors.inkMuted,
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Small)) {
+                OutlinedButton(
+                    onClick = onExtendOneMonth,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.readiness_period_plus_one))
+                }
+                OutlinedButton(
+                    onClick = onExtendThreeMonths,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.readiness_period_plus_three))
+                }
+                OutlinedButton(
+                    onClick = onSelectAll,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = indexing.scope.takenFromMillis != null,
+                ) {
+                    Text(stringResource(R.string.readiness_period_all))
+                }
+                TextButton(
+                    onClick = onSelectDate,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.readiness_period_date))
+                }
+            }
+            if (indexing.scope.unknownDateAssets > 0 && indexing.scope.takenFromMillis != null) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.readiness_period_unknown_dates,
+                            indexing.scope.unknownDateAssets,
+                        ),
+                    style = NaytiTheme.type.labelS,
+                    color = NaytiTheme.colors.inkMuted,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CancelPreparationDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.readiness_cancel_title)) },
+        text = { Text(stringResource(R.string.readiness_cancel_body)) },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text(
+                    text = stringResource(R.string.readiness_cancel_confirm),
+                    color = NaytiTheme.colors.onAccent,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.readiness_cancel_keep))
+            }
+        },
+    )
+}
+
+private fun dispatchPrimaryAction(
+    action: PreparationPrimaryAction?,
+    onRequestAccess: () -> Unit,
+    onImportModels: () -> Unit,
+    onStart: () -> Unit,
+    onPause: () -> Unit,
+    onRetryGaps: () -> Unit,
+) {
+    when (action) {
+        PreparationPrimaryAction.RequestAccess -> onRequestAccess()
+        PreparationPrimaryAction.ImportModels -> onImportModels()
+        PreparationPrimaryAction.Start,
+        PreparationPrimaryAction.Continue,
+        PreparationPrimaryAction.CheckAndContinue,
+        -> onStart()
+        PreparationPrimaryAction.Pause -> onPause()
+        PreparationPrimaryAction.RetryGaps -> onRetryGaps()
+        null -> Unit
+    }
+}
+
+private fun dispatchLegacyPeriodSelection(
+    selection: ReadinessPeriodSelection,
     onSelectMonths: (Long?) -> Unit,
     onSelectStartDate: (Long) -> Unit,
 ) {
-    val context = LocalContext.current
-    Column(
-        modifier = Modifier
-            .fillMaxHeight(0.78f)
-            .padding(horizontal = NaytiSpacing.Screen),
-        verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
-    ) {
-        Text(
-            text = stringResource(R.string.preparation_period_sheet_title),
-            modifier = Modifier.semantics { heading() },
-            style = NaytiTheme.type.titleL,
-            color = NaytiTheme.colors.ink,
-        )
-        Text(
-            text = stringResource(R.string.preparation_period_sheet_body),
-            style = NaytiTheme.type.bodyM,
-            color = NaytiTheme.colors.inkMuted,
-        )
-        Text(
-            text = periodDescription(indexing),
-            style = NaytiTheme.type.titleM,
-            color = NaytiTheme.colors.ink,
-        )
-        listOf<Long?>(1, 3, 6, 12, null).forEach { months ->
-            FilterChip(
-                selected =
-                    if (months == null) {
-                        indexing.scope.takenFromMillis == null
-                    } else {
-                        false
-                    },
-                onClick = { onSelectMonths(months) },
-                label = {
-                    Text(
-                        if (months == null) {
-                            stringResource(R.string.indexing_scope_all)
-                        } else {
-                            stringResource(R.string.indexing_scope_months_short, months)
-                        },
-                    )
-                },
-            )
-        }
-        TextButton(
-            onClick = {
-                showStartDatePicker(
-                    initialMillis = indexing.scope.takenFromMillis,
-                    onSelected = onSelectStartDate,
-                    context = context,
-                )
-            },
-        ) {
-            Text(stringResource(R.string.indexing_scope_since_date))
-        }
-        TextButton(onClick = onBack) {
-            Text(stringResource(R.string.preparation_period_back))
-        }
+    when (selection) {
+        is ReadinessPeriodSelection.ExtendByMonths -> onSelectMonths(selection.months)
+        ReadinessPeriodSelection.AllMedia -> onSelectMonths(null)
+        is ReadinessPeriodSelection.SinceDate -> onSelectStartDate(selection.epochMillis)
     }
 }
 
@@ -510,13 +772,11 @@ private fun periodDescription(indexing: OcrIndexingState): String {
     val scope = indexing.scope
     val takenFromMillis = scope.takenFromMillis
     return if (takenFromMillis == null) {
-        stringResource(R.string.preparation_period_all, scope.eligibleAssets)
+        stringResource(R.string.readiness_period_all_description, scope.eligibleAssets)
     } else {
-        val date =
-            DateFormat.getDateInstance(DateFormat.MEDIUM)
-                .format(Date(takenFromMillis))
+        val date = DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(takenFromMillis))
         stringResource(
-            R.string.preparation_period_since,
+            R.string.readiness_period_since_description,
             date,
             scope.eligibleAssets,
             scope.totalAvailable,
@@ -560,61 +820,84 @@ private fun showStartDatePicker(
 private val SearchCapability.title: Int
     get() =
         when (this) {
-            SearchCapability.TEXT -> R.string.capability_text_title
-            SearchCapability.MEANING -> R.string.capability_meaning_title
-            SearchCapability.VISUAL -> R.string.capability_visual_title
-            SearchCapability.DUPLICATES -> R.string.capability_duplicates_title
+            SearchCapability.TEXT -> R.string.readiness_channel_literal
+            SearchCapability.MEANING -> R.string.readiness_channel_semantic
+            SearchCapability.VISUAL -> R.string.readiness_channel_visual
+            SearchCapability.DUPLICATES -> R.string.readiness_channel_duplicates
         }
 
-private val PreparationUiState.supportingText: Int
+private val SearchCapability.icon: NaytiIcon
     get() =
-        when (status.message) {
-            ShellStatusMessage.NeedsAccess -> R.string.preparation_support_access
-            ShellStatusMessage.NeedsModels,
-            ShellStatusMessage.ModelsFailed,
-            -> R.string.preparation_support_models
-            ShellStatusMessage.SearchReadyPreparing -> R.string.preparation_support_running_ready
-            ShellStatusMessage.Preparing -> R.string.preparation_support_running_empty
-            ShellStatusMessage.PausedByUser -> R.string.preparation_support_paused_user
-            ShellStatusMessage.PausedBySystem -> R.string.preparation_support_paused_system
-            ShellStatusMessage.PausedThermal -> R.string.preparation_support_thermal
-            ShellStatusMessage.PausedMemory -> R.string.preparation_support_memory
-            ShellStatusMessage.PausedStorage -> R.string.preparation_support_storage
-            ShellStatusMessage.PausedBatterySaver -> R.string.preparation_support_battery_saver
-            ShellStatusMessage.PausedBatteryLow -> R.string.preparation_support_battery_low
-            ShellStatusMessage.PausedCharging -> R.string.preparation_support_charging
-            ShellStatusMessage.Completed -> R.string.preparation_support_completed
-            ShellStatusMessage.CompletedWithGaps -> R.string.preparation_support_completed_gaps
-            ShellStatusMessage.PreparationFailed,
-            ShellStatusMessage.LibraryFailed,
-            -> R.string.preparation_support_failed
-            else -> R.string.preparation_support_saved
+        when (this) {
+            SearchCapability.TEXT -> NaytiIcon.Text
+            SearchCapability.MEANING -> NaytiIcon.Meaning
+            SearchCapability.VISUAL -> NaytiIcon.Scene
+            SearchCapability.DUPLICATES -> NaytiIcon.Copies
         }
 
-private fun PreparationPrimaryAction.label(issue: PreparationIssue?): Int =
-    when (this) {
-        PreparationPrimaryAction.RequestAccess -> R.string.preparation_action_access
-        PreparationPrimaryAction.ImportModels -> R.string.preparation_action_models
-        PreparationPrimaryAction.Start ->
-            if (issue == null) {
-                R.string.preparation_action_start
-            } else {
-                R.string.preparation_action_retry
-            }
-        PreparationPrimaryAction.Pause -> R.string.preparation_action_pause
-        PreparationPrimaryAction.RetryGaps -> R.string.preparation_retry_gaps
-    }
+private val PreparationPrimaryAction.label: Int
+    get() =
+        when (this) {
+            PreparationPrimaryAction.RequestAccess -> R.string.readiness_action_access
+            PreparationPrimaryAction.ImportModels -> R.string.readiness_action_models
+            PreparationPrimaryAction.Start -> R.string.readiness_action_start
+            PreparationPrimaryAction.Continue -> R.string.readiness_action_continue
+            PreparationPrimaryAction.Pause -> R.string.readiness_action_pause
+            PreparationPrimaryAction.RetryGaps -> R.string.readiness_action_retry_gaps
+            PreparationPrimaryAction.CheckAndContinue ->
+                R.string.readiness_action_check_continue
+        }
+
+private val PreparationQualitativeStatus.title: Int
+    get() =
+        when (this) {
+            PreparationQualitativeStatus.SearchWorksWhilePreparing ->
+                R.string.readiness_status_search_works
+            PreparationQualitativeStatus.Preparing -> R.string.readiness_status_preparing
+            PreparationQualitativeStatus.Incomplete -> R.string.readiness_status_incomplete
+            PreparationQualitativeStatus.Ready -> R.string.readiness_status_ready
+            PreparationQualitativeStatus.CompletedWithGaps ->
+                R.string.readiness_status_gaps
+            PreparationQualitativeStatus.Paused -> R.string.readiness_status_paused
+        }
+
+private val PreparationQualitativeStatus.icon: NaytiIcon
+    get() =
+        when (this) {
+            PreparationQualitativeStatus.Ready -> NaytiIcon.Check
+            PreparationQualitativeStatus.CompletedWithGaps,
+            PreparationQualitativeStatus.Paused,
+            -> NaytiIcon.Alert
+            else -> NaytiIcon.Info
+        }
 
 @Composable
-private fun statusColor(message: ShellStatusMessage) =
-    when (message) {
-        ShellStatusMessage.Completed,
-        ShellStatusMessage.SearchAvailable,
-        ShellStatusMessage.SearchReadyPreparing,
+private fun PreparationQualitativeStatus.color() =
+    when (this) {
+        PreparationQualitativeStatus.Ready,
+        PreparationQualitativeStatus.SearchWorksWhilePreparing,
         -> NaytiTheme.colors.ready
-        ShellStatusMessage.PreparationFailed,
-        ShellStatusMessage.LibraryFailed,
-        ShellStatusMessage.ModelsFailed,
-        -> NaytiTheme.colors.error
+        PreparationQualitativeStatus.CompletedWithGaps -> NaytiTheme.colors.attention
         else -> NaytiTheme.colors.ink
+    }
+
+private fun PreparationQualitativeStatus.body(issue: PreparationIssue?): Int =
+    when (this) {
+        PreparationQualitativeStatus.SearchWorksWhilePreparing ->
+            R.string.readiness_status_search_works_body
+        PreparationQualitativeStatus.Preparing -> R.string.readiness_status_preparing_body
+        PreparationQualitativeStatus.Incomplete -> R.string.readiness_status_incomplete_body
+        PreparationQualitativeStatus.Ready -> R.string.readiness_status_ready_body
+        PreparationQualitativeStatus.CompletedWithGaps -> R.string.readiness_status_gaps_body
+        PreparationQualitativeStatus.Paused ->
+            when (issue) {
+                PreparationIssue.Thermal -> R.string.readiness_status_paused_thermal
+                PreparationIssue.Memory -> R.string.readiness_status_paused_memory
+                PreparationIssue.Storage -> R.string.readiness_status_paused_storage
+                PreparationIssue.BatterySaver -> R.string.readiness_status_paused_battery_saver
+                PreparationIssue.BatteryLow -> R.string.readiness_status_paused_battery_low
+                PreparationIssue.Charging -> R.string.readiness_status_paused_charging
+                PreparationIssue.Runtime -> R.string.readiness_status_paused_runtime
+                null -> R.string.readiness_status_paused_user
+            }
     }

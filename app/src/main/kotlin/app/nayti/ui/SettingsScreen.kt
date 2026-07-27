@@ -27,7 +27,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.nayti.BuildConfig
@@ -41,8 +43,12 @@ import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
 import app.nayti.ui.designsystem.theme.NaytiSpacing
 import app.nayti.ui.designsystem.theme.NaytiTheme
-import app.nayti.ui.preparation.PreparationPrimaryAction
-import app.nayti.ui.preparation.PreparationUiMapper
+
+enum class SettingsThemeMode {
+    System,
+    Light,
+    Dark,
+}
 
 @Composable
 internal fun SettingsScreen(
@@ -63,8 +69,12 @@ internal fun SettingsScreen(
     onOpenPreparation: () -> Unit = {},
     onSelectIndexingMonths: (Long?) -> Unit = {},
     onSelectIndexingStartDate: (Long) -> Unit = {},
+    themeMode: SettingsThemeMode = SettingsThemeMode.System,
+    onThemeModeChange: (SettingsThemeMode) -> Unit = {},
 ) {
     var showResetConfirmation by rememberSaveable { mutableStateOf(false) }
+    var showAdvanced by rememberSaveable { mutableStateOf(false) }
+    var showDestructive by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { onRefreshStorage() }
 
     if (showResetConfirmation) {
@@ -105,12 +115,21 @@ internal fun SettingsScreen(
             ScreenHeader(
                 eyebrow = stringResource(R.string.data_eyebrow),
                 title = stringResource(R.string.data_title),
-                subtitle = stringResource(R.string.data_subtitle),
+                subtitle = stringResource(R.string.settings_redesign_subtitle),
             )
         }
 
         item {
-            SettingsSection(title = stringResource(R.string.settings_library_section)) {
+            SettingsSection(title = stringResource(R.string.settings_appearance_section)) {
+                ThemeSettingsRow(
+                    selectedMode = themeMode,
+                    onSelected = onThemeModeChange,
+                )
+            }
+        }
+
+        item {
+            SettingsSection(title = stringResource(R.string.settings_media_section)) {
                 SettingsActionRow(
                     icon = NaytiIcon.Photos,
                     title = stringResource(R.string.catalog_data_title),
@@ -125,135 +144,14 @@ internal fun SettingsScreen(
                         ),
                     onAction = onRequestAccess,
                 )
-            }
-        }
-
-        item {
-            SettingsSection(title = stringResource(R.string.settings_period_section)) {
-                val preparation = PreparationUiMapper.map(catalog, modelPack, indexing)
-                val hasSelectedPhotos = indexing.scope.eligibleAssets > 0
-                val hasOutstandingWork =
-                    indexing.outstanding > 0 ||
-                        indexing.capabilities.any { capability -> capability.outstanding > 0 }
-                val scopeReady =
-                    hasSelectedPhotos &&
-                        preparation.primaryAction == null &&
-                        !hasOutstandingWork &&
-                        indexing.permanentGaps == 0L &&
-                        indexing.capabilities.all { capability -> capability.permanentGaps == 0L } &&
-                        (
-                            indexing.committed > 0 ||
-                                indexing.capabilities.any { capability -> capability.committed > 0 }
-                        )
-                val actionSupportingText =
-                    stringResource(
-                        when {
-                            !hasSelectedPhotos -> R.string.indexing_scope_action_empty
-                            preparation.isRunning -> R.string.indexing_scope_action_running
-                            scopeReady -> R.string.indexing_scope_action_ready
-                            preparation.primaryAction == PreparationPrimaryAction.Start ->
-                                R.string.indexing_scope_action_pending
-                            else -> R.string.indexing_scope_action_attention
-                        },
-                    )
-                val startsImmediately =
-                    preparation.primaryAction == PreparationPrimaryAction.Start
-                IndexingScopeCard(
-                    indexing = indexing,
-                    onSelectMonths = onSelectIndexingMonths,
-                    onSelectStartDate = onSelectIndexingStartDate,
-                    actionSupportingText = actionSupportingText,
-                    actionLabel =
-                        if (startsImmediately) {
-                            stringResource(R.string.indexing_scope_action_start)
-                        } else if (hasSelectedPhotos) {
-                            stringResource(R.string.indexing_scope_action_details)
-                        } else {
-                            null
-                        },
-                    onAction =
-                        if (startsImmediately) {
-                            onStartIndexing
-                        } else {
-                            onOpenPreparation
-                        },
-                )
-            }
-        }
-
-        item {
-            val hiddenCount = catalog.summary.retainedQuarantine
-            SettingsSection(title = stringResource(R.string.settings_search_data_section)) {
-                SettingsInfoRow(
-                    icon = NaytiIcon.Storage,
-                    title = stringResource(R.string.storage_title),
-                    body =
-                        stringResource(
-                            R.string.storage_details,
-                            formatStorage(localStorage.indexBytes),
-                            formatStorage(localStorage.modelBytes),
-                        ),
-                )
                 HorizontalDivider(color = NaytiTheme.colors.hairline)
                 SettingsActionRow(
-                    icon = if (hiddenCount == 0L) NaytiIcon.Shield else NaytiIcon.Delete,
-                    title = stringResource(R.string.quarantine_title),
-                    body =
-                        if (hiddenCount == 0L) {
-                            stringResource(R.string.quarantine_empty)
-                        } else {
-                            pluralStringResource(
-                                R.plurals.quarantine_count,
-                                hiddenCount.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
-                                hiddenCount,
-                            )
-                        },
-                    actionLabel =
-                        if (hiddenCount == 0L) {
-                            null
-                        } else {
-                            stringResource(R.string.quarantine_reset_action)
-                        },
-                    onAction = { showResetConfirmation = true },
-                    actionEnabled = searchDataReset != SearchDataResetState.Resetting,
-                    destructive = hiddenCount > 0L,
+                    icon = NaytiIcon.Methods,
+                    title = stringResource(R.string.settings_preparation_title),
+                    body = preparationSettingsDescription(indexing),
+                    actionLabel = stringResource(R.string.settings_preparation_action),
+                    onAction = onOpenPreparation,
                 )
-                HorizontalDivider(color = NaytiTheme.colors.hairline)
-                SettingsActionRow(
-                    icon = NaytiIcon.Delete,
-                    title = stringResource(R.string.reset_index_title),
-                    body = searchDataResetDescription(searchDataReset),
-                    actionLabel = stringResource(R.string.reset_index_action),
-                    onAction = { showResetConfirmation = true },
-                    actionEnabled = searchDataReset != SearchDataResetState.Resetting,
-                    destructive = true,
-                )
-            }
-        }
-
-        item {
-            SettingsSection(title = stringResource(R.string.settings_models_section)) {
-                SettingsActionRow(
-                    icon = NaytiIcon.Models,
-                    title = stringResource(R.string.model_pack_title),
-                    body = modelPackDescription(modelPack),
-                    detail =
-                        modelPack.candidate
-                            ?.takeIf { it.packVersion != modelPack.installed?.packVersion }
-                            ?.let { stringResource(R.string.model_pack_candidate, it.packVersion) },
-                    actionLabel =
-                        stringResource(
-                            if (modelPack.installed == null) {
-                                R.string.model_pack_import
-                            } else {
-                                R.string.model_pack_replace
-                            },
-                        ),
-                    onAction = onImportModelPack,
-                    actionEnabled = modelPack.status != ModelPackRuntimeStatus.Installing,
-                )
-                HorizontalDivider(color = NaytiTheme.colors.hairline)
-                ModelPackRollbackRow(modelPackRollback, onRollbackModelPack)
             }
         }
 
@@ -268,22 +166,177 @@ internal fun SettingsScreen(
         }
 
         item {
+            val hiddenCount = catalog.summary.retainedQuarantine
+            SettingsSection(title = stringResource(R.string.settings_storage_section)) {
+                SettingsInfoRow(
+                    icon = NaytiIcon.Storage,
+                    title = stringResource(R.string.storage_title),
+                    body =
+                        stringResource(
+                            R.string.storage_details,
+                            formatStorage(localStorage.indexBytes),
+                            formatStorage(localStorage.modelBytes),
+                        ),
+                )
+                if (hiddenCount > 0) {
+                    HorizontalDivider(color = NaytiTheme.colors.hairline)
+                    SettingsInfoRow(
+                        icon = NaytiIcon.Info,
+                        title = stringResource(R.string.settings_hidden_data_title),
+                        body =
+                            pluralStringResource(
+                                R.plurals.quarantine_count,
+                                hiddenCount.asQuantity(),
+                                hiddenCount,
+                            ),
+                    )
+                }
+                HorizontalDivider(color = NaytiTheme.colors.hairline)
+                SettingsDisclosureRow(
+                    icon = NaytiIcon.Delete,
+                    title =
+                        stringResource(
+                            if (showDestructive) {
+                                R.string.settings_destructive_hide
+                            } else {
+                                R.string.settings_destructive_show
+                            },
+                        ),
+                    body = stringResource(R.string.settings_destructive_body),
+                    expanded = showDestructive,
+                    onToggle = { showDestructive = !showDestructive },
+                    destructive = true,
+                )
+                if (showDestructive) {
+                    HorizontalDivider(color = NaytiTheme.colors.hairline)
+                    SettingsActionRow(
+                        icon = NaytiIcon.Delete,
+                        title = stringResource(R.string.settings_destructive_title),
+                        body = searchDataResetDescription(searchDataReset),
+                        actionLabel = stringResource(R.string.reset_index_action),
+                        onAction = { showResetConfirmation = true },
+                        actionEnabled = searchDataReset != SearchDataResetState.Resetting,
+                        destructive = true,
+                    )
+                }
+            }
+        }
+
+        item {
+            SettingsSection(title = stringResource(R.string.settings_advanced_section)) {
+                SettingsDisclosureRow(
+                    icon = NaytiIcon.Settings,
+                    title = stringResource(R.string.settings_advanced_title),
+                    body = stringResource(R.string.settings_advanced_body),
+                    expanded = showAdvanced,
+                    onToggle = { showAdvanced = !showAdvanced },
+                )
+                if (showAdvanced) {
+                    HorizontalDivider(color = NaytiTheme.colors.hairline)
+                    SettingsActionRow(
+                        icon = NaytiIcon.Models,
+                        title = stringResource(R.string.settings_search_components_title),
+                        body = searchComponentsDescription(modelPack),
+                        detail =
+                            modelPack.candidate
+                                ?.takeIf { it.packVersion != modelPack.installed?.packVersion }
+                                ?.let { stringResource(R.string.model_pack_candidate, it.packVersion) },
+                        actionLabel =
+                            stringResource(
+                                if (modelPack.installed == null) {
+                                    R.string.settings_search_components_choose
+                                } else {
+                                    R.string.settings_search_components_replace
+                                },
+                            ),
+                        onAction = onImportModelPack,
+                        actionEnabled = modelPack.status != ModelPackRuntimeStatus.Installing,
+                    )
+                    if (modelPackRollback.isVisible) {
+                        HorizontalDivider(color = NaytiTheme.colors.hairline)
+                        PreviousVersionRow(
+                            state = modelPackRollback,
+                            onRollback = onRollbackModelPack,
+                        )
+                    }
+                    HorizontalDivider(color = NaytiTheme.colors.hairline)
+                    SettingsActionRow(
+                        icon = NaytiIcon.Export,
+                        title = stringResource(R.string.diagnostics_title),
+                        body = diagnosticsDescription(diagnosticsExport),
+                        actionLabel = stringResource(R.string.diagnostics_export),
+                        onAction = onExportDiagnostics,
+                        actionEnabled = diagnosticsExport != DiagnosticsExportState.Writing,
+                    )
+                }
+            }
+        }
+
+        item {
             SettingsSection(title = stringResource(R.string.settings_about_section)) {
                 SettingsInfoRow(
                     icon = NaytiIcon.About,
                     title = stringResource(R.string.about_title),
                     body = stringResource(R.string.about_details, BuildConfig.VERSION_NAME),
                 )
-                HorizontalDivider(color = NaytiTheme.colors.hairline)
-                SettingsActionRow(
-                    icon = NaytiIcon.Export,
-                    title = stringResource(R.string.diagnostics_title),
-                    body = diagnosticsDescription(diagnosticsExport),
-                    actionLabel = stringResource(R.string.diagnostics_export),
-                    onAction = onExportDiagnostics,
-                    actionEnabled = diagnosticsExport != DiagnosticsExportState.Writing,
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeSettingsRow(
+    selectedMode: SettingsThemeMode,
+    onSelected: (SettingsThemeMode) -> Unit,
+) {
+    SettingsRowLayout(
+        icon = NaytiIcon.Settings,
+        title = stringResource(R.string.settings_theme_title),
+        body = stringResource(R.string.settings_theme_body),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+        ) {
+            SettingsThemeMode.entries.forEach { mode ->
+                ThemeChoiceButton(
+                    mode = mode,
+                    selected = selectedMode == mode,
+                    onClick = { onSelected(mode) },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ThemeChoiceButton(
+    mode: SettingsThemeMode,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val label = stringResource(mode.label)
+    val selectedDescription = stringResource(R.string.settings_theme_selected, label)
+    val modifier =
+        Modifier
+            .fillMaxWidth()
+            .semantics {
+                this.selected = selected
+                if (selected) {
+                    stateDescription = selectedDescription
+                }
+            }
+    if (selected) {
+        Button(onClick = onClick, modifier = modifier) {
+            NaytiIconMark(icon = NaytiIcon.Check, size = 18.dp)
+            Text(
+                text = label,
+                modifier = Modifier.padding(start = NaytiSpacing.Small),
+            )
+        }
+    } else {
+        OutlinedButton(onClick = onClick, modifier = modifier) {
+            Text(label)
         }
     }
 }
@@ -336,14 +389,14 @@ private fun SettingsActionRow(
         body = body,
         detail = detail,
     ) {
-        if (actionLabel != null) {
+        actionLabel?.let { label ->
             OutlinedButton(
                 onClick = onAction,
                 enabled = actionEnabled,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    text = actionLabel,
+                    text = label,
                     color =
                         if (destructive && actionEnabled) {
                             NaytiTheme.colors.error
@@ -352,6 +405,42 @@ private fun SettingsActionRow(
                         },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun SettingsDisclosureRow(
+    icon: NaytiIcon,
+    title: String,
+    body: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    destructive: Boolean = false,
+) {
+    SettingsRowLayout(
+        icon = icon,
+        title = title,
+        body = body,
+    ) {
+        OutlinedButton(
+            onClick = onToggle,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text =
+                    if (expanded) {
+                        stringResource(R.string.settings_advanced_hide)
+                    } else {
+                        stringResource(R.string.settings_advanced_show)
+                    },
+                color =
+                    if (destructive) {
+                        NaytiTheme.colors.error
+                    } else {
+                        androidx.compose.ui.graphics.Color.Unspecified
+                    },
+            )
         }
     }
 }
@@ -397,7 +486,7 @@ private fun SettingsRowLayout(
 }
 
 @Composable
-private fun ModelPackRollbackRow(
+private fun PreviousVersionRow(
     state: ModelPackRollbackState,
     onRollback: () -> Unit,
 ) {
@@ -410,44 +499,40 @@ private fun ModelPackRollbackRow(
         }
     SettingsActionRow(
         icon = NaytiIcon.Clock,
-        title = stringResource(R.string.model_pack_rollback_title),
-        body = modelPackRollbackDescription(state),
+        title = stringResource(R.string.settings_previous_version_title),
+        body = previousVersionDescription(state),
         actionLabel =
-            targetVersion?.let { stringResource(R.string.model_pack_rollback_action, it) },
+            targetVersion?.let {
+                stringResource(R.string.settings_previous_version_action, it)
+            },
         onAction = onRollback,
         actionEnabled = state !is ModelPackRollbackState.RollingBack,
     )
 }
 
 @Composable
-private fun modelPackRollbackDescription(state: ModelPackRollbackState): String =
+private fun previousVersionDescription(state: ModelPackRollbackState): String =
     when (state) {
-        ModelPackRollbackState.Loading -> stringResource(R.string.model_pack_rollback_loading)
-        is ModelPackRollbackState.Unavailable ->
-            if (state.rollbackCompleted) {
-                stringResource(R.string.model_pack_rollback_succeeded, state.activeVersion.orEmpty())
-            } else {
-                stringResource(R.string.model_pack_rollback_unavailable)
-            }
         is ModelPackRollbackState.Available ->
-            if (state.rollbackCompleted) {
-                stringResource(
-                    R.string.model_pack_rollback_succeeded_with_previous,
-                    state.activeVersion,
-                    state.targetVersion,
-                )
-            } else {
-                stringResource(
-                    R.string.model_pack_rollback_available,
-                    state.activeVersion,
-                    state.targetVersion,
-                )
-            }
+            stringResource(
+                R.string.settings_previous_version_available,
+                state.activeVersion,
+                state.targetVersion,
+            )
         is ModelPackRollbackState.RollingBack ->
-            stringResource(R.string.model_pack_rollback_running, state.targetVersion)
+            stringResource(R.string.settings_previous_version_running, state.targetVersion)
         is ModelPackRollbackState.Failed ->
-            stringResource(R.string.model_pack_rollback_failed, state.activeVersion)
+            stringResource(
+                R.string.settings_previous_version_failed,
+                state.activeVersion,
+                state.targetVersion,
+            )
+        ModelPackRollbackState.Loading -> stringResource(R.string.model_pack_rollback_loading)
+        is ModelPackRollbackState.Unavailable -> ""
     }
+
+private val ModelPackRollbackState.isVisible: Boolean
+    get() = this !is ModelPackRollbackState.Unavailable
 
 @Composable
 private fun searchDataResetDescription(state: SearchDataResetState): String =
@@ -472,34 +557,59 @@ private fun formatStorage(bytes: Long): String {
 
 @Composable
 private fun diagnosticsDescription(state: DiagnosticsExportState): String =
-    stringResource(
-        when (state) {
-            DiagnosticsExportState.Idle -> R.string.diagnostics_details
-            DiagnosticsExportState.Writing -> R.string.diagnostics_writing
-            DiagnosticsExportState.Saved -> R.string.diagnostics_saved
-            DiagnosticsExportState.Failed -> R.string.diagnostics_failed
-        },
-    )
+    when (state) {
+        DiagnosticsExportState.Idle -> stringResource(R.string.settings_diagnostics_body)
+        DiagnosticsExportState.Writing -> stringResource(R.string.diagnostics_writing)
+        DiagnosticsExportState.Saved -> stringResource(R.string.diagnostics_saved)
+        DiagnosticsExportState.Failed -> stringResource(R.string.diagnostics_failed)
+    }
 
 @Composable
-private fun modelPackDescription(state: ModelPackRuntimeState): String =
+private fun searchComponentsDescription(state: ModelPackRuntimeState): String =
     when (state.status) {
-        ModelPackRuntimeStatus.Loading -> stringResource(R.string.model_pack_loading)
-        ModelPackRuntimeStatus.Missing -> stringResource(R.string.model_pack_missing)
-        ModelPackRuntimeStatus.Installing -> stringResource(R.string.model_pack_installing)
+        ModelPackRuntimeStatus.Loading ->
+            stringResource(R.string.settings_search_components_loading)
+        ModelPackRuntimeStatus.Missing ->
+            stringResource(R.string.settings_search_components_missing)
+        ModelPackRuntimeStatus.Installing ->
+            stringResource(R.string.settings_search_components_installing)
         ModelPackRuntimeStatus.Ready ->
             stringResource(
-                R.string.model_pack_ready,
+                R.string.settings_search_components_ready,
                 state.installed?.packVersion.orEmpty(),
                 (state.installed?.payloadBytes ?: 0) / (1024 * 1024),
             )
         ModelPackRuntimeStatus.Failed ->
             if (state.installed == null) {
-                stringResource(R.string.model_pack_failed)
+                stringResource(R.string.settings_search_components_failed)
             } else {
                 stringResource(
-                    R.string.model_pack_failed_using_previous,
+                    R.string.settings_search_components_failed_previous,
                     state.installed?.packVersion.orEmpty(),
                 )
             }
     }
+
+@Composable
+private fun preparationSettingsDescription(
+    indexing: OcrIndexingState,
+): String {
+    return if (indexing.scope.takenFromMillis == null) {
+        stringResource(
+            R.string.readiness_period_all_description,
+            indexing.scope.eligibleAssets,
+        )
+    } else {
+        stringResource(R.string.settings_preparation_body)
+    }
+}
+
+private val SettingsThemeMode.label: Int
+    get() =
+        when (this) {
+            SettingsThemeMode.System -> R.string.settings_theme_system
+            SettingsThemeMode.Light -> R.string.settings_theme_light
+            SettingsThemeMode.Dark -> R.string.settings_theme_dark
+        }
+
+private fun Long.asQuantity(): Int = coerceIn(0, Int.MAX_VALUE.toLong()).toInt()

@@ -1,5 +1,6 @@
 package app.nayti.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -365,11 +366,12 @@ private fun ThemePreview(
                 if (selected) stateDescription = selectedDescription
             },
         shape = NaytiTheme.shapes.card,
-        color =
+        color = NaytiTheme.colors.surfaceHigh,
+        border =
             if (selected) {
-                NaytiTheme.colors.accentContainer
+                BorderStroke(2.dp, NaytiTheme.colors.accent)
             } else {
-                NaytiTheme.colors.surfaceHigh
+                null
             },
         contentColor = NaytiTheme.colors.ink,
     ) {

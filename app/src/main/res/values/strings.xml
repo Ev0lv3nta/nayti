@@ -1,7 +1,8 @@
 <resources>
     <string name="app_name">Nayti</string>
     <string name="nav_search">Поиск</string>
-    <string name="nav_data">Данные</string>
+    <string name="nav_index">Индекс</string>
+    <string name="nav_settings">Настройки</string>
     <string name="local_only">Только на устройстве</string>
     <string name="indexing_scope_title">Какие фото подготовить</string>
     <string name="indexing_scope_all">Вся медиатека</string>

@@ -79,6 +79,7 @@ fun ReadinessScreen(
     catalog: CatalogRuntimeState,
     modelPack: ModelPackRuntimeState,
     indexing: OcrIndexingState,
+    showBack: Boolean = true,
     onBack: () -> Unit,
     onRequestAccess: () -> Unit,
     onImportModels: () -> Unit,
@@ -98,7 +99,7 @@ fun ReadinessScreen(
     ReadinessContent(
         state = state,
         indexing = indexing,
-        showBack = true,
+        showBack = showBack,
         showDetails = showDetails,
         onBack = onBack,
         onPrimaryAction = {

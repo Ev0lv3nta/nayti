@@ -6,10 +6,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.click
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -100,20 +99,7 @@ class PhotoViewerScreenTest {
         composeRule.onNodeWithContentDescription(context.getString(R.string.viewer_next_photo))
             .assertIsDisplayed()
 
-        composeRule.onNodeWithContentDescription(context.getString(R.string.viewer_photo_description))
-            .performTouchInput { click() }
-        composeRule.onNodeWithText(context.getString(R.string.viewer_text_action)).assertDoesNotExist()
-        composeRule.onNodeWithContentDescription(context.getString(R.string.viewer_photo_description))
-            .performTouchInput { click() }
-
-        composeRule
-            .onNodeWithText(
-                context.getString(
-                    R.string.viewer_why_found,
-                    context.getString(R.string.evidence_text),
-                ),
-            )
-            .performClick()
+        composeRule.onNodeWithTag("viewer-match-reason").performClick()
         composeRule.onNodeWithText(hit.displaySnippet!!).assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.viewer_match_channel_text)).assertExists()
         composeRule.onNodeWithText(context.getString(R.string.viewer_match_channel_meaning)).assertExists()

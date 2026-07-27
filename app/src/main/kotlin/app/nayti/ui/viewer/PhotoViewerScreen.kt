@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -473,6 +474,7 @@ private fun MatchReasonCompact(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .testTag("viewer-match-reason")
             .clip(NaytiTheme.shapes.control)
             .background(Color.Black.copy(alpha = 0.62f))
             .clickable(onClick = onClick)

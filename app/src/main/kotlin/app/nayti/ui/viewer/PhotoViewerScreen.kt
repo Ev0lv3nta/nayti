@@ -5,6 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -50,6 +52,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -86,6 +89,7 @@ import kotlin.math.max
 private enum class ViewerSheet {
     Similar,
     Duplicates,
+    MatchDetails,
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -108,9 +112,13 @@ fun PhotoViewerScreen(
     onFindDuplicates: () -> Unit,
 ) {
     var sheet by rememberSaveable { mutableStateOf<ViewerSheet?>(null) }
+    var chromeVisible by rememberSaveable(assetId) { mutableStateOf(true) }
+    var showText by rememberSaveable(assetId) { mutableStateOf(false) }
 
     LaunchedEffect(assetId, accessRevision) {
         sheet = null
+        chromeVisible = true
+        showText = false
         onOpen()
     }
     DisposableEffect(assetId) {
@@ -145,22 +153,32 @@ fun PhotoViewerScreen(
                         previousAssetId = previousAssetId,
                         nextAssetId = nextAssetId,
                         onOpenAsset = onOpenAsset,
+                        showText = showText,
+                        onToggleChrome = { chromeVisible = !chromeVisible },
                         modifier = Modifier.fillMaxSize().naytiBackdropSource(backdrop),
                     )
-                    ViewerChrome(
-                        state = visibleState,
-                        searchProvenance = searchProvenance,
-                        backdrop = backdrop,
-                        onBack = onBack,
-                        onShowSimilar = {
-                            sheet = ViewerSheet.Similar
-                            onFindSimilar()
-                        },
-                        onShowDuplicates = {
-                            sheet = ViewerSheet.Duplicates
-                            onFindDuplicates()
-                        },
-                    )
+                    if (chromeVisible) {
+                        ViewerChrome(
+                            state = visibleState,
+                            searchProvenance = searchProvenance,
+                            backdrop = backdrop,
+                            previousAssetId = previousAssetId,
+                            nextAssetId = nextAssetId,
+                            showText = showText,
+                            onBack = onBack,
+                            onOpenAsset = onOpenAsset,
+                            onToggleText = { showText = !showText },
+                            onShowDetails = { sheet = ViewerSheet.MatchDetails },
+                            onShowSimilar = {
+                                sheet = ViewerSheet.Similar
+                                onFindSimilar()
+                            },
+                            onShowDuplicates = {
+                                sheet = ViewerSheet.Duplicates
+                                onFindDuplicates()
+                            },
+                        )
+                    }
                 }
             }
 
@@ -207,6 +225,19 @@ fun PhotoViewerScreen(
                 onRetry = onFindDuplicates,
             )
         }
+        ViewerSheet.MatchDetails -> {
+            val ready = visibleState as? ViewerUiState.Ready
+            val provenance = searchProvenance
+            if (ready != null && provenance != null) {
+                ModalBottomSheet(onDismissRequest = { sheet = null }) {
+                    MatchDetails(
+                        provenance = provenance,
+                        readyChannels = ready.evidence.readyChannels,
+                        outsidePreparationPeriod = ready.evidence.outsidePreparationPeriod,
+                    )
+                }
+            }
+        }
         null -> Unit
     }
 }
@@ -217,13 +248,14 @@ private fun ViewerPhoto(
     previousAssetId: Long?,
     nextAssetId: Long?,
     onOpenAsset: (Long) -> Unit,
+    showText: Boolean,
+    onToggleChrome: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var scale by remember(state.evidence.item.assetId) { mutableFloatStateOf(1f) }
     var offsetX by remember(state.evidence.item.assetId) { mutableFloatStateOf(0f) }
     var offsetY by remember(state.evidence.item.assetId) { mutableFloatStateOf(0f) }
     var swipeDistance by remember(state.evidence.item.assetId) { mutableFloatStateOf(0f) }
-    var showText by rememberSaveable(state.evidence.item.assetId) { mutableStateOf(false) }
     val density = LocalDensity.current
     val swipeThreshold = with(density) { 72.dp.toPx() }
     val transformState =
@@ -242,6 +274,9 @@ private fun ViewerPhoto(
     Box(
         modifier = modifier
             .clipToBounds()
+            .pointerInput(state.evidence.item.assetId) {
+                detectTapGestures(onTap = { onToggleChrome() })
+            }
             .pointerInput(scale, previousAssetId, nextAssetId) {
                 if (scale <= 1.01f) {
                     detectHorizontalDragGestures(
@@ -290,14 +325,6 @@ private fun ViewerPhoto(
                 )
             }
         }
-        ViewerTextToggle(
-            selected = showText,
-            enabled = state.evidence.regions.isNotEmpty(),
-            onClick = { showText = !showText },
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = NaytiSpacing.Screen),
-        )
     }
 }
 
@@ -306,7 +333,13 @@ private fun ViewerChrome(
     state: ViewerUiState.Ready,
     searchProvenance: UnifiedSearchHit?,
     backdrop: NaytiBackdrop,
+    previousAssetId: Long?,
+    nextAssetId: Long?,
+    showText: Boolean,
     onBack: () -> Unit,
+    onOpenAsset: (Long) -> Unit,
+    onToggleText: () -> Unit,
+    onShowDetails: () -> Unit,
     onShowSimilar: () -> Unit,
     onShowDuplicates: () -> Unit,
 ) {
@@ -341,8 +374,43 @@ private fun ViewerChrome(
                 }
             }
             Spacer(Modifier.weight(1f))
-            Spacer(Modifier.size(NaytiSpacing.MinTouchTarget))
+            ViewerChromeButton(
+                icon = NaytiIcon.Text,
+                label =
+                    stringResource(
+                        if (showText) {
+                            R.string.viewer_hide_text_regions
+                        } else {
+                            R.string.viewer_show_text_regions
+                        },
+                    ),
+                onClick = onToggleText,
+                enabled = state.evidence.regions.isNotEmpty(),
+                selected = showText,
+            )
         }
+
+        ViewerChromeButton(
+            icon = NaytiIcon.Back,
+            label = stringResource(R.string.viewer_previous_photo),
+            onClick = { previousAssetId?.let(onOpenAsset) },
+            enabled = previousAssetId != null,
+            modifier =
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = NaytiSpacing.Medium),
+        )
+        ViewerChromeButton(
+            icon = NaytiIcon.Back,
+            label = stringResource(R.string.viewer_next_photo),
+            onClick = { nextAssetId?.let(onOpenAsset) },
+            enabled = nextAssetId != null,
+            iconRotation = 180f,
+            modifier =
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = NaytiSpacing.Medium),
+        )
 
         Column(
             modifier = Modifier
@@ -353,10 +421,9 @@ private fun ViewerChrome(
             verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
         ) {
             searchProvenance?.let { provenance ->
-                MatchReasonCard(
+                MatchReasonCompact(
                     provenance = provenance,
-                    readyChannels = state.evidence.readyChannels,
-                    outsidePreparationPeriod = state.evidence.outsidePreparationPeriod,
+                    onClick = onShowDetails,
                 )
             }
             GlassSurface(
@@ -370,7 +437,7 @@ private fun ViewerChrome(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(NaytiSpacing.Small),
-                    horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+                    horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
                 ) {
                     ViewerAction(
                         icon = NaytiIcon.Scene,
@@ -384,6 +451,14 @@ private fun ViewerChrome(
                         onClick = onShowDuplicates,
                         modifier = Modifier.weight(1f),
                     )
+                    ViewerAction(
+                        icon = NaytiIcon.Text,
+                        label = stringResource(R.string.viewer_text_action),
+                        onClick = onToggleText,
+                        modifier = Modifier.weight(1f),
+                        enabled = state.evidence.regions.isNotEmpty(),
+                        selected = showText,
+                    )
                 }
             }
         }
@@ -391,88 +466,147 @@ private fun ViewerChrome(
 }
 
 @Composable
-private fun MatchReasonCard(
+private fun MatchReasonCompact(
     provenance: UnifiedSearchHit,
-    readyChannels: Set<PhotoChannel>,
-    outsidePreparationPeriod: Boolean,
+    onClick: () -> Unit,
 ) {
-    val readyChannelLabels =
-        readyChannels
-            .sortedBy(PhotoChannel::ordinal)
-            .map { channel -> stringResource(channel.shortLabel) }
-            .joinToString()
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(NaytiTheme.shapes.card)
-            .background(NaytiTheme.colors.surface)
-            .padding(NaytiSpacing.Screen),
-        verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
+            .clip(NaytiTheme.shapes.control)
+            .background(Color.Black.copy(alpha = 0.62f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = NaytiSpacing.Medium, vertical = NaytiSpacing.Small),
+        horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        NaytiIconMark(
+            icon = NaytiIcon.Info,
+            color = Color.White,
+            size = 18.dp,
+        )
         Text(
             text = stringResource(R.string.viewer_why_found, provenance.reason.label()),
             style = NaytiTheme.type.labelL,
-            color = NaytiTheme.colors.accent,
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
         )
-        provenance.displaySnippet?.takeIf(String::isNotBlank)?.let { snippet ->
-            Text(
-                text = snippet,
-                style = NaytiTheme.type.bodyL,
-                color = NaytiTheme.colors.ink,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Text(
-            text =
-                when {
-                    outsidePreparationPeriod ->
-                        stringResource(R.string.viewer_readiness_outside_period)
-                    readyChannelLabels.isEmpty() ->
-                        stringResource(R.string.viewer_readiness_preparing)
-                    else ->
-                        stringResource(
-                            R.string.viewer_readiness_channels,
-                            readyChannelLabels,
-                        )
-                },
-            style = NaytiTheme.type.labelS,
-            color = NaytiTheme.colors.inkMuted,
+        NaytiIconMark(
+            icon = NaytiIcon.ChevronRight,
+            color = Color.White.copy(alpha = 0.78f),
+            size = 18.dp,
         )
     }
 }
 
 @Composable
-private fun ViewerTextToggle(
-    selected: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
+private fun MatchDetails(
+    provenance: UnifiedSearchHit,
+    readyChannels: Set<PhotoChannel>,
+    outsidePreparationPeriod: Boolean,
 ) {
-    val label =
-        stringResource(
-            if (selected) {
-                R.string.viewer_hide_text_regions
-            } else {
-                R.string.viewer_show_text_regions
-            },
-        )
-    Box(
-        modifier = modifier
-            .size(NaytiSpacing.MinTouchTarget)
-            .clip(NaytiTheme.shapes.control)
-            .background(Color.Black.copy(alpha = if (enabled) 0.55f else 0.28f))
-            .semantics {
-                contentDescription = label
-                role = Role.Button
+    LazyColumn(
+        modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp),
+        contentPadding =
+            androidx.compose.foundation.layout.PaddingValues(
+                start = NaytiSpacing.Screen,
+                top = NaytiSpacing.Small,
+                end = NaytiSpacing.Screen,
+                bottom = NaytiSpacing.Section,
+            ),
+        verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+    ) {
+        item {
+            Text(
+                text = stringResource(R.string.viewer_match_details_title),
+                style = NaytiTheme.type.titleL,
+                color = NaytiTheme.colors.ink,
+            )
+        }
+        item {
+            Text(
+                text = stringResource(R.string.viewer_why_found, provenance.reason.label()),
+                style = NaytiTheme.type.titleM,
+                color = NaytiTheme.colors.accent,
+            )
+        }
+        provenance.displaySnippet?.takeIf(String::isNotBlank)?.let { snippet ->
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall)) {
+                    Text(
+                        text = stringResource(R.string.viewer_match_snippet_title),
+                        style = NaytiTheme.type.labelS,
+                        color = NaytiTheme.colors.inkMuted,
+                    )
+                    Text(
+                        text = snippet,
+                        style = NaytiTheme.type.bodyL,
+                        color = NaytiTheme.colors.ink,
+                    )
+                }
             }
-            .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
+        }
+        item {
+            Text(
+                text = stringResource(R.string.viewer_match_readiness_title),
+                style = NaytiTheme.type.titleM,
+                color = NaytiTheme.colors.ink,
+            )
+        }
+        items(PhotoChannel.entries, key = PhotoChannel::name) { channel ->
+            MatchReadinessRow(
+                channel = channel,
+                ready = channel in readyChannels,
+                outsidePreparationPeriod = outsidePreparationPeriod,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MatchReadinessRow(
+    channel: PhotoChannel,
+    ready: Boolean,
+    outsidePreparationPeriod: Boolean,
+) {
+    val status =
+        when {
+            outsidePreparationPeriod -> stringResource(R.string.viewer_match_outside_period)
+            ready -> stringResource(R.string.viewer_match_ready)
+            else -> stringResource(R.string.viewer_match_not_ready)
+        }
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(NaytiTheme.shapes.control)
+                .background(NaytiTheme.colors.surfaceHigh)
+                .padding(NaytiSpacing.Medium),
+        horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         NaytiIconMark(
-            icon = NaytiIcon.Text,
-            color = if (selected) NaytiTheme.colors.accent else Color.White,
-            size = 22.dp,
+            icon = if (ready && !outsidePreparationPeriod) NaytiIcon.Check else NaytiIcon.Clock,
+            color =
+                if (ready && !outsidePreparationPeriod) {
+                    NaytiTheme.colors.ready
+                } else {
+                    NaytiTheme.colors.inkMuted
+                },
+            size = 20.dp,
+        )
+        Text(
+            text = stringResource(channel.longLabel),
+            style = NaytiTheme.type.bodyM,
+            color = NaytiTheme.colors.ink,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = status,
+            style = NaytiTheme.type.labelS,
+            color = NaytiTheme.colors.inkMuted,
         )
     }
 }
@@ -482,20 +616,36 @@ private fun ViewerChromeButton(
     icon: NaytiIcon,
     label: String,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    selected: Boolean = false,
+    iconRotation: Float = 0f,
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(NaytiSpacing.MinTouchTarget)
             .clip(NaytiTheme.shapes.control)
-            .background(Color.Black.copy(alpha = 0.52f))
+            .background(
+                when {
+                    selected -> NaytiTheme.colors.accentContainer.copy(alpha = 0.9f)
+                    enabled -> Color.Black.copy(alpha = 0.52f)
+                    else -> Color.Black.copy(alpha = 0.24f)
+                },
+            )
             .semantics {
                 contentDescription = label
                 role = Role.Button
+                this.selected = selected
             }
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        NaytiIconMark(icon = icon, color = Color.White, size = 22.dp)
+        NaytiIconMark(
+            icon = icon,
+            color = Color.White.copy(alpha = if (enabled) 1f else 0.46f),
+            size = 22.dp,
+            modifier = Modifier.graphicsLayer { rotationZ = iconRotation },
+        )
     }
 }
 
@@ -505,22 +655,38 @@ private fun ViewerAction(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    selected: Boolean = false,
 ) {
     Row(
         modifier = modifier
             .height(NaytiSpacing.MinTouchTarget)
             .clip(NaytiTheme.shapes.control)
-            .background(NaytiTheme.colors.surfaceHigh)
-            .clickable(onClick = onClick),
+            .background(
+                if (selected) {
+                    NaytiTheme.colors.accentContainer
+                } else {
+                    NaytiTheme.colors.surfaceHigh
+                },
+            )
+            .semantics {
+                role = Role.Button
+                this.selected = selected
+            }
+            .clickable(enabled = enabled, onClick = onClick),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        NaytiIconMark(icon = icon, color = NaytiTheme.colors.ink, size = 18.dp)
+        NaytiIconMark(
+            icon = icon,
+            color = NaytiTheme.colors.ink.copy(alpha = if (enabled) 1f else 0.42f),
+            size = 18.dp,
+        )
         Spacer(Modifier.size(NaytiSpacing.Small))
         Text(
             text = label,
             style = NaytiTheme.type.labelL,
-            color = NaytiTheme.colors.ink,
+            color = NaytiTheme.colors.ink.copy(alpha = if (enabled) 1f else 0.42f),
             maxLines = 1,
         )
     }
@@ -861,13 +1027,13 @@ private fun Long?.viewerDate(): String =
         DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(millis))
     } ?: stringResource(R.string.viewer_date_unknown)
 
-private val PhotoChannel.shortLabel: Int
+private val PhotoChannel.longLabel: Int
     get() =
         when (this) {
-            PhotoChannel.Text -> R.string.viewer_channel_text
-            PhotoChannel.Meaning -> R.string.viewer_channel_meaning
-            PhotoChannel.Visual -> R.string.viewer_channel_visual
-            PhotoChannel.Duplicates -> R.string.viewer_channel_duplicates
+            PhotoChannel.Text -> R.string.viewer_match_channel_text
+            PhotoChannel.Meaning -> R.string.viewer_match_channel_meaning
+            PhotoChannel.Visual -> R.string.viewer_match_channel_visual
+            PhotoChannel.Duplicates -> R.string.viewer_match_channel_duplicates
         }
 
 private fun UnifiedSearchReason.label(): Int =

@@ -23,6 +23,8 @@ import app.nayti.indexer.OcrIndexingStatus
 import app.nayti.platform.media.AccessRevision
 import app.nayti.platform.media.MediaAccessScope
 import app.nayti.platform.media.MediaPermissionSnapshot
+import app.nayti.storage.ModelPackEntity
+import app.nayti.storage.ModelPackStatus
 import app.nayti.ui.designsystem.theme.NaytiTheme
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -81,6 +83,29 @@ class SetupScreenTest {
     }
 
     @Test
+    fun installedComponentsSkipDirectlyToPhotoAccess() {
+        var accessRequested = false
+        composeRule.setContent {
+            NaytiTheme {
+                SetupScreen(
+                    catalog = catalogWithoutAccess(),
+                    modelPack = installedModelPack(),
+                    indexing = idleIndexing(),
+                    onImportModelPack = {},
+                    onRequestAccess = { accessRequested = true },
+                    onStartIndexing = {},
+                    onComplete = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(context.getString(R.string.setup_pack_title)).assertDoesNotExist()
+        composeRule.onNodeWithText(context.getString(R.string.setup_access_title)).assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.setup_action_access)).performClick()
+        composeRule.runOnIdle { assertTrue(accessRequested) }
+    }
+
+    @Test
     fun primaryActionsRemainVisibleAtTwoHundredPercentFontScale() {
         composeRule.setContent {
             val density = LocalDensity.current
@@ -134,6 +159,24 @@ class SetupScreenTest {
         candidate = null,
         errorCode = null,
     )
+
+    private fun installedModelPack() =
+        ModelPackRuntimeState(
+            status = ModelPackRuntimeStatus.Ready,
+            installed =
+                ModelPackEntity(
+                    packId = "test-pack",
+                    packVersion = "1",
+                    keyId = "test-key",
+                    manifestSha256 = "0".repeat(64),
+                    relativeDirectory = "test-pack/1",
+                    payloadBytes = 1,
+                    installedAtMillis = 1,
+                    status = ModelPackStatus.INSTALLED_CANDIDATE,
+                ),
+            candidate = null,
+            errorCode = null,
+        )
 
     private fun idleIndexing() = OcrIndexingState(
         status = OcrIndexingStatus.Idle,

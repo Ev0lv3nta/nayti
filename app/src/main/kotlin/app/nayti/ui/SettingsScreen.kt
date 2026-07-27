@@ -43,12 +43,7 @@ import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
 import app.nayti.ui.designsystem.theme.NaytiSpacing
 import app.nayti.ui.designsystem.theme.NaytiTheme
-
-enum class SettingsThemeMode {
-    System,
-    Light,
-    Dark,
-}
+import app.nayti.ui.designsystem.theme.ThemeMode
 
 @Composable
 internal fun SettingsScreen(
@@ -69,8 +64,8 @@ internal fun SettingsScreen(
     onOpenPreparation: () -> Unit = {},
     onSelectIndexingMonths: (Long?) -> Unit = {},
     onSelectIndexingStartDate: (Long) -> Unit = {},
-    themeMode: SettingsThemeMode = SettingsThemeMode.System,
-    onThemeModeChange: (SettingsThemeMode) -> Unit = {},
+    themeMode: ThemeMode = ThemeMode.System,
+    onThemeModeChange: (ThemeMode) -> Unit = {},
 ) {
     var showResetConfirmation by rememberSaveable { mutableStateOf(false) }
     var showAdvanced by rememberSaveable { mutableStateOf(false) }
@@ -286,8 +281,8 @@ internal fun SettingsScreen(
 
 @Composable
 private fun ThemeSettingsRow(
-    selectedMode: SettingsThemeMode,
-    onSelected: (SettingsThemeMode) -> Unit,
+    selectedMode: ThemeMode,
+    onSelected: (ThemeMode) -> Unit,
 ) {
     SettingsRowLayout(
         icon = NaytiIcon.Settings,
@@ -298,7 +293,7 @@ private fun ThemeSettingsRow(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
         ) {
-            SettingsThemeMode.entries.forEach { mode ->
+            ThemeMode.entries.forEach { mode ->
                 ThemeChoiceButton(
                     mode = mode,
                     selected = selectedMode == mode,
@@ -311,7 +306,7 @@ private fun ThemeSettingsRow(
 
 @Composable
 private fun ThemeChoiceButton(
-    mode: SettingsThemeMode,
+    mode: ThemeMode,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
@@ -604,12 +599,12 @@ private fun preparationSettingsDescription(
     }
 }
 
-private val SettingsThemeMode.label: Int
+private val ThemeMode.label: Int
     get() =
         when (this) {
-            SettingsThemeMode.System -> R.string.settings_theme_system
-            SettingsThemeMode.Light -> R.string.settings_theme_light
-            SettingsThemeMode.Dark -> R.string.settings_theme_dark
+            ThemeMode.System -> R.string.settings_theme_system
+            ThemeMode.Light -> R.string.settings_theme_light
+            ThemeMode.Dark -> R.string.settings_theme_dark
         }
 
 private fun Long.asQuantity(): Int = coerceIn(0, Int.MAX_VALUE.toLong()).toInt()

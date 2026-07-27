@@ -65,6 +65,7 @@ import app.nayti.platform.media.MediaPermissionSnapshot
 import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
 import app.nayti.ui.designsystem.theme.NaytiTheme
+import app.nayti.ui.designsystem.theme.ThemeMode
 import app.nayti.ui.library.LibrarySearchScreen
 import app.nayti.ui.preparation.ReadinessPeriodSelection
 import app.nayti.ui.preparation.ReadinessScreen
@@ -86,7 +87,11 @@ private const val ViewerRoute = "viewer/{assetId}"
 private val NavigationRailBreakpoint = 700.dp
 
 @Composable
-fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
+fun NaytiApp(
+    themeMode: ThemeMode = ThemeMode.System,
+    onThemeModeChange: (ThemeMode) -> Unit = {},
+    viewModel: CatalogViewModel = viewModel(),
+) {
     val catalog by viewModel.catalog.collectAsStateWithLifecycle()
     val modelPack by viewModel.modelPack.collectAsStateWithLifecycle()
     val indexing by viewModel.indexing.collectAsStateWithLifecycle()
@@ -173,6 +178,8 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
             onExportDiagnostics = { diagnosticsLauncher.launch("nayti-diagnostics.json") },
             onResetSearchData = viewModel::resetSearchData,
             onRollbackModelPack = viewModel::rollbackModelPack,
+            themeMode = themeMode,
+            onThemeModeChange = onThemeModeChange,
         )
     }
 }
@@ -212,6 +219,8 @@ private fun NaytiAppContent(
     onExportDiagnostics: () -> Unit,
     onResetSearchData: () -> Unit,
     onRollbackModelPack: () -> Unit,
+    themeMode: ThemeMode = ThemeMode.System,
+    onThemeModeChange: (ThemeMode) -> Unit = {},
 ) {
     val navController = rememberNavController()
     val currentEntry by navController.currentBackStackEntryAsState()
@@ -300,6 +309,8 @@ private fun NaytiAppContent(
                         onExportDiagnostics = onExportDiagnostics,
                         onResetSearchData = onResetSearchData,
                         onRollbackModelPack = onRollbackModelPack,
+                        themeMode = themeMode,
+                        onThemeModeChange = onThemeModeChange,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -355,6 +366,8 @@ private fun NaytiAppContent(
                     onExportDiagnostics = onExportDiagnostics,
                     onResetSearchData = onResetSearchData,
                     onRollbackModelPack = onRollbackModelPack,
+                    themeMode = themeMode,
+                    onThemeModeChange = onThemeModeChange,
                     modifier = Modifier.padding(innerPadding),
                 )
             }
@@ -504,6 +517,8 @@ private fun RootNavHost(
     onExportDiagnostics: () -> Unit,
     onResetSearchData: () -> Unit,
     onRollbackModelPack: () -> Unit,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     NavHost(
@@ -565,6 +580,8 @@ private fun RootNavHost(
                     onExportDiagnostics = onExportDiagnostics,
                     onResetSearchData = onResetSearchData,
                     onRollbackModelPack = onRollbackModelPack,
+                    themeMode = themeMode,
+                    onThemeModeChange = onThemeModeChange,
                     onStartIndexing = onStartIndexing,
                     onOpenPreparation = {
                         navController.navigateToRoot(RootDestination.Index.route)

@@ -1,0 +1,11 @@
+Golos Text variable font
+
+Upstream repository: https://github.com/google/fonts
+Upstream path: ofl/golostext/GolosText[wght].ttf
+Pinned revision: 7ff85c87f93ea6cca5f41c69f2e4edcb90240f26
+SHA-256: 17bb58fb69aec2dfb047a2ebf52534023e9b688c97a6b7ac795b0a72912c2063
+Copyright: Copyright 2019 The Golos Text Project Authors
+License: SIL Open Font License 1.1
+Bundled license resource: golos_text_ofl.txt
+
+The font is packaged in the APK and requires no network access at runtime.

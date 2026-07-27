@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.nayti.ui.designsystem.theme.NaytiIconSize
+import kotlin.math.max
 
 /**
  * Small geometric icon set shared by redesigned production surfaces.
@@ -52,14 +54,14 @@ fun NaytiIconMark(
     icon: NaytiIcon,
     modifier: Modifier = Modifier,
     color: Color = LocalContentColor.current,
-    size: Dp = 24.dp,
+    size: Dp = NaytiIconSize.Standard,
 ) {
     Canvas(modifier.size(size)) { drawNaytiIcon(icon, color) }
 }
 
 private fun DrawScope.drawNaytiIcon(icon: NaytiIcon, color: Color) {
     val s = size.minDimension
-    val stroke = Stroke(width = s * 0.075f, cap = StrokeCap.Round)
+    val stroke = Stroke(width = max(s * 0.075f, 1.5.dp.toPx()), cap = StrokeCap.Round)
     fun line(x1: Float, y1: Float, x2: Float, y2: Float) =
         drawLine(color, Offset(x1 * s, y1 * s), Offset(x2 * s, y2 * s), stroke.width, StrokeCap.Round)
 
@@ -113,20 +115,12 @@ private fun DrawScope.drawNaytiIcon(icon: NaytiIcon, color: Color) {
             line(0.18f, 0.7f, 0.78f, 0.7f)
         }
         NaytiIcon.Meaning -> {
-            line(0.18f, 0.32f, 0.6f, 0.32f)
-            line(0.18f, 0.56f, 0.46f, 0.56f)
-            val star = Path().apply {
-                moveTo(s * 0.76f, s * 0.5f)
-                lineTo(s * 0.82f, s * 0.68f)
-                lineTo(s * 0.98f, s * 0.74f)
-                lineTo(s * 0.82f, s * 0.8f)
-                lineTo(s * 0.76f, s * 0.96f)
-                lineTo(s * 0.7f, s * 0.8f)
-                lineTo(s * 0.54f, s * 0.74f)
-                lineTo(s * 0.7f, s * 0.68f)
-                close()
-            }
-            drawPath(star, color)
+            // A relation between two phrases, without the sparkle shorthand used by AI products.
+            line(0.16f, 0.32f, 0.62f, 0.32f)
+            line(0.38f, 0.68f, 0.84f, 0.68f)
+            line(0.62f, 0.32f, 0.38f, 0.68f)
+            drawCircle(color, stroke.width * 0.8f, Offset(s * 0.16f, s * 0.32f))
+            drawCircle(color, stroke.width * 0.8f, Offset(s * 0.84f, s * 0.68f))
         }
         NaytiIcon.Scene -> {
             drawRoundRectOutline(color, stroke, 0.14f, 0.2f, 0.72f, 0.6f, s)

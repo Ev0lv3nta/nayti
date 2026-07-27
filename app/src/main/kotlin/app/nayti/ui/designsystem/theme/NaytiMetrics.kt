@@ -17,6 +17,13 @@ object NaytiSpacing {
     val MinTouchTarget: Dp = 48.dp
 }
 
+/** Icon geometry stays independent from touch targets, which remain at least 48 dp. */
+@Immutable
+object NaytiIconSize {
+    val Compact: Dp = 18.dp
+    val Standard: Dp = 24.dp
+}
+
 /**
  * Motion tokens.
  *
@@ -47,11 +54,11 @@ object NaytiChrome {
      * above both a white and a black frame. Secondary, accent and status colours do not clear it at
      * any sane opacity, which is why only primary ink is allowed on glass.
      */
-    const val GlassTintAlphaDark = 0.70f
+    const val GlassTintAlphaDark = 0.78f
     const val GlassTintAlphaLight = 0.80f
 
-    /** Tint opacity of the solid fallback: no blur, so the tint has to do all the work. */
-    const val SolidTintAlpha = 0.92f
+    /** The production fallback is opaque, so every approved text role keeps its measured contrast. */
+    const val SolidTintAlpha = 1f
 
     val BlurRadius: Dp = 28.dp
     val BarHeight: Dp = 56.dp

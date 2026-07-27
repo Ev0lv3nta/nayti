@@ -3,12 +3,10 @@ package app.nayti.ui.designsystem.component
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.RectangleShape
 import app.nayti.ui.designsystem.theme.NaytiChrome
@@ -17,7 +15,10 @@ import app.nayti.ui.designsystem.theme.NaytiTheme
 
 /** How the chrome separates itself from the photographs underneath. */
 enum class ChromeMaterial {
-    /** Blurred backdrop plus a tint floor. Requires API 31+ and a measured frame budget. */
+    /**
+     * Blurred backdrop plus a tint floor. It remains solid until the caller explicitly enables a
+     * measured blur in [rememberNaytiBackdrop].
+     */
     Glass,
 
     /** Opaque tint only. Always available, always legible, no sampling cost. */
@@ -25,19 +26,19 @@ enum class ChromeMaterial {
 }
 
 /**
- * Surface for chrome placed above photographs.
+ * The production "Kromka" surface: a tonal step, a quiet top reflection and a calm lower edge.
  *
- * The tint alpha floor — not the blur — is what guarantees the 4.5:1 contrast of the text placed on
- * it, so the panel stays readable above the brightest and the darkest frame. A hairline separates
- * it from the content instead of a shadow.
+ * It is opaque and uses one inexpensive draw node by default. Blur remains an explicitly measured
+ * enhancement; grain, glow and multi-pass effects are not part of this primitive.
  */
 @Composable
-fun GlassSurface(
+fun EdgeSurface(
     modifier: Modifier = Modifier,
     backdrop: NaytiBackdrop? = null,
-    material: ChromeMaterial = ChromeMaterial.Glass,
+    material: ChromeMaterial = ChromeMaterial.Solid,
     shape: Shape = RectangleShape,
-    hairlineOnTop: Boolean = true,
+    drawTopEdge: Boolean = true,
+    drawBottomEdge: Boolean = true,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val colors = NaytiTheme.colors
@@ -58,17 +59,56 @@ fun GlassSurface(
                     Modifier
                 },
             )
-            .background(colors.surface.copy(alpha = tintAlpha)),
+            .background(colors.surface.copy(alpha = tintAlpha))
+            .drawWithContent {
+                drawContent()
+                val strokeWidth = NaytiSpacing.Hairline.toPx()
+                if (drawTopEdge) {
+                    drawLine(
+                        color = colors.edgeHighlight,
+                        start = androidx.compose.ui.geometry.Offset.Zero,
+                        end = androidx.compose.ui.geometry.Offset(size.width, 0f),
+                        strokeWidth = strokeWidth,
+                    )
+                }
+                if (drawBottomEdge) {
+                    drawLine(
+                        color = colors.edgeShadow,
+                        start = androidx.compose.ui.geometry.Offset(0f, size.height - strokeWidth / 2f),
+                        end = androidx.compose.ui.geometry.Offset(
+                            size.width,
+                            size.height - strokeWidth / 2f,
+                        ),
+                        strokeWidth = strokeWidth,
+                    )
+                }
+            },
     ) {
-        if (hairlineOnTop) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .height(NaytiSpacing.Hairline)
-                    .background(colors.hairline.copy(alpha = 0.6f)),
-            )
-        }
         content()
     }
+}
+
+/**
+ * Compatibility wrapper for screens that predate [EdgeSurface].
+ *
+ * The old name no longer implies blur: production calls resolve to the same opaque edge primitive
+ * unless their backdrop was explicitly created with measured blur enabled.
+ */
+@Composable
+fun GlassSurface(
+    modifier: Modifier = Modifier,
+    backdrop: NaytiBackdrop? = null,
+    material: ChromeMaterial = ChromeMaterial.Solid,
+    shape: Shape = RectangleShape,
+    hairlineOnTop: Boolean = true,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    EdgeSurface(
+        modifier = modifier,
+        backdrop = backdrop,
+        material = material,
+        shape = shape,
+        drawTopEdge = hairlineOnTop,
+        content = content,
+    )
 }

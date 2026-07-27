@@ -39,24 +39,37 @@ class NaytiBackdrop internal constructor(
 }
 
 @Composable
-fun rememberNaytiBackdrop(): NaytiBackdrop {
+fun rememberNaytiBackdrop(enableMeasuredBlur: Boolean = false): NaytiBackdrop {
     val source = rememberGraphicsLayer()
     val blurred = rememberGraphicsLayer()
-    return remember(source, blurred) {
+    return remember(source, blurred, enableMeasuredBlur) {
         NaytiBackdrop(
             source = source,
             blurred = blurred,
-            blurSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
+            blurSupported =
+                enableMeasuredBlur && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S,
         )
     }
 }
 
-/** Records the content it wraps so chrome can sample it. Draws exactly as before otherwise. */
-fun Modifier.naytiBackdropSource(backdrop: NaytiBackdrop): Modifier = this
-    .onGloballyPositioned { coordinates -> backdrop.sourcePosition = coordinates.positionInWindow() }
-    .drawWithContent {
-        backdrop.source.record { this@drawWithContent.drawContent() }
-        drawLayer(backdrop.source)
+/**
+ * Records content only when measured blur was explicitly enabled.
+ *
+ * The production default returns the original modifier, so the opaque Kromka surface adds no
+ * offscreen recording or extra draw pass.
+ */
+fun Modifier.naytiBackdropSource(backdrop: NaytiBackdrop): Modifier =
+    if (!backdrop.blurSupported) {
+        this
+    } else {
+        this
+            .onGloballyPositioned { coordinates ->
+                backdrop.sourcePosition = coordinates.positionInWindow()
+            }
+            .drawWithContent {
+                backdrop.source.record { this@drawWithContent.drawContent() }
+                drawLayer(backdrop.source)
+            }
     }
 
 /**

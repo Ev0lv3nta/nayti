@@ -46,6 +46,7 @@ import app.nayti.indexer.ModelPackRuntimeState
 import app.nayti.indexer.ModelPackRuntimeStatus
 import app.nayti.indexer.OcrIndexingState
 import app.nayti.platform.media.MediaAccessScope
+import app.nayti.ui.designsystem.component.EdgeSurface
 import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
 import app.nayti.ui.designsystem.theme.NaytiSpacing
@@ -200,7 +201,10 @@ internal fun SettingsScreen(
         }
 
         item {
-            SettingsSection(title = stringResource(R.string.settings_privacy_section)) {
+            EdgeSurface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = NaytiTheme.shapes.card,
+            ) {
                 SettingsInfoRow(
                     icon = NaytiIcon.Shield,
                     title = stringResource(R.string.privacy_title),
@@ -475,10 +479,9 @@ private fun SettingsSection(
             color = NaytiTheme.colors.inkMuted,
             modifier = Modifier.padding(horizontal = NaytiSpacing.XSmall).semantics { heading() },
         )
-        Surface(
+        EdgeSurface(
+            modifier = Modifier.fillMaxWidth(),
             shape = NaytiTheme.shapes.card,
-            color = NaytiTheme.colors.surface,
-            contentColor = NaytiTheme.colors.ink,
         ) {
             Column(content = content)
         }

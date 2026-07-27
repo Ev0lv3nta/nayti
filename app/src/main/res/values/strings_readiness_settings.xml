@@ -92,7 +92,7 @@
     <string name="settings_preparation_title">Подготовка поиска</string>
     <string name="settings_preparation_body">Проверьте готовность четырёх способов поиска и расширьте период.</string>
     <string name="settings_preparation_action">Открыть готовность</string>
-    <string name="settings_storage_section">Хранилище</string>
+    <string name="settings_storage_section">Данные</string>
     <string name="settings_advanced_section">Дополнительно</string>
     <string name="settings_advanced_title">Технические операции</string>
     <string name="settings_advanced_body">Компоненты поиска, диагностика и восстановление.</string>

@@ -24,7 +24,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -50,6 +49,7 @@ import app.nayti.indexer.CatalogRuntimeState
 import app.nayti.indexer.ModelPackRuntimeState
 import app.nayti.indexer.OcrIndexingState
 import app.nayti.indexer.SearchCapability
+import app.nayti.ui.designsystem.component.EdgeSurface
 import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
 import app.nayti.ui.designsystem.theme.NaytiSpacing
@@ -461,9 +461,8 @@ private fun ReadinessOverviewCard(
     state: PreparationUiState,
     onPrimaryAction: () -> Unit,
 ) {
-    Surface(
-        color = NaytiTheme.colors.surface,
-        contentColor = NaytiTheme.colors.ink,
+    EdgeSurface(
+        modifier = Modifier.fillMaxWidth(),
         shape = NaytiTheme.shapes.card,
     ) {
         Column(
@@ -592,9 +591,8 @@ private fun ReadinessPeriodSummary(
     indexing: OcrIndexingState,
     onChange: () -> Unit,
 ) {
-    Surface(
-        color = NaytiTheme.colors.surface,
-        contentColor = NaytiTheme.colors.ink,
+    EdgeSurface(
+        modifier = Modifier.fillMaxWidth(),
         shape = NaytiTheme.shapes.card,
     ) {
         Column(

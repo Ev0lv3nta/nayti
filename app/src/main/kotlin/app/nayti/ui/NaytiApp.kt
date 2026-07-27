@@ -63,8 +63,10 @@ import app.nayti.ui.designsystem.icon.NaytiIconMark
 import app.nayti.ui.designsystem.theme.NaytiTheme
 import app.nayti.ui.library.LibrarySearchScreen
 import app.nayti.ui.preparation.PreparationSheet
+import app.nayti.ui.shell.NaytiHomeTopBar
 import app.nayti.ui.shell.ShellStatusBar
 import app.nayti.ui.shell.ShellStatusMapper
+import app.nayti.ui.shell.ShellStatusTone
 import app.nayti.ui.viewer.PhotoViewerScreen
 
 private enum class RootDestination(
@@ -270,7 +272,29 @@ private fun NaytiAppContent(
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.background,
                 topBar = {
-                    if (showRootNavigation) {
+                    if (currentRoute == RootDestination.Search.route) {
+                        Column(
+                            modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars),
+                        ) {
+                            NaytiHomeTopBar(
+                                status = shellStatus,
+                                onOpenReadiness = { showPreparation = true },
+                                onOpenSettings = {
+                                    navController.navigateToRoot(RootDestination.Data.route)
+                                },
+                            )
+                            if (shellStatus.tone in setOf(
+                                    ShellStatusTone.Attention,
+                                    ShellStatusTone.Error,
+                                )
+                            ) {
+                                ShellStatusBar(
+                                    status = shellStatus,
+                                    onOpenDetails = { showPreparation = true },
+                                )
+                            }
+                        }
+                    } else if (showRootNavigation) {
                         ShellStatusBar(
                             status = shellStatus,
                             onOpenDetails = { showPreparation = true },
@@ -485,9 +509,6 @@ private fun RootNavHost(
                     onSearch = onSearch,
                     onCancelSearch = onCancelSearch,
                     onOpenAsset = { assetId -> navController.navigateToViewer(assetId) },
-                    onOpenSettings = {
-                        navController.navigateToRoot(RootDestination.Data.route)
-                    },
                 )
             }
             composable(RootDestination.Data.route) {

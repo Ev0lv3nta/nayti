@@ -4,7 +4,6 @@ import android.app.DatePickerDialog
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -36,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -44,12 +44,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.listSaver
@@ -62,10 +62,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -134,7 +135,6 @@ fun LibrarySearchScreen(
     onSearch: (String, SearchFilter, SearchChannelSelection) -> Unit,
     onCancelSearch: () -> Unit,
     onOpenAsset: (Long) -> Unit,
-    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -147,14 +147,19 @@ fun LibrarySearchScreen(
         mutableStateOf(SearchChannelSelection.All)
     }
     var showWhere by rememberSaveable { mutableStateOf(false) }
-    var showHow by rememberSaveable { mutableStateOf(false) }
     var longSearch by remember { mutableStateOf(false) }
+    var compactChromeHeightPx by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val density = LocalDensity.current
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val imeVisible = WindowInsets.ime.getBottom(density) > 0
     val backdrop = rememberNaytiBackdrop()
+    val compactChromeClearance = if (compactChromeHeightPx == 0) {
+        SearchChromeInitialClearance
+    } else {
+        with(density) { compactChromeHeightPx.toDp() } + NaytiSpacing.Medium
+    }
 
     LaunchedEffect(library.facets) {
         if (bucketId != null && library.facets.albums.none { it.bucketId == bucketId }) bucketId = null
@@ -199,7 +204,10 @@ fun LibrarySearchScreen(
                     if (mediumLayout) {
                         PaddingValues(vertical = NaytiSpacing.Small)
                     } else {
-                        PaddingValues(bottom = SearchChromeClearance, top = NaytiSpacing.Small)
+                        PaddingValues(
+                            bottom = compactChromeClearance,
+                            top = NaytiSpacing.Small,
+                        )
                     },
                 modifier = Modifier
                     .fillMaxSize()
@@ -215,15 +223,14 @@ fun LibrarySearchScreen(
                     onSearch("", SearchFilter.None, channels)
                 },
                 onOpenWhere = { showWhere = true },
-                onOpenHow = { showHow = true },
-                onOpenSettings = onOpenSettings,
+                channels = channels,
+                onChannelsChange = { channels = it },
                 canSubmit = query.isNotBlank() && modelReady && search !is SearchUiState.Searching,
                 searching = search is SearchUiState.Searching,
                 longSearch = longSearch,
                 imeVisible = imeVisible,
                 filtersActive =
                     dateScope != SearchDateScope.Any || bucketId != null || mimeType != null,
-                methodsActive = channels != SearchChannelSelection.All,
                 modelReady = modelReady,
                 onCancelSearch = onCancelSearch,
                 backdrop = backdrop,
@@ -232,7 +239,14 @@ fun LibrarySearchScreen(
                     .then(if (mediumLayout) Modifier.width(MediumChromeWidth) else Modifier)
                     .navigationBarsPadding()
                     .imePadding()
-                    .padding(horizontal = NaytiSpacing.Screen, vertical = NaytiSpacing.Medium),
+                    .padding(horizontal = NaytiSpacing.Screen, vertical = NaytiSpacing.Medium)
+                    .then(
+                        if (mediumLayout) {
+                            Modifier
+                        } else {
+                            Modifier.onSizeChanged { compactChromeHeightPx = it.height }
+                        },
+                    ),
             )
         }
     }
@@ -264,14 +278,6 @@ fun LibrarySearchScreen(
                 mimeType = null
             },
             onDismiss = { showWhere = false },
-        )
-    }
-    if (showHow) {
-        HowToSearchSheet(
-            selection = channels,
-            indexing = indexing,
-            onSelection = { channels = it },
-            onDismiss = { showHow = false },
         )
     }
 }
@@ -424,19 +430,20 @@ private fun SearchChrome(
     onSubmit: () -> Unit,
     onClear: () -> Unit,
     onOpenWhere: () -> Unit,
-    onOpenHow: () -> Unit,
-    onOpenSettings: () -> Unit,
+    channels: SearchChannelSelection,
+    onChannelsChange: (SearchChannelSelection) -> Unit,
     canSubmit: Boolean,
     searching: Boolean,
     longSearch: Boolean,
     imeVisible: Boolean,
     filtersActive: Boolean,
-    methodsActive: Boolean,
     modelReady: Boolean,
     onCancelSearch: () -> Unit,
     backdrop: NaytiBackdrop,
     modifier: Modifier,
 ) {
+    val clearDescription = stringResource(R.string.search_redesign_clear)
+    val submitDescription = stringResource(R.string.search_redesign_submit)
     GlassSurface(
         modifier = modifier.fillMaxWidth(),
         backdrop = backdrop,
@@ -445,44 +452,84 @@ private fun SearchChrome(
         hairlineOnTop = false,
     ) {
         Column(Modifier.fillMaxWidth().padding(NaytiSpacing.Medium)) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = {
-                    Text(
-                        stringResource(R.string.search_surface_hint),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                leadingIcon = { NaytiIconMark(NaytiIcon.Search) },
-                trailingIcon = {
-                    if (query.isNotEmpty() && !searching) {
-                        IconButton(onClick = onClear) {
-                            NaytiIconMark(NaytiIcon.Close)
-                        }
-                    } else {
-                        IconButton(onClick = onSubmit, enabled = canSubmit) {
-                            if (searching) {
-                                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                            } else {
-                                NaytiIconMark(NaytiIcon.Search)
+                horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    modifier = Modifier.weight(1f),
+                    placeholder = {
+                        Text(
+                            stringResource(R.string.search_surface_hint),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    },
+                    leadingIcon = { NaytiIconMark(NaytiIcon.Search) },
+                    trailingIcon = {
+                        if (query.isNotEmpty() && !searching) {
+                            IconButton(
+                                onClick = onClear,
+                                modifier = Modifier
+                                    .testTag("search-clear")
+                                    .semantics {
+                                        contentDescription = clearDescription
+                                    },
+                            ) {
+                                NaytiIconMark(NaytiIcon.Close)
                             }
                         }
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
+                    singleLine = true,
+                    shape = RoundedCornerShape(18.dp),
+                )
+                Button(
+                    onClick = onSubmit,
+                    enabled = canSubmit,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .testTag("search-submit")
+                        .semantics {
+                            contentDescription = submitDescription
+                        },
+                    shape = RoundedCornerShape(18.dp),
+                    contentPadding = PaddingValues(0.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = NaytiTheme.colors.accent,
+                        contentColor = NaytiTheme.colors.onAccent,
+                    ),
+                ) {
+                    if (searching) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(21.dp),
+                            color = NaytiTheme.colors.onAccent,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        NaytiIconMark(NaytiIcon.Search)
                     }
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
-                singleLine = true,
-                shape = RoundedCornerShape(20.dp),
+                }
+            }
+            SearchModeSelector(
+                selection = channels,
+                enabled = !searching,
+                onSelection = onChannelsChange,
+                modifier = Modifier.padding(top = NaytiSpacing.Small),
             )
             if (!modelReady) {
                 Text(
                     text = stringResource(R.string.search_surface_model_required),
                     style = NaytiTheme.type.labelS,
                     color = NaytiTheme.colors.attention,
-                    modifier = Modifier.padding(horizontal = NaytiSpacing.Small, vertical = NaytiSpacing.XSmall),
+                    modifier = Modifier.padding(
+                        horizontal = NaytiSpacing.Small,
+                        vertical = NaytiSpacing.XSmall,
+                    ),
                 )
             }
             when {
@@ -490,26 +537,97 @@ private fun SearchChrome(
                 !imeVisible && !searching -> Row(modifier = Modifier.fillMaxWidth()) {
                     ChromeAction(
                         icon = NaytiIcon.Filters,
-                        label = stringResource(R.string.search_surface_where) + if (filtersActive) " •" else "",
+                        label = stringResource(R.string.search_surface_where) +
+                            if (filtersActive) " •" else "",
                         onClick = onOpenWhere,
                         modifier = Modifier.weight(1f),
                     )
-                    ChromeAction(
-                        icon = NaytiIcon.Methods,
-                        label = stringResource(R.string.search_surface_how) + if (methodsActive) " •" else "",
-                        onClick = onOpenHow,
-                        modifier = Modifier.weight(1f),
-                    )
-                    ChromeAction(
-                        icon = NaytiIcon.Settings,
-                        label = stringResource(R.string.search_surface_settings),
-                        onClick = onOpenSettings,
-                        modifier = Modifier.weight(1f),
+                    Text(
+                        text = stringResource(R.string.search_redesign_scope_all),
+                        modifier = Modifier.align(Alignment.CenterVertically),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = NaytiTheme.type.labelS,
+                        color = NaytiTheme.colors.inkFaint,
                     )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun SearchModeSelector(
+    selection: SearchChannelSelection,
+    enabled: Boolean,
+    onSelection: (SearchChannelSelection) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+    ) {
+        SearchModeChip(
+            label = stringResource(R.string.search_redesign_mode_text),
+            icon = NaytiIcon.Text,
+            selected = selection.ocrLiteral,
+            enabled = enabled,
+            onClick = {
+                onSelection(selection.set(SearchChannel.OCR_LITERAL, !selection.ocrLiteral))
+            },
+            modifier = Modifier.weight(1f),
+        )
+        SearchModeChip(
+            label = stringResource(R.string.search_redesign_mode_meaning),
+            icon = NaytiIcon.Meaning,
+            selected = selection.ocrSemantic,
+            enabled = enabled,
+            onClick = {
+                onSelection(selection.set(SearchChannel.OCR_SEMANTIC, !selection.ocrSemantic))
+            },
+            modifier = Modifier.weight(1f),
+        )
+        SearchModeChip(
+            label = stringResource(R.string.search_redesign_mode_photo),
+            icon = NaytiIcon.Scene,
+            selected = selection.visual,
+            enabled = enabled,
+            onClick = {
+                onSelection(selection.set(SearchChannel.VISUAL, !selection.visual))
+            },
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun SearchModeChip(
+    label: String,
+    icon: NaytiIcon,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.heightIn(min = 48.dp),
+        label = {
+            Text(
+                text = label,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        leadingIcon = {
+            NaytiIconMark(
+                icon = if (selected) NaytiIcon.Check else icon,
+                size = 17.dp,
+            )
+        },
+    )
 }
 
 @Composable
@@ -568,38 +686,38 @@ private fun SearchResultTile(
     onClick: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Box(Modifier.fillMaxWidth().aspectRatio(1f)) {
-            PhotoThumbnail(
-                key = result.asset.key,
-                accessRevision = accessRevision,
-                description = photoDescription(result.asset),
-                onLoad = onLoadThumbnail,
-                shape = RoundedCornerShape(3.dp),
-            )
-            Surface(
-                modifier = Modifier.align(Alignment.BottomStart).padding(4.dp),
-                color = NaytiTheme.colors.accentContainer.copy(alpha = 0.9f),
-                shape = RoundedCornerShape(7.dp),
-            ) {
-                Text(
-                    text = evidenceLabel(result.hit.reason),
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                    style = NaytiTheme.type.labelS,
-                    color = NaytiTheme.colors.onAccentContainer,
-                    maxLines = 1,
-                )
-            }
-        }
+        PhotoThumbnail(
+            key = result.asset.key,
+            accessRevision = accessRevision,
+            description = photoDescription(result.asset),
+            onLoad = onLoadThumbnail,
+            shape = RoundedCornerShape(3.dp),
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f),
+        )
+        Spacer(
+            Modifier
+                .fillMaxWidth()
+                .height(3.dp)
+                .background(evidenceColor(result.hit.reason)),
+        )
         Text(
-            text = result.hit.displaySnippet ?: stringResource(R.string.search_visual_result),
-            modifier = Modifier.padding(horizontal = 3.dp, vertical = 4.dp),
+            text = evidenceLabel(result.hit.reason),
+            modifier = Modifier.padding(horizontal = 3.dp, vertical = 5.dp),
             style = NaytiTheme.type.labelS,
             color = NaytiTheme.colors.inkMuted,
-            maxLines = 2,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
     }
 }
+
+@Composable
+private fun evidenceColor(reason: UnifiedSearchReason) =
+    when (reason) {
+        UnifiedSearchReason.SEMANTIC_TEXT -> NaytiTheme.colors.attention
+        UnifiedSearchReason.VISUAL_CONTENT -> NaytiTheme.colors.ready
+        else -> NaytiTheme.colors.inkMuted
+    }
 
 @Composable
 private fun MonthHeader(label: String) {
@@ -839,99 +957,6 @@ private fun <T> FacetRow(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun HowToSearchSheet(
-    selection: SearchChannelSelection,
-    indexing: OcrIndexingState,
-    onSelection: (SearchChannelSelection) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            Modifier.padding(
-                start = NaytiSpacing.Screen,
-                end = NaytiSpacing.Screen,
-                bottom = NaytiSpacing.Section,
-            ),
-            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
-        ) {
-            Text(
-                stringResource(R.string.search_how_title),
-                style = NaytiTheme.type.titleL,
-                modifier = Modifier.semantics { heading() },
-            )
-            Text(
-                stringResource(R.string.search_how_note),
-                style = NaytiTheme.type.bodyM,
-                color = NaytiTheme.colors.inkMuted,
-            )
-            SearchMethodRow(
-                title = stringResource(R.string.search_how_literal),
-                icon = NaytiIcon.Text,
-                checked = selection.ocrLiteral,
-                ready = committed(indexing, SearchCapability.TEXT),
-                onChecked = { onSelection(selection.set(SearchChannel.OCR_LITERAL, it)) },
-            )
-            SearchMethodRow(
-                title = stringResource(R.string.search_how_semantic),
-                icon = NaytiIcon.Meaning,
-                checked = selection.ocrSemantic,
-                ready = committed(indexing, SearchCapability.MEANING),
-                onChecked = { onSelection(selection.set(SearchChannel.OCR_SEMANTIC, it)) },
-            )
-            SearchMethodRow(
-                title = stringResource(R.string.search_how_visual),
-                icon = NaytiIcon.Scene,
-                checked = selection.visual,
-                ready = committed(indexing, SearchCapability.VISUAL),
-                onChecked = { onSelection(selection.set(SearchChannel.VISUAL, it)) },
-            )
-            Text(
-                stringResource(R.string.search_how_keep_one),
-                style = NaytiTheme.type.labelS,
-                color = NaytiTheme.colors.inkFaint,
-            )
-            Button(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
-                Text(stringResource(R.string.search_where_apply))
-            }
-        }
-    }
-}
-
-@Composable
-private fun SearchMethodRow(
-    title: String,
-    icon: NaytiIcon,
-    checked: Boolean,
-    ready: Long,
-    onChecked: (Boolean) -> Unit,
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .toggleable(
-                value = checked,
-                role = Role.Switch,
-                onValueChange = onChecked,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        NaytiIconMark(icon, color = NaytiTheme.colors.inkMuted)
-        Spacer(Modifier.width(NaytiSpacing.Medium))
-        Column(Modifier.weight(1f)) {
-            Text(title, style = NaytiTheme.type.bodyL, fontWeight = FontWeight.Medium)
-            Text(
-                pluralStringResource(R.plurals.search_how_ready, ready.toInt(), ready),
-                style = NaytiTheme.type.labelS,
-                color = NaytiTheme.colors.inkMuted,
-            )
-        }
-        Switch(checked = checked, onCheckedChange = null)
-    }
-}
-
 @Composable
 private fun SheetLabel(text: String) {
     Text(text, style = NaytiTheme.type.titleM, color = NaytiTheme.colors.ink)
@@ -1020,9 +1045,6 @@ private val SearchDateScope.labelResource: Int
         SearchDateScope.Custom -> R.string.search_where_custom
     }
 
-private fun committed(indexing: OcrIndexingState, capability: SearchCapability): Long =
-    indexing.capabilities.firstOrNull { it.capability == capability }?.committed ?: 0
-
 private fun showDateRangePicker(
     context: Context,
     onSelected: (fromMillis: Long, beforeMillis: Long) -> Unit,
@@ -1060,4 +1082,4 @@ private const val DayMillis = 24L * 60 * 60 * 1_000
 private const val SearchResultLimit = 50
 private val MediumLayoutMinWidth = 600.dp
 private val MediumChromeWidth = 320.dp
-private val SearchChromeClearance = 164.dp
+private val SearchChromeInitialClearance = 204.dp

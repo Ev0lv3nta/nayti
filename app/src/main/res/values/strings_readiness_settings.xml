@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="readiness_title">Индекс</string>
-    <string name="readiness_subtitle">Что уже готово к поиску.</string>
+    <string name="readiness_subtitle">Что уже готово к поиску. Подготовка идёт только по вашей команде и продолжается с места остановки.</string>
     <string name="readiness_channels_title">Способы поиска</string>
     <string name="readiness_channel_literal">Текст на фото</string>
     <string name="readiness_channel_semantic">Смысл текста</string>
@@ -115,7 +115,8 @@
     <string name="settings_diagnostics_body">Создаёт обезличенный отчёт только с версиями, состояниями и счётчиками.</string>
     <string name="settings_destructive_show">Управление данными</string>
     <string name="settings_destructive_hide">Скрыть управление данными</string>
-    <string name="settings_destructive_title">Удаление данных поиска</string>
-    <string name="settings_destructive_body">Фотографии и компоненты поиска останутся на устройстве.</string>
+    <string name="settings_storage_originals_not_copied">Оригиналы фотографий не копируются</string>
+    <string name="settings_destructive_title">Сбросить индекс</string>
+    <string name="settings_destructive_body">Фото и модели останутся</string>
     <string name="settings_hidden_data_title">Данные фотографий вне текущего доступа</string>
 </resources>

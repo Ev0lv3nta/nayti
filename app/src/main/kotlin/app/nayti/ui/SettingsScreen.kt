@@ -152,7 +152,9 @@ internal fun SettingsScreen(
                 SettingsNavigationRow(
                     icon = NaytiIcon.Models,
                     title = stringResource(R.string.settings_models_file_title),
-                    body = stringResource(R.string.settings_models_file_body),
+                    body =
+                        stringResource(R.string.settings_models_file_body) +
+                            " · " + formatStorage(localStorage.modelBytes),
                     value = modelPack.installed?.packVersion ?: "—",
                     onClick = onImportModelPack,
                 )
@@ -162,15 +164,11 @@ internal fun SettingsScreen(
         item {
             val hiddenCount = catalog.summary.retainedQuarantine
             SettingsSection(title = stringResource(R.string.settings_storage_section)) {
-                SettingsInfoRow(
+                SettingsValueInfoRow(
                     icon = NaytiIcon.Storage,
                     title = stringResource(R.string.storage_title),
-                    body =
-                        stringResource(
-                            R.string.storage_details,
-                            formatStorage(localStorage.indexBytes),
-                            formatStorage(localStorage.modelBytes),
-                        ),
+                    body = stringResource(R.string.settings_storage_originals_not_copied),
+                    value = formatStorage(localStorage.indexBytes),
                 )
                 if (hiddenCount > 0) {
                     HorizontalDivider(color = NaytiTheme.colors.hairline)
@@ -515,6 +513,34 @@ private fun SettingsInfoRow(
             Text(title, style = NaytiTheme.type.titleM, fontWeight = FontWeight.SemiBold)
             Text(body, style = NaytiTheme.type.labelS, color = NaytiTheme.colors.inkMuted)
         }
+    }
+}
+
+@Composable
+private fun SettingsValueInfoRow(
+    icon: NaytiIcon,
+    title: String,
+    body: String,
+    value: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Screen),
+        horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        NaytiIconMark(icon = icon, color = NaytiTheme.colors.inkMuted, size = 22.dp)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
+        ) {
+            Text(title, style = NaytiTheme.type.titleM, fontWeight = FontWeight.SemiBold)
+            Text(body, style = NaytiTheme.type.labelS, color = NaytiTheme.colors.inkMuted)
+        }
+        Text(
+            text = value,
+            style = NaytiTheme.type.labelL,
+            color = NaytiTheme.colors.inkMuted,
+        )
     }
 }
 

@@ -77,7 +77,6 @@ internal fun SettingsScreen(
 ) {
     var showResetConfirmation by rememberSaveable { mutableStateOf(false) }
     var showAdvanced by rememberSaveable { mutableStateOf(false) }
-    var showDestructive by rememberSaveable { mutableStateOf(false) }
     var showThemeSheet by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { onRefreshStorage() }
 
@@ -161,16 +160,6 @@ internal fun SettingsScreen(
         }
 
         item {
-            SettingsSection(title = stringResource(R.string.settings_privacy_section)) {
-                SettingsInfoRow(
-                    icon = NaytiIcon.Shield,
-                    title = stringResource(R.string.privacy_title),
-                    body = stringResource(R.string.privacy_details),
-                )
-            }
-        }
-
-        item {
             val hiddenCount = catalog.summary.retainedQuarantine
             SettingsSection(title = stringResource(R.string.settings_storage_section)) {
                 SettingsInfoRow(
@@ -197,33 +186,28 @@ internal fun SettingsScreen(
                     )
                 }
                 HorizontalDivider(color = NaytiTheme.colors.hairline)
-                SettingsDisclosureRow(
+                SettingsCompactActionRow(
                     icon = NaytiIcon.Delete,
-                    title =
-                        stringResource(
-                            if (showDestructive) {
-                                R.string.settings_destructive_hide
-                            } else {
-                                R.string.settings_destructive_show
-                            },
-                        ),
-                    body = stringResource(R.string.settings_destructive_body),
-                    expanded = showDestructive,
-                    onToggle = { showDestructive = !showDestructive },
+                    title = stringResource(R.string.settings_destructive_title),
+                    body =
+                        if (searchDataReset == SearchDataResetState.Idle) {
+                            stringResource(R.string.settings_destructive_body)
+                        } else {
+                            searchDataResetDescription(searchDataReset)
+                        },
+                    onClick = { showResetConfirmation = true },
                     destructive = true,
                 )
-                if (showDestructive) {
-                    HorizontalDivider(color = NaytiTheme.colors.hairline)
-                    SettingsActionRow(
-                        icon = NaytiIcon.Delete,
-                        title = stringResource(R.string.settings_destructive_title),
-                        body = searchDataResetDescription(searchDataReset),
-                        actionLabel = stringResource(R.string.reset_index_action),
-                        onAction = { showResetConfirmation = true },
-                        actionEnabled = searchDataReset != SearchDataResetState.Resetting,
-                        destructive = true,
-                    )
-                }
+            }
+        }
+
+        item {
+            SettingsSection(title = stringResource(R.string.settings_privacy_section)) {
+                SettingsInfoRow(
+                    icon = NaytiIcon.Shield,
+                    title = stringResource(R.string.privacy_title),
+                    body = stringResource(R.string.privacy_details),
+                )
             }
         }
 
@@ -307,8 +291,8 @@ private fun ThemeSettingsRow(
     SettingsNavigationRow(
         icon = NaytiIcon.Settings,
         title = stringResource(R.string.settings_theme_title),
-        body = stringResource(R.string.settings_theme_body_short),
-        value = stringResource(selectedMode.label),
+        body = stringResource(selectedMode.label),
+        value = "",
         onClick = onClick,
     )
 }
@@ -465,11 +449,13 @@ private fun SettingsNavigationRow(
                     color = NaytiTheme.colors.inkMuted,
                 )
             }
-            Text(
-                text = value,
-                style = NaytiTheme.type.labelL,
-                color = NaytiTheme.colors.inkMuted,
-            )
+            if (value.isNotBlank()) {
+                Text(
+                    text = value,
+                    style = NaytiTheme.type.labelL,
+                    color = NaytiTheme.colors.inkMuted,
+                )
+            }
             NaytiIconMark(
                 icon = NaytiIcon.ChevronRight,
                 color = NaytiTheme.colors.inkFaint,
@@ -507,7 +493,70 @@ private fun SettingsInfoRow(
     title: String,
     body: String,
 ) {
-    SettingsRowLayout(icon = icon, title = title, body = body)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Screen),
+        horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        NaytiIconMark(
+            icon = icon,
+            color =
+                if (icon == NaytiIcon.Shield) {
+                    NaytiTheme.colors.evidencePhoto
+                } else {
+                    NaytiTheme.colors.inkMuted
+                },
+            size = 22.dp,
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
+        ) {
+            Text(title, style = NaytiTheme.type.titleM, fontWeight = FontWeight.SemiBold)
+            Text(body, style = NaytiTheme.type.labelS, color = NaytiTheme.colors.inkMuted)
+        }
+    }
+}
+
+@Composable
+private fun SettingsCompactActionRow(
+    icon: NaytiIcon,
+    title: String,
+    body: String,
+    onClick: () -> Unit,
+    destructive: Boolean = false,
+) {
+    val contentColor =
+        if (destructive) {
+            NaytiTheme.colors.error
+        } else {
+            NaytiTheme.colors.ink
+        }
+    Surface(
+        onClick = onClick,
+        color = Color.Transparent,
+        contentColor = contentColor,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Screen),
+            horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NaytiIconMark(icon = icon, color = contentColor, size = 22.dp)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
+            ) {
+                Text(title, style = NaytiTheme.type.titleM, fontWeight = FontWeight.SemiBold)
+                Text(body, style = NaytiTheme.type.labelS, color = NaytiTheme.colors.inkMuted)
+            }
+            NaytiIconMark(
+                icon = NaytiIcon.ChevronRight,
+                color = NaytiTheme.colors.inkFaint,
+                size = 18.dp,
+            )
+        }
+    }
 }
 
 @Composable

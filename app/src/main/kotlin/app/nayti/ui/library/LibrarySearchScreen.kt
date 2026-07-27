@@ -16,10 +16,8 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -245,7 +243,6 @@ fun LibrarySearchScreen(
                 modifier = Modifier
                     .align(if (mediumLayout) Alignment.BottomEnd else Alignment.BottomCenter)
                     .then(if (mediumLayout) Modifier.width(MediumChromeWidth) else Modifier)
-                    .navigationBarsPadding()
                     .imePadding()
                     .padding(horizontal = NaytiSpacing.Screen, vertical = NaytiSpacing.Medium)
                     .then(
@@ -460,10 +457,10 @@ private fun SearchChrome(
         modifier = modifier.fillMaxWidth(),
         backdrop = backdrop,
         material = ChromeMaterial.Glass,
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(26.dp),
         hairlineOnTop = false,
     ) {
-        Column(Modifier.fillMaxWidth().padding(NaytiSpacing.Medium)) {
+        Column(Modifier.fillMaxWidth().padding(10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
@@ -472,7 +469,7 @@ private fun SearchChrome(
                 OutlinedTextField(
                     value = query,
                     onValueChange = onQueryChange,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).height(50.dp),
                     placeholder = {
                         Text(
                             stringResource(R.string.search_surface_hint),
@@ -498,7 +495,7 @@ private fun SearchChrome(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
                     singleLine = true,
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = NaytiTheme.colors.surfaceHigh,
                         unfocusedContainerColor = NaytiTheme.colors.surfaceHigh,
@@ -513,12 +510,12 @@ private fun SearchChrome(
                         onClick = onSubmit,
                         enabled = canSubmit,
                         modifier = Modifier
-                            .size(56.dp)
+                            .size(50.dp)
                             .testTag("search-submit")
                             .semantics {
                                 contentDescription = submitDescription
                             },
-                        shape = RoundedCornerShape(18.dp),
+                        shape = RoundedCornerShape(16.dp),
                         contentPadding = PaddingValues(0.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = NaytiTheme.colors.accent,
@@ -541,7 +538,7 @@ private fun SearchChrome(
                 selection = channels,
                 enabled = !searching,
                 onSelection = onChannelsChange,
-                modifier = Modifier.padding(top = NaytiSpacing.Small),
+                modifier = Modifier.padding(top = 9.dp),
             )
             if (!modelReady) {
                 Text(
@@ -645,7 +642,7 @@ private fun SearchModeChip(
         selected = selected,
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.heightIn(min = 48.dp),
+        modifier = modifier.height(40.dp),
         colors = FilterChipDefaults.filterChipColors(
             containerColor = Color.Transparent,
             labelColor = NaytiTheme.colors.inkMuted,

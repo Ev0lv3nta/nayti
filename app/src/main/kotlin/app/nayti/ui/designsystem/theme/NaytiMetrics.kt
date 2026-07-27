@@ -54,7 +54,7 @@ object NaytiChrome {
      * above both a white and a black frame. Secondary, accent and status colours do not clear it at
      * any sane opacity, which is why only primary ink is allowed on glass.
      */
-    const val GlassTintAlphaDark = 0.78f
+    const val GlassTintAlphaDark = 0.86f
     const val GlassTintAlphaLight = 0.80f
 
     /** The production fallback is opaque, so every approved text role keeps its measured contrast. */

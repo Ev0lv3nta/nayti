@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="readiness_title">Готовность</string>
-    <string name="readiness_subtitle">Что уже доступно для поиска и что ещё готовится.</string>
+    <string name="readiness_title">Индекс</string>
+    <string name="readiness_subtitle">Что уже готово к поиску.</string>
     <string name="readiness_channels_title">Способы поиска</string>
     <string name="readiness_channel_literal">Текст на фото</string>
     <string name="readiness_channel_semantic">Смысл текста</string>
     <string name="readiness_channel_visual">Содержимое фото</string>
     <string name="readiness_channel_duplicates">Копии и похожие кадры</string>
+    <string name="readiness_channel_short_text">Текст</string>
+    <string name="readiness_channel_short_meaning">Смысл</string>
+    <string name="readiness_channel_short_photo">Фото</string>
+    <string name="readiness_channel_short_copies">Копии</string>
     <string name="readiness_channel_counts">%1$d / %2$d</string>
     <string name="readiness_channel_gaps">Пропуски: %1$d</string>
     <string name="readiness_channel_no_gaps">Пропусков нет</string>
@@ -43,6 +47,10 @@
     <string name="readiness_action_check_continue">Проверить и продолжить</string>
 
     <string name="readiness_period_title">Период</string>
+    <string name="readiness_period_change">Изменить</string>
+    <string name="readiness_period_sheet_title">Какие фото готовить</string>
+    <string name="readiness_period_one_month">1 месяц</string>
+    <string name="readiness_period_three_months">3 месяца</string>
     <string name="readiness_period_all_description">Вся доступная медиатека · %1$d фото</string>
     <string name="readiness_period_since_description">С %1$s · %2$d из %3$d фото</string>
     <string name="readiness_period_reuse">Готовые данные переиспользуются. Обработаются только отсутствующие или устаревшие.</string>
@@ -71,11 +79,16 @@
     <string name="settings_appearance_section">Оформление</string>
     <string name="settings_theme_title">Тема</string>
     <string name="settings_theme_body">Меняет только интерфейс. Фотографии всегда показываются без обработки.</string>
+    <string name="settings_theme_body_short">Система, светлая или тёмная</string>
     <string name="settings_theme_system">Как в системе</string>
     <string name="settings_theme_light">Светлая</string>
     <string name="settings_theme_dark">Тёмная</string>
     <string name="settings_theme_selected">%1$s, выбрано</string>
     <string name="settings_media_section">Медиатека</string>
+    <string name="settings_media_no_access">Доступ не предоставлен</string>
+    <string name="settings_media_android_selection">Выбраны в системном окне Android</string>
+    <string name="settings_models_file_title">Файл с моделями</string>
+    <string name="settings_models_file_body">Проверен локально</string>
     <string name="settings_preparation_title">Подготовка поиска</string>
     <string name="settings_preparation_body">Проверьте готовность четырёх способов поиска и расширьте период.</string>
     <string name="settings_preparation_action">Открыть готовность</string>

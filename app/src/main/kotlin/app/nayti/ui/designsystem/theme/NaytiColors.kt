@@ -128,7 +128,7 @@ internal fun NaytiColors.toMaterialScheme(): ColorScheme {
         onSurfaceVariant = inkMuted,
         surfaceContainer = surface,
         surfaceContainerHigh = surfaceHigh,
-        surfaceContainerHighest = surfaceLow,
+        surfaceContainerHighest = surfaceHigh,
         surfaceContainerLow = background,
         surfaceContainerLowest = background,
         outline = outlineStrong,

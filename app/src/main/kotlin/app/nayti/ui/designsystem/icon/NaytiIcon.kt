@@ -25,6 +25,7 @@ import kotlin.math.max
  */
 enum class NaytiIcon {
     Search,
+    Index,
     Filters,
     Methods,
     Settings,
@@ -70,6 +71,27 @@ private fun DrawScope.drawNaytiIcon(icon: NaytiIcon, color: Color) {
             drawCircle(color, s * 0.28f, Offset(s * 0.43f, s * 0.43f), style = stroke)
             line(0.64f, 0.64f, 0.86f, 0.86f)
         }
+        NaytiIcon.Index -> {
+            drawArc(
+                color = color,
+                startAngle = -90f,
+                sweepAngle = 175f,
+                useCenter = false,
+                topLeft = Offset(s * 0.14f, s * 0.14f),
+                size = Size(s * 0.72f, s * 0.72f),
+                style = stroke,
+            )
+            drawArc(
+                color = color,
+                startAngle = -90f,
+                sweepAngle = 135f,
+                useCenter = false,
+                topLeft = Offset(s * 0.31f, s * 0.31f),
+                size = Size(s * 0.38f, s * 0.38f),
+                style = stroke,
+            )
+            drawCircle(color, s * 0.07f, Offset(s * 0.5f, s * 0.5f))
+        }
         NaytiIcon.Filters -> {
             line(0.16f, 0.3f, 0.84f, 0.3f)
             line(0.16f, 0.7f, 0.84f, 0.7f)
@@ -83,18 +105,10 @@ private fun DrawScope.drawNaytiIcon(icon: NaytiIcon, color: Color) {
             drawCircle(color, s * 0.09f, Offset(s * 0.82f, s * 0.36f))
         }
         NaytiIcon.Settings -> {
-            val gear = Path().apply {
-                repeat(24) { point ->
-                    val angle = Math.toRadians((point * 15.0) - 90.0)
-                    val radius = if (point % 3 == 1) 0.33f else 0.43f
-                    val x = s * (0.5f + radius * kotlin.math.cos(angle).toFloat())
-                    val y = s * (0.5f + radius * kotlin.math.sin(angle).toFloat())
-                    if (point == 0) moveTo(x, y) else lineTo(x, y)
-                }
-                close()
-            }
-            drawPath(gear, color, style = stroke)
-            drawCircle(color, s * 0.15f, Offset(s * 0.5f, s * 0.5f), style = stroke)
+            line(0.16f, 0.32f, 0.84f, 0.32f)
+            line(0.16f, 0.68f, 0.84f, 0.68f)
+            drawCircle(color, s * 0.105f, Offset(s * 0.38f, s * 0.32f), style = stroke)
+            drawCircle(color, s * 0.105f, Offset(s * 0.64f, s * 0.68f), style = stroke)
         }
         NaytiIcon.ChevronRight -> {
             line(0.42f, 0.28f, 0.64f, 0.5f)

@@ -39,10 +39,12 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -57,6 +59,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -115,7 +119,11 @@ private enum class SearchDateScope {
 }
 
 private sealed interface LibraryGridEntry {
-    data class Month(val key: String, val label: String) : LibraryGridEntry
+    data class Month(
+        val key: String,
+        val label: String,
+        val loadedCount: Int,
+    ) : LibraryGridEntry
     data class Photo(val item: CatalogItem) : LibraryGridEntry
 }
 
@@ -396,7 +404,11 @@ private fun LibraryOrResultsGrid(
                     },
                 ) { entry ->
                     when (entry) {
-                        is LibraryGridEntry.Month -> MonthHeader(entry.label)
+                        is LibraryGridEntry.Month ->
+                            MonthHeader(
+                                label = entry.label,
+                                loadedCount = entry.loadedCount,
+                            )
                         is LibraryGridEntry.Photo -> {
                             LibraryPhotoTile(
                                 item = entry.item,
@@ -487,31 +499,41 @@ private fun SearchChrome(
                     keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
                     singleLine = true,
                     shape = RoundedCornerShape(18.dp),
-                )
-                Button(
-                    onClick = onSubmit,
-                    enabled = canSubmit,
-                    modifier = Modifier
-                        .size(56.dp)
-                        .testTag("search-submit")
-                        .semantics {
-                            contentDescription = submitDescription
-                        },
-                    shape = RoundedCornerShape(18.dp),
-                    contentPadding = PaddingValues(0.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = NaytiTheme.colors.accent,
-                        contentColor = NaytiTheme.colors.onAccent,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = NaytiTheme.colors.surfaceHigh,
+                        unfocusedContainerColor = NaytiTheme.colors.surfaceHigh,
+                        disabledContainerColor = NaytiTheme.colors.surfaceHigh,
+                        focusedBorderColor = NaytiTheme.colors.outline,
+                        unfocusedBorderColor = NaytiTheme.colors.hairline,
+                        cursorColor = NaytiTheme.colors.accent,
                     ),
-                ) {
-                    if (searching) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(21.dp),
-                            color = NaytiTheme.colors.onAccent,
-                            strokeWidth = 2.dp,
-                        )
-                    } else {
-                        NaytiIconMark(NaytiIcon.Search)
+                )
+                if (query.isNotBlank() || searching) {
+                    Button(
+                        onClick = onSubmit,
+                        enabled = canSubmit,
+                        modifier = Modifier
+                            .size(56.dp)
+                            .testTag("search-submit")
+                            .semantics {
+                                contentDescription = submitDescription
+                            },
+                        shape = RoundedCornerShape(18.dp),
+                        contentPadding = PaddingValues(0.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = NaytiTheme.colors.accent,
+                            contentColor = NaytiTheme.colors.onAccent,
+                        ),
+                    ) {
+                        if (searching) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(21.dp),
+                                color = NaytiTheme.colors.onAccent,
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            NaytiIconMark(NaytiIcon.Search)
+                        }
                     }
                 }
             }
@@ -537,7 +559,7 @@ private fun SearchChrome(
                 !imeVisible && !searching -> Row(modifier = Modifier.fillMaxWidth()) {
                     ChromeAction(
                         icon = NaytiIcon.Filters,
-                        label = stringResource(R.string.search_surface_where) +
+                        label = stringResource(R.string.search_redesign_filters) +
                             if (filtersActive) " •" else "",
                         onClick = onOpenWhere,
                         modifier = Modifier.weight(1f),
@@ -548,7 +570,7 @@ private fun SearchChrome(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = NaytiTheme.type.labelS,
-                        color = NaytiTheme.colors.inkFaint,
+                        color = NaytiTheme.colors.inkMuted,
                     )
                 }
             }
@@ -570,6 +592,7 @@ private fun SearchModeSelector(
         SearchModeChip(
             label = stringResource(R.string.search_redesign_mode_text),
             icon = NaytiIcon.Text,
+            channelColor = NaytiTheme.colors.evidenceText,
             selected = selection.ocrLiteral,
             enabled = enabled,
             onClick = {
@@ -580,6 +603,7 @@ private fun SearchModeSelector(
         SearchModeChip(
             label = stringResource(R.string.search_redesign_mode_meaning),
             icon = NaytiIcon.Meaning,
+            channelColor = NaytiTheme.colors.evidenceMeaning,
             selected = selection.ocrSemantic,
             enabled = enabled,
             onClick = {
@@ -590,6 +614,7 @@ private fun SearchModeSelector(
         SearchModeChip(
             label = stringResource(R.string.search_redesign_mode_photo),
             icon = NaytiIcon.Scene,
+            channelColor = NaytiTheme.colors.evidencePhoto,
             selected = selection.visual,
             enabled = enabled,
             onClick = {
@@ -604,16 +629,31 @@ private fun SearchModeSelector(
 private fun SearchModeChip(
     label: String,
     icon: NaytiIcon,
+    channelColor: Color,
     selected: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val selectedContentColor =
+        if (NaytiTheme.colors.background.luminance() < 0.3f) {
+            Color(0xFF12100F)
+        } else {
+            Color.White
+        }
     FilterChip(
         selected = selected,
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.heightIn(min = 48.dp),
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = Color.Transparent,
+            labelColor = NaytiTheme.colors.inkMuted,
+            iconColor = NaytiTheme.colors.inkMuted,
+            selectedContainerColor = channelColor,
+            selectedLabelColor = selectedContentColor,
+            selectedLeadingIconColor = selectedContentColor,
+        ),
         label = {
             Text(
                 text = label,
@@ -623,7 +663,7 @@ private fun SearchModeChip(
         },
         leadingIcon = {
             NaytiIconMark(
-                icon = if (selected) NaytiIcon.Check else icon,
+                icon = icon,
                 size = 17.dp,
             )
         },
@@ -714,23 +754,36 @@ private fun SearchResultTile(
 @Composable
 private fun evidenceColor(reason: UnifiedSearchReason) =
     when (reason) {
-        UnifiedSearchReason.SEMANTIC_TEXT -> NaytiTheme.colors.attention
-        UnifiedSearchReason.VISUAL_CONTENT -> NaytiTheme.colors.ready
-        else -> NaytiTheme.colors.inkMuted
+        UnifiedSearchReason.SEMANTIC_TEXT -> NaytiTheme.colors.evidenceMeaning
+        UnifiedSearchReason.VISUAL_CONTENT -> NaytiTheme.colors.evidencePhoto
+        else -> NaytiTheme.colors.evidenceText
     }
 
 @Composable
-private fun MonthHeader(label: String) {
-    Text(
-        text = label,
+private fun MonthHeader(
+    label: String,
+    loadedCount: Int,
+) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(NaytiTheme.colors.background.copy(alpha = 0.94f))
             .padding(horizontal = NaytiSpacing.Screen, vertical = NaytiSpacing.Medium)
             .semantics { heading() },
-        style = NaytiTheme.type.titleM,
-        color = NaytiTheme.colors.ink,
-    )
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+    ) {
+        Text(
+            text = label,
+            style = NaytiTheme.type.titleM,
+            color = NaytiTheme.colors.ink,
+        )
+        Text(
+            text = loadedCount.toString(),
+            style = NaytiTheme.type.labelS,
+            color = NaytiTheme.colors.inkFaint,
+        )
+    }
 }
 
 @Composable
@@ -768,7 +821,7 @@ private fun SearchCoverageLine(search: SearchUiState.Ready, indexing: OcrIndexin
                     resultCount,
                 ),
                 style = NaytiTheme.type.labelS,
-                color = NaytiTheme.colors.inkFaint,
+                color = NaytiTheme.colors.inkMuted,
             )
         }
     }
@@ -994,6 +1047,13 @@ private fun libraryEntries(
     unknownDateLabel: String,
 ): List<LibraryGridEntry> {
     val formatter = DateTimeFormatter.ofPattern("LLLL yyyy", Locale.getDefault())
+    val monthCounts =
+        items.groupingBy { item ->
+            item.dateTakenMillis
+                ?.let { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() }
+                ?.let { date -> "${date.year}-${date.monthValue}" }
+                ?: "unknown"
+        }.eachCount()
     var previousKey: String? = null
     return buildList {
         items.forEach { item ->
@@ -1007,6 +1067,7 @@ private fun libraryEntries(
                         key = key,
                         label = date?.format(formatter)?.replaceFirstChar(Char::uppercase)
                             ?: unknownDateLabel,
+                        loadedCount = monthCounts.getValue(key),
                     ),
                 )
                 previousKey = key

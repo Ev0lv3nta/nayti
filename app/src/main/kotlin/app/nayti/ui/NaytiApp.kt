@@ -79,7 +79,7 @@ private enum class RootDestination(
     val icon: NaytiIcon,
 ) {
     Search("search", R.string.nav_search, NaytiIcon.Search),
-    Index("index", R.string.nav_index, NaytiIcon.Methods),
+    Index("index", R.string.nav_index, NaytiIcon.Index),
     Settings("settings", R.string.nav_settings, NaytiIcon.Settings),
 }
 
@@ -394,7 +394,11 @@ private fun RootNavigationBar(
                 },
                 label = { Text(stringResource(destination.title)) },
                 colors = NavigationBarItemDefaults.colors(
-                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                    selectedIconColor = NaytiTheme.colors.accent,
+                    selectedTextColor = NaytiTheme.colors.accent,
+                    indicatorColor = NaytiTheme.colors.accentContainer,
+                    unselectedIconColor = NaytiTheme.colors.inkMuted,
+                    unselectedTextColor = NaytiTheme.colors.inkMuted,
                 ),
             )
         }
@@ -430,7 +434,11 @@ private fun RootDestinationIcon(
     indexNeedsAttention: Boolean,
 ) {
     if (destination == RootDestination.Index && indexNeedsAttention) {
-        BadgedBox(badge = { Badge() }) {
+        BadgedBox(
+            badge = {
+                Badge(containerColor = NaytiTheme.colors.attention)
+            },
+        ) {
             NaytiIconMark(destination.icon)
         }
     } else {

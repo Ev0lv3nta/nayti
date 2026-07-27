@@ -1,21 +1,27 @@
 package app.nayti.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -45,6 +52,7 @@ import app.nayti.ui.designsystem.theme.NaytiSpacing
 import app.nayti.ui.designsystem.theme.NaytiTheme
 import app.nayti.ui.designsystem.theme.ThemeMode
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SettingsScreen(
     catalog: CatalogRuntimeState,
@@ -70,6 +78,7 @@ internal fun SettingsScreen(
     var showResetConfirmation by rememberSaveable { mutableStateOf(false) }
     var showAdvanced by rememberSaveable { mutableStateOf(false) }
     var showDestructive by rememberSaveable { mutableStateOf(false) }
+    var showThemeSheet by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { onRefreshStorage() }
 
     if (showResetConfirmation) {
@@ -107,10 +116,11 @@ internal fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Section),
     ) {
         item {
-            ScreenHeader(
-                eyebrow = stringResource(R.string.data_eyebrow),
-                title = stringResource(R.string.data_title),
-                subtitle = stringResource(R.string.settings_redesign_subtitle),
+            Text(
+                text = stringResource(R.string.data_title),
+                modifier = Modifier.semantics { heading() },
+                style = NaytiTheme.type.hero,
+                color = NaytiTheme.colors.ink,
             )
         }
 
@@ -118,34 +128,34 @@ internal fun SettingsScreen(
             SettingsSection(title = stringResource(R.string.settings_appearance_section)) {
                 ThemeSettingsRow(
                     selectedMode = themeMode,
-                    onSelected = onThemeModeChange,
+                    onClick = { showThemeSheet = true },
                 )
             }
         }
 
         item {
             SettingsSection(title = stringResource(R.string.settings_media_section)) {
-                SettingsActionRow(
+                SettingsNavigationRow(
                     icon = NaytiIcon.Photos,
                     title = stringResource(R.string.catalog_data_title),
-                    body = stringResource(R.string.catalog_data_details),
-                    actionLabel =
+                    body =
                         stringResource(
                             if (catalog.access.permission.scope == MediaAccessScope.None) {
-                                R.string.connect_library
+                                R.string.settings_media_no_access
                             } else {
-                                R.string.change_selection
+                                R.string.settings_media_android_selection
                             },
                         ),
-                    onAction = onRequestAccess,
+                    value = catalog.summary.available.toString(),
+                    onClick = onRequestAccess,
                 )
                 HorizontalDivider(color = NaytiTheme.colors.hairline)
-                SettingsActionRow(
-                    icon = NaytiIcon.Methods,
-                    title = stringResource(R.string.settings_preparation_title),
-                    body = preparationSettingsDescription(indexing),
-                    actionLabel = stringResource(R.string.settings_preparation_action),
-                    onAction = onOpenPreparation,
+                SettingsNavigationRow(
+                    icon = NaytiIcon.Models,
+                    title = stringResource(R.string.settings_models_file_title),
+                    body = stringResource(R.string.settings_models_file_body),
+                    value = modelPack.installed?.packVersion ?: "—",
+                    onClick = onImportModelPack,
                 )
             }
         }
@@ -277,61 +287,194 @@ internal fun SettingsScreen(
             }
         }
     }
+    if (showThemeSheet) {
+        ThemeSelectionSheet(
+            selectedMode = themeMode,
+            onDismiss = { showThemeSheet = false },
+            onSelected = { mode ->
+                onThemeModeChange(mode)
+                showThemeSheet = false
+            },
+        )
+    }
 }
 
 @Composable
 private fun ThemeSettingsRow(
     selectedMode: ThemeMode,
-    onSelected: (ThemeMode) -> Unit,
+    onClick: () -> Unit,
 ) {
-    SettingsRowLayout(
+    SettingsNavigationRow(
         icon = NaytiIcon.Settings,
         title = stringResource(R.string.settings_theme_title),
-        body = stringResource(R.string.settings_theme_body),
+        body = stringResource(R.string.settings_theme_body_short),
+        value = stringResource(selectedMode.label),
+        onClick = onClick,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ThemeSelectionSheet(
+    selectedMode: ThemeMode,
+    onDismiss: () -> Unit,
+    onSelected: (ThemeMode) -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = NaytiSpacing.Screen,
+                        end = NaytiSpacing.Screen,
+                        bottom = NaytiSpacing.Section,
+                    ),
+            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
         ) {
-            ThemeMode.entries.forEach { mode ->
-                ThemeChoiceButton(
-                    mode = mode,
-                    selected = selectedMode == mode,
-                    onClick = { onSelected(mode) },
-                )
+            Text(
+                text = stringResource(R.string.settings_theme_title),
+                style = NaytiTheme.type.titleL,
+                color = NaytiTheme.colors.ink,
+            )
+            Text(
+                text = stringResource(R.string.settings_theme_body),
+                style = NaytiTheme.type.bodyM,
+                color = NaytiTheme.colors.inkMuted,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+            ) {
+                ThemeMode.entries.forEach { mode ->
+                    ThemePreview(
+                        mode = mode,
+                        selected = selectedMode == mode,
+                        onClick = { onSelected(mode) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ThemeChoiceButton(
+private fun ThemePreview(
     mode: ThemeMode,
     selected: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val label = stringResource(mode.label)
     val selectedDescription = stringResource(R.string.settings_theme_selected, label)
-    val modifier =
-        Modifier
-            .fillMaxWidth()
-            .semantics {
+    Surface(
+        onClick = onClick,
+        modifier =
+            modifier.semantics {
                 this.selected = selected
-                if (selected) {
-                    stateDescription = selectedDescription
+                if (selected) stateDescription = selectedDescription
+            },
+        shape = NaytiTheme.shapes.card,
+        color =
+            if (selected) {
+                NaytiTheme.colors.accentContainer
+            } else {
+                NaytiTheme.colors.surfaceHigh
+            },
+        contentColor = NaytiTheme.colors.ink,
+    ) {
+        Column(
+            modifier = Modifier.padding(NaytiSpacing.XSmall),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+        ) {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(88.dp),
+            ) {
+                if (mode != ThemeMode.Dark) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .fillMaxSize()
+                                .background(Color(0xFFF6F2EE)),
+                    )
+                }
+                if (mode != ThemeMode.Light) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .fillMaxSize()
+                                .background(Color(0xFF0F0D0C)),
+                    )
                 }
             }
-    if (selected) {
-        Button(onClick = onClick, modifier = modifier) {
-            NaytiIconMark(icon = NaytiIcon.Check, size = 18.dp)
             Text(
                 text = label,
-                modifier = Modifier.padding(start = NaytiSpacing.Small),
+                style = NaytiTheme.type.labelS,
+                color = if (selected) NaytiTheme.colors.accent else NaytiTheme.colors.inkMuted,
+                maxLines = 1,
             )
         }
-    } else {
-        OutlinedButton(onClick = onClick, modifier = modifier) {
-            Text(label)
+    }
+}
+
+@Composable
+private fun SettingsNavigationRow(
+    icon: NaytiIcon,
+    title: String,
+    body: String,
+    value: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        color = Color.Transparent,
+        contentColor = NaytiTheme.colors.ink,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Screen),
+            horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NaytiIconMark(
+                icon = icon,
+                color = NaytiTheme.colors.inkMuted,
+                size = 22.dp,
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
+            ) {
+                Text(
+                    text = title,
+                    style = NaytiTheme.type.titleM,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = body,
+                    style = NaytiTheme.type.labelS,
+                    color = NaytiTheme.colors.inkMuted,
+                )
+            }
+            Text(
+                text = value,
+                style = NaytiTheme.type.labelL,
+                color = NaytiTheme.colors.inkMuted,
+            )
+            NaytiIconMark(
+                icon = NaytiIcon.ChevronRight,
+                color = NaytiTheme.colors.inkFaint,
+                size = 18.dp,
+            )
         }
     }
 }

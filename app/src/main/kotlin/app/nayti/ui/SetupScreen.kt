@@ -363,7 +363,7 @@ private fun SetupStepRow(
                     Text(
                         text = eyebrow,
                         style = NaytiTheme.type.labelS,
-                        color = NaytiTheme.colors.inkFaint,
+                        color = NaytiTheme.colors.inkMuted,
                     )
                     Text(title, style = NaytiTheme.type.titleM)
                     Text(body, style = NaytiTheme.type.bodyM, color = NaytiTheme.colors.inkMuted)

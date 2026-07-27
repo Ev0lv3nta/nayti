@@ -46,8 +46,6 @@ class NaytiContrastTest {
         val textRoles = listOf(
             "ink" to NaytiPalette.Ink900,
             "inkMuted" to NaytiPalette.Ink500,
-            "inkFaint" to NaytiPalette.Ink400,
-            "accent" to NaytiPalette.AccentDark,
             "evidenceText" to NaytiPalette.EvidenceTextDark,
             "evidenceMeaning" to NaytiPalette.EvidenceMeaningDark,
             "evidencePhoto" to NaytiPalette.EvidencePhotoDark,
@@ -56,6 +54,26 @@ class NaytiContrastTest {
             "error" to NaytiPalette.ErrorDark,
         )
         assertAllPairs(textRoles, surfaces, TextMinimum)
+        assertAllPairs(
+            textRoles = listOf("accent" to NaytiPalette.AccentDark),
+            surfaces = surfaces.filterNot { (name, _) -> name == "surfaceLow" },
+            minimum = TextMinimum,
+        )
+    }
+
+    @Test
+    fun faintDarkDecorationRemainsVisibleOnEverySurface() {
+        val surfaces = listOf(
+            "background" to NaytiPalette.Ink000,
+            "surface" to NaytiPalette.Ink100,
+            "surfaceHigh" to NaytiPalette.Ink150,
+            "surfaceLow" to NaytiPalette.Ink200,
+        )
+        assertAllPairs(
+            textRoles = listOf("inkFaint" to NaytiPalette.Ink400),
+            surfaces = surfaces,
+            minimum = NonTextMinimum,
+        )
     }
 
     @Test
@@ -151,7 +169,6 @@ class NaytiContrastTest {
             textRoles = listOf(
                 "ink" to NaytiPalette.Ink900,
                 "inkMuted" to NaytiPalette.Ink500,
-                "inkFaint" to NaytiPalette.Ink400,
                 "accent" to NaytiPalette.AccentDark,
                 "evidenceText" to NaytiPalette.EvidenceTextDark,
                 "evidenceMeaning" to NaytiPalette.EvidenceMeaningDark,
@@ -241,8 +258,8 @@ class NaytiContrastTest {
     }
 
     private object NaytiChromeAlpha {
-        const val GlassDark = 0.78
-        const val GlassLight = 0.80
+        val GlassDark = NaytiChrome.GlassTintAlphaDark.toDouble()
+        val GlassLight = NaytiChrome.GlassTintAlphaLight.toDouble()
         const val Solid = 1.0
     }
 

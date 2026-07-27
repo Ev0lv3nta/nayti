@@ -1,6 +1,7 @@
 package app.nayti.ui.preparation
 
 import android.app.DatePickerDialog
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,14 +14,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -312,6 +313,7 @@ private fun ReadinessContent(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    var showPeriodSheet by rememberSaveable { mutableStateOf(false) }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding =
@@ -327,53 +329,15 @@ private fun ReadinessContent(
             ReadinessHeader(showBack = showBack, onBack = onBack)
         }
         item {
-            ReadinessStatusCard(state)
-        }
-        state.primaryAction?.let {
-            item {
-                Button(
-                    onClick = onPrimaryAction,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                ) {
-                    Text(stringResource(it.label))
-                }
-            }
-        }
-        item {
-            Text(
-                text = stringResource(R.string.readiness_channels_title),
-                modifier = Modifier.semantics { heading() },
-                style = NaytiTheme.type.titleM,
-                color = NaytiTheme.colors.ink,
+            ReadinessOverviewCard(
+                state = state,
+                onPrimaryAction = onPrimaryAction,
             )
         }
-        items(
-            items = state.channels,
-            key = { channel -> channel.capability },
-        ) { channel ->
-            ReadinessChannelCard(channel)
-        }
         item {
-            ReadinessPeriodCard(
+            ReadinessPeriodSummary(
                 indexing = indexing,
-                onExtendOneMonth = {
-                    onPeriodChange(ReadinessPeriodSelection.ExtendByMonths(1))
-                },
-                onExtendThreeMonths = {
-                    onPeriodChange(ReadinessPeriodSelection.ExtendByMonths(3))
-                },
-                onSelectAll = {
-                    onPeriodChange(ReadinessPeriodSelection.AllMedia)
-                },
-                onSelectDate = {
-                    showStartDatePicker(
-                        initialMillis = indexing.scope.takenFromMillis,
-                        onSelected = { millis ->
-                            onPeriodChange(ReadinessPeriodSelection.SinceDate(millis))
-                        },
-                        context = context,
-                    )
-                },
+                onChange = { showPeriodSheet = true },
             )
         }
         item {
@@ -433,6 +397,26 @@ private fun ReadinessContent(
             )
         }
     }
+    if (showPeriodSheet) {
+        ReadinessPeriodSheet(
+            indexing = indexing,
+            onDismiss = { showPeriodSheet = false },
+            onSelect = { selection ->
+                showPeriodSheet = false
+                onPeriodChange(selection)
+            },
+            onSelectDate = {
+                showPeriodSheet = false
+                showStartDatePicker(
+                    initialMillis = indexing.scope.takenFromMillis,
+                    onSelected = { millis ->
+                        onPeriodChange(ReadinessPeriodSelection.SinceDate(millis))
+                    },
+                    context = context,
+                )
+            },
+        )
+    }
 }
 
 @Composable
@@ -473,55 +457,76 @@ private fun ReadinessHeader(
 }
 
 @Composable
-private fun ReadinessStatusCard(state: PreparationUiState) {
+private fun ReadinessOverviewCard(
+    state: PreparationUiState,
+    onPrimaryAction: () -> Unit,
+) {
     Surface(
         color = NaytiTheme.colors.surface,
         contentColor = NaytiTheme.colors.ink,
         shape = NaytiTheme.shapes.card,
     ) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Screen),
-            horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
-            verticalAlignment = Alignment.Top,
+            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
         ) {
-            Surface(
-                color = NaytiTheme.colors.surfaceHigh,
-                contentColor = state.qualitativeStatus.color(),
-                shape = NaytiTheme.shapes.control,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top,
+            ) {
+                state.channels.forEach { channel ->
+                    ReadinessGauge(channel)
+                }
+            }
+            HorizontalDivider(color = NaytiTheme.colors.hairline)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+                verticalAlignment = Alignment.Top,
             ) {
                 Box(
-                    modifier = Modifier.size(48.dp),
-                    contentAlignment = Alignment.Center,
+                    modifier =
+                        Modifier
+                            .padding(top = 6.dp)
+                            .size(8.dp)
+                            .background(
+                                color = state.qualitativeStatus.color(),
+                                shape = NaytiTheme.shapes.control,
+                            ),
+                )
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
                 ) {
-                    NaytiIconMark(
-                        icon = state.qualitativeStatus.icon,
-                        size = 24.dp,
+                    Text(
+                        text = stringResource(state.qualitativeStatus.title),
+                        style = NaytiTheme.type.labelL,
+                        color = NaytiTheme.colors.ink,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = stringResource(state.qualitativeStatus.body(state.issue)),
+                        style = NaytiTheme.type.labelS,
+                        color = NaytiTheme.colors.inkMuted,
                     )
                 }
             }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
-            ) {
-                Text(
-                    text = stringResource(state.qualitativeStatus.title),
-                    style = NaytiTheme.type.titleM,
-                    color = state.qualitativeStatus.color(),
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = stringResource(state.qualitativeStatus.body(state.issue)),
-                    style = NaytiTheme.type.bodyM,
-                    color = NaytiTheme.colors.inkMuted,
-                )
+            state.primaryAction?.let { action ->
+                Button(
+                    onClick = onPrimaryAction,
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                ) {
+                    Text(stringResource(action.label))
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ReadinessChannelCard(channel: PreparationChannelUi) {
-    val title = stringResource(channel.capability.title)
+private fun ReadinessGauge(channel: PreparationChannelUi) {
+    val title = stringResource(channel.capability.shortTitle)
     val stateLabel =
         if (channel.hasRuntimeCoverage) {
             stringResource(
@@ -540,94 +545,52 @@ private fun ReadinessChannelCard(channel: PreparationChannelUi) {
         } else {
             (channel.ready.toFloat() / channel.total.toFloat()).coerceIn(0f, 1f)
         }
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = NaytiTheme.colors.surface,
-        contentColor = NaytiTheme.colors.ink,
-        shape = NaytiTheme.shapes.card,
+    val percent = (progress * 100).toInt()
+    Column(
+        modifier =
+            Modifier
+                .width(68.dp)
+                .semantics(mergeDescendants = true) {
+                    stateDescription = stateLabel
+                },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
     ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .semantics(mergeDescendants = true) {
-                        stateDescription = stateLabel
-                    }
-                    .padding(NaytiSpacing.Screen),
-            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+        Box(
+            modifier = Modifier.size(58.dp),
+            contentAlignment = Alignment.Center,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                NaytiIconMark(
-                    icon = channel.capability.icon,
-                    color = NaytiTheme.colors.accent,
-                    size = 22.dp,
-                )
-                Text(
-                    text = title,
-                    modifier = Modifier.weight(1f),
-                    style = NaytiTheme.type.titleM,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                if (channel.hasRuntimeCoverage) {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string.readiness_channel_counts,
-                                channel.ready,
-                                channel.total,
-                            ),
-                        style = NaytiTheme.type.labelL,
-                    )
-                }
-            }
-            LinearProgressIndicator(
+            CircularProgressIndicator(
                 progress = { progress },
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .semantics {
-                            progressBarRangeInfo =
-                                androidx.compose.ui.semantics.ProgressBarRangeInfo(
-                                    current = channel.ready.toFloat(),
-                                    range = 0f..channel.total.coerceAtLeast(0).toFloat(),
-                                )
-                        },
-                color =
-                    if (channel.gaps > 0) {
-                        NaytiTheme.colors.attention
-                    } else {
-                        NaytiTheme.colors.ready
-                    },
-                trackColor = NaytiTheme.colors.surfaceHigh,
+                modifier = Modifier.fillMaxSize(),
+                color = channel.capability.evidenceColor(),
+                trackColor = NaytiTheme.colors.surfaceLow,
+                strokeWidth = 5.dp,
             )
             Text(
-                text =
-                    when {
-                        !channel.hasRuntimeCoverage ->
-                            stringResource(R.string.readiness_channel_waiting)
-                        channel.gaps > 0 ->
-                            stringResource(R.string.readiness_channel_gaps, channel.gaps)
-                        else ->
-                            stringResource(R.string.readiness_channel_no_gaps)
-                    },
-                style = NaytiTheme.type.labelS,
-                color = NaytiTheme.colors.inkMuted,
+                text = "$percent%",
+                style = NaytiTheme.type.numM,
+                color = channel.capability.evidenceColor(),
             )
         }
+        Text(
+            text = title,
+            style = NaytiTheme.type.labelS,
+            color = NaytiTheme.colors.inkMuted,
+            maxLines = 1,
+        )
+        Text(
+            text = channel.ready.toString(),
+            style = NaytiTheme.type.labelS,
+            color = NaytiTheme.colors.inkFaint,
+        )
     }
 }
 
 @Composable
-private fun ReadinessPeriodCard(
+private fun ReadinessPeriodSummary(
     indexing: OcrIndexingState,
-    onExtendOneMonth: () -> Unit,
-    onExtendThreeMonths: () -> Unit,
-    onSelectAll: () -> Unit,
-    onSelectDate: () -> Unit,
+    onChange: () -> Unit,
 ) {
     Surface(
         color = NaytiTheme.colors.surface,
@@ -658,42 +621,84 @@ private fun ReadinessPeriodCard(
                     )
                     Text(
                         text = periodDescription(indexing),
-                        style = NaytiTheme.type.bodyM,
+                        style = NaytiTheme.type.labelS,
                         color = NaytiTheme.colors.inkMuted,
                     )
                 }
+                TextButton(
+                    onClick = onChange,
+                ) {
+                    Text(stringResource(R.string.readiness_period_change))
+                }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReadinessPeriodSheet(
+    indexing: OcrIndexingState,
+    onDismiss: () -> Unit,
+    onSelect: (ReadinessPeriodSelection) -> Unit,
+    onSelectDate: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = NaytiSpacing.Screen,
+                        end = NaytiSpacing.Screen,
+                        bottom = NaytiSpacing.Section,
+                    ),
+            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+        ) {
+            Text(
+                text = stringResource(R.string.readiness_period_sheet_title),
+                style = NaytiTheme.type.titleL,
+                color = NaytiTheme.colors.ink,
+            )
             Text(
                 text = stringResource(R.string.readiness_period_reuse),
                 style = NaytiTheme.type.bodyM,
                 color = NaytiTheme.colors.inkMuted,
             )
-            Column(verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Small)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+            ) {
                 OutlinedButton(
-                    onClick = onExtendOneMonth,
-                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { onSelect(ReadinessPeriodSelection.ExtendByMonths(1)) },
+                    modifier = Modifier.weight(1f),
                 ) {
-                    Text(stringResource(R.string.readiness_period_plus_one))
-                }
-                OutlinedButton(
-                    onClick = onExtendThreeMonths,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.readiness_period_plus_three))
+                    Text(stringResource(R.string.readiness_period_one_month))
                 }
                 OutlinedButton(
-                    onClick = onSelectAll,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = indexing.scope.takenFromMillis != null,
+                    onClick = { onSelect(ReadinessPeriodSelection.ExtendByMonths(3)) },
+                    modifier = Modifier.weight(1f),
                 ) {
-                    Text(stringResource(R.string.readiness_period_all))
+                    Text(stringResource(R.string.readiness_period_three_months))
                 }
-                TextButton(
-                    onClick = onSelectDate,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.readiness_period_date))
-                }
+            }
+            OutlinedButton(
+                onClick = { onSelect(ReadinessPeriodSelection.AllMedia) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = indexing.scope.takenFromMillis != null,
+            ) {
+                Text(stringResource(R.string.readiness_period_all))
+            }
+            TextButton(
+                onClick = onSelectDate,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                NaytiIconMark(icon = NaytiIcon.Period, size = 18.dp)
+                Spacer(Modifier.width(NaytiSpacing.Small))
+                Text(stringResource(R.string.readiness_period_date))
             }
             if (indexing.scope.unknownDateAssets > 0 && indexing.scope.takenFromMillis != null) {
                 Text(
@@ -818,23 +823,23 @@ private fun showStartDatePicker(
     }.show()
 }
 
-private val SearchCapability.title: Int
+private val SearchCapability.shortTitle: Int
     get() =
         when (this) {
-            SearchCapability.TEXT -> R.string.readiness_channel_literal
-            SearchCapability.MEANING -> R.string.readiness_channel_semantic
-            SearchCapability.VISUAL -> R.string.readiness_channel_visual
-            SearchCapability.DUPLICATES -> R.string.readiness_channel_duplicates
+            SearchCapability.TEXT -> R.string.readiness_channel_short_text
+            SearchCapability.MEANING -> R.string.readiness_channel_short_meaning
+            SearchCapability.VISUAL -> R.string.readiness_channel_short_photo
+            SearchCapability.DUPLICATES -> R.string.readiness_channel_short_copies
         }
 
-private val SearchCapability.icon: NaytiIcon
-    get() =
-        when (this) {
-            SearchCapability.TEXT -> NaytiIcon.Text
-            SearchCapability.MEANING -> NaytiIcon.Meaning
-            SearchCapability.VISUAL -> NaytiIcon.Scene
-            SearchCapability.DUPLICATES -> NaytiIcon.Copies
-        }
+@Composable
+private fun SearchCapability.evidenceColor() =
+    when (this) {
+        SearchCapability.TEXT -> NaytiTheme.colors.evidenceText
+        SearchCapability.MEANING -> NaytiTheme.colors.evidenceMeaning
+        SearchCapability.VISUAL -> NaytiTheme.colors.evidencePhoto
+        SearchCapability.DUPLICATES -> NaytiTheme.colors.evidenceText
+    }
 
 private val PreparationPrimaryAction.label: Int
     get() =

@@ -50,17 +50,19 @@ object NaytiChrome {
     /**
      * Tint opacity used when the backdrop is actually blurred.
      *
-     * Measured, not chosen: these are the lowest values at which primary text still clears 4.5:1
-     * above both a white and a black frame. Secondary, accent and status colours do not clear it at
-     * any sane opacity, which is why only primary ink is allowed on glass.
+     * These are the directional alpha values from the approved Kromka material and stay above the
+     * measured contrast floor. Secondary, accent and status colours are still kept off glass
+     * because they do not clear the same contrast requirement above arbitrary photographs.
      */
-    const val GlassTintAlphaDark = 0.86f
-    const val GlassTintAlphaLight = 0.80f
+    const val GlassTintAlphaDarkTop = 0.90f
+    const val GlassTintAlphaDarkBottom = 0.94f
+    const val GlassTintAlphaLightTop = 0.92f
+    const val GlassTintAlphaLightBottom = 0.95f
 
     /** The production fallback is opaque, so every approved text role keeps its measured contrast. */
     const val SolidTintAlpha = 1f
 
-    val BlurRadius: Dp = 28.dp
+    val BlurRadius: Dp = 22.dp
     val BarHeight: Dp = 56.dp
     val StatusStripHeight: Dp = 44.dp
 }

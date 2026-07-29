@@ -2,8 +2,9 @@
 <resources>
     <string name="search_redesign_mode_text">Текст</string>
     <string name="search_redesign_mode_meaning">Смысл</string>
-    <string name="search_redesign_mode_photo">Фото</string>
+    <string name="search_redesign_mode_photo">Сцена</string>
     <string name="search_redesign_scope_all">Вся медиатека</string>
+    <string name="search_redesign_hint_count">Найти среди %1$s фото</string>
     <string name="search_redesign_filters">Фильтры</string>
     <string name="search_redesign_submit">Найти</string>
     <string name="search_redesign_clear">Очистить запрос</string>

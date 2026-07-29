@@ -31,6 +31,7 @@ import app.nayti.storage.IndexingScopeSummary
 import app.nayti.storage.ModelPackEntity
 import app.nayti.storage.ModelPackStatus
 import app.nayti.ui.designsystem.theme.NaytiTheme
+import app.nayti.ui.designsystem.theme.ThemeMode
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -112,6 +113,20 @@ class SettingsScreenTest {
     }
 
     @Test
+    fun themeSheetOffersARealMidnightMode() {
+        var selectedMode: ThemeMode? = null
+        setContent(onThemeModeChange = { selectedMode = it })
+
+        composeRule.onNodeWithText(context.getString(R.string.settings_theme_title))
+            .performClick()
+        composeRule.onNodeWithText(context.getString(R.string.settings_theme_midnight))
+            .assertIsDisplayed()
+            .performClick()
+
+        composeRule.runOnIdle { assertTrue(selectedMode == ThemeMode.Midnight) }
+    }
+
+    @Test
     fun destructiveActionRemainsReachableAtTwoHundredPercentFontScale() {
         composeRule.setContent {
             val density = LocalDensity.current
@@ -150,6 +165,7 @@ class SettingsScreenTest {
         retainedQuarantine: Long = 0,
         onResetSearchData: () -> Unit = {},
         onRollback: () -> Unit = {},
+        onThemeModeChange: (ThemeMode) -> Unit = {},
     ) {
         composeRule.setContent {
             NaytiTheme {
@@ -167,6 +183,7 @@ class SettingsScreenTest {
                     onExportDiagnostics = {},
                     onResetSearchData = onResetSearchData,
                     onRollbackModelPack = onRollback,
+                    onThemeModeChange = onThemeModeChange,
                 )
             }
         }

@@ -33,11 +33,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -58,7 +55,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -94,9 +90,14 @@ import app.nayti.ui.SearchResultItem
 import app.nayti.ui.SearchUiState
 import app.nayti.ui.designsystem.component.ChromeMaterial
 import app.nayti.ui.designsystem.component.GlassSurface
+import app.nayti.ui.designsystem.component.KromkaButton
+import app.nayti.ui.designsystem.component.KromkaChoiceChip
+import app.nayti.ui.designsystem.component.KromkaModeChip
+import app.nayti.ui.designsystem.component.KromkaSheetSurface
 import app.nayti.ui.designsystem.component.NaytiBackdrop
 import app.nayti.ui.designsystem.component.naytiBackdropSource
 import app.nayti.ui.designsystem.component.rememberNaytiBackdrop
+import app.nayti.ui.designsystem.component.kromkaRecessedField
 import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
 import app.nayti.ui.designsystem.theme.NaytiSpacing
@@ -160,7 +161,7 @@ fun LibrarySearchScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val imeVisible = WindowInsets.ime.getBottom(density) > 0
-    val backdrop = rememberNaytiBackdrop()
+    val backdrop = rememberNaytiBackdrop(enableMeasuredBlur = true)
     val compactChromeClearance = if (compactChromeHeightPx == 0) {
         SearchChromeInitialClearance
     } else {
@@ -222,6 +223,7 @@ fun LibrarySearchScreen(
             )
             SearchChrome(
                 query = query,
+                photoCount = library.totalCount,
                 onQueryChange = { query = it },
                 onSubmit = submit,
                 onClear = {
@@ -435,6 +437,7 @@ private fun LibraryOrResultsGrid(
 @Composable
 private fun SearchChrome(
     query: String,
+    photoCount: Long,
     onQueryChange: (String) -> Unit,
     onSubmit: () -> Unit,
     onClear: () -> Unit,
@@ -466,47 +469,62 @@ private fun SearchChrome(
                 horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = onQueryChange,
-                    modifier = Modifier.weight(1f).height(50.dp),
-                    placeholder = {
-                        Text(
-                            stringResource(R.string.search_surface_hint),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    leadingIcon = { NaytiIconMark(NaytiIcon.Search) },
-                    trailingIcon = {
-                        if (query.isNotEmpty() && !searching) {
-                            IconButton(
-                                onClick = onClear,
-                                modifier = Modifier
-                                    .testTag("search-clear")
-                                    .semantics {
-                                        contentDescription = clearDescription
-                                    },
-                            ) {
-                                NaytiIconMark(NaytiIcon.Close)
+                val fieldShape = RoundedCornerShape(16.dp)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp)
+                        .kromkaRecessedField(fieldShape),
+                ) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = onQueryChange,
+                        modifier = Modifier.fillMaxSize(),
+                        placeholder = {
+                            Text(
+                                if (photoCount > 0) {
+                                    stringResource(
+                                        R.string.search_redesign_hint_count,
+                                        java.text.NumberFormat.getIntegerInstance().format(photoCount),
+                                    )
+                                } else {
+                                    stringResource(R.string.search_surface_hint)
+                                },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        leadingIcon = { NaytiIconMark(NaytiIcon.Search) },
+                        trailingIcon = {
+                            if (query.isNotEmpty() && !searching) {
+                                IconButton(
+                                    onClick = onClear,
+                                    modifier = Modifier
+                                        .testTag("search-clear")
+                                        .semantics {
+                                            contentDescription = clearDescription
+                                        },
+                                ) {
+                                    NaytiIconMark(NaytiIcon.Close)
+                                }
                             }
-                        }
-                    },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
-                    singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = NaytiTheme.colors.surfaceHigh,
-                        unfocusedContainerColor = NaytiTheme.colors.surfaceHigh,
-                        disabledContainerColor = NaytiTheme.colors.surfaceHigh,
-                        focusedBorderColor = NaytiTheme.colors.outline,
-                        unfocusedBorderColor = NaytiTheme.colors.hairline,
-                        cursorColor = NaytiTheme.colors.accent,
-                    ),
-                )
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
+                        singleLine = true,
+                        shape = fieldShape,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            disabledContainerColor = Color.Transparent,
+                            focusedBorderColor = NaytiTheme.colors.accent,
+                            unfocusedBorderColor = Color.Transparent,
+                            cursorColor = NaytiTheme.colors.accent,
+                        ),
+                    )
+                }
                 if (query.isNotBlank() || searching) {
-                    Button(
+                    KromkaButton(
                         onClick = onSubmit,
                         enabled = canSubmit,
                         modifier = Modifier
@@ -516,11 +534,6 @@ private fun SearchChrome(
                                 contentDescription = submitDescription
                             },
                         shape = RoundedCornerShape(16.dp),
-                        contentPadding = PaddingValues(0.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = NaytiTheme.colors.accent,
-                            contentColor = NaytiTheme.colors.onAccent,
-                        ),
                     ) {
                         if (searching) {
                             CircularProgressIndicator(
@@ -632,39 +645,20 @@ private fun SearchModeChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val selectedContentColor =
-        if (NaytiTheme.colors.background.luminance() < 0.3f) {
-            Color(0xFF12100F)
-        } else {
-            Color.White
-        }
-    FilterChip(
+    KromkaModeChip(
         selected = selected,
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.height(40.dp),
-        colors = FilterChipDefaults.filterChipColors(
-            containerColor = Color.Transparent,
-            labelColor = NaytiTheme.colors.inkMuted,
-            iconColor = NaytiTheme.colors.inkMuted,
-            selectedContainerColor = channelColor,
-            selectedLabelColor = selectedContentColor,
-            selectedLeadingIconColor = selectedContentColor,
-        ),
-        label = {
-            Text(
-                text = label,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        },
-        leadingIcon = {
-            NaytiIconMark(
-                icon = icon,
-                size = 17.dp,
-            )
-        },
-    )
+        channelColor = channelColor,
+    ) {
+        NaytiIconMark(icon = icon, size = 17.dp)
+        Text(
+            text = label,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
 @Composable
@@ -804,7 +798,22 @@ private fun SearchCoverageLine(search: SearchUiState.Ready, indexing: OcrIndexin
             .padding(horizontal = NaytiSpacing.Screen, vertical = NaytiSpacing.Medium)
             .semantics { liveRegion = LiveRegionMode.Polite },
     ) {
-        Text(resultText, style = NaytiTheme.type.titleM, color = NaytiTheme.colors.ink)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Text(
+                text = resultCount.toString(),
+                style = NaytiTheme.type.numXL,
+                color = NaytiTheme.colors.ink,
+            )
+            Text(
+                text = resultText.substringAfter(' ', resultText),
+                style = NaytiTheme.type.titleM,
+                color = NaytiTheme.colors.ink,
+                modifier = Modifier.padding(bottom = 2.dp),
+            )
+        }
         Text(
             stringResource(R.string.search_surface_coverage, channelCoverage),
             style = NaytiTheme.type.bodyM,
@@ -921,15 +930,20 @@ private fun WhereToSearchSheet(
     onReset: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        LazyColumn(
-            contentPadding = PaddingValues(
-                start = NaytiSpacing.Screen,
-                end = NaytiSpacing.Screen,
-                bottom = NaytiSpacing.Section,
-            ),
-            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
-        ) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Color.Transparent,
+        dragHandle = null,
+    ) {
+        KromkaSheetSurface {
+            LazyColumn(
+                contentPadding = PaddingValues(
+                    start = NaytiSpacing.Screen,
+                    end = NaytiSpacing.Screen,
+                    bottom = NaytiSpacing.Section,
+                ),
+                verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+            ) {
             item {
                 Text(
                     stringResource(R.string.search_where_title),
@@ -941,11 +955,12 @@ private fun WhereToSearchSheet(
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small)) {
                     items(SearchDateScope.entries) { option ->
-                        FilterChip(
+                        KromkaChoiceChip(
                             selected = dateScope == option,
                             onClick = { onDateScope(option) },
-                            label = { Text(stringResource(option.labelResource)) },
-                        )
+                        ) {
+                            Text(stringResource(option.labelResource))
+                        }
                     }
                 }
             }
@@ -976,8 +991,14 @@ private fun WhereToSearchSheet(
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onReset) { Text(stringResource(R.string.search_where_reset)) }
-                    Button(onClick = onDismiss) { Text(stringResource(R.string.search_where_apply)) }
+                    KromkaButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.height(44.dp),
+                    ) {
+                        Text(stringResource(R.string.search_where_apply))
+                    }
                 }
+            }
             }
         }
     }
@@ -995,14 +1016,17 @@ private fun <T> FacetRow(
 ) {
     LazyRow(horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small)) {
         item {
-            FilterChip(selected = anySelected, onClick = onAny, label = { Text(anyLabel) })
+            KromkaChoiceChip(selected = anySelected, onClick = onAny) {
+                Text(anyLabel)
+            }
         }
         items(items) { facet ->
-            FilterChip(
+            KromkaChoiceChip(
                 selected = selected(facet),
                 onClick = { onSelect(facet) },
-                label = { Text(label(facet)) },
-            )
+            ) {
+                Text(label(facet))
+            }
         }
     }
 }

@@ -40,6 +40,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.nayti.BuildConfig
 import app.nayti.R
 import app.nayti.indexer.CatalogRuntimeState
@@ -48,6 +49,7 @@ import app.nayti.indexer.ModelPackRuntimeStatus
 import app.nayti.indexer.OcrIndexingState
 import app.nayti.platform.media.MediaAccessScope
 import app.nayti.ui.designsystem.component.EdgeSurface
+import app.nayti.ui.designsystem.component.KromkaSheetSurface
 import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
 import app.nayti.ui.designsystem.theme.NaytiSpacing
@@ -310,39 +312,43 @@ private fun ThemeSelectionSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Color.Transparent,
+        dragHandle = null,
     ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        start = NaytiSpacing.Screen,
-                        end = NaytiSpacing.Screen,
-                        bottom = NaytiSpacing.Section,
-                    ),
-            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
-        ) {
-            Text(
-                text = stringResource(R.string.settings_theme_title),
-                style = NaytiTheme.type.titleL,
-                color = NaytiTheme.colors.ink,
-            )
-            Text(
-                text = stringResource(R.string.settings_theme_body),
-                style = NaytiTheme.type.bodyM,
-                color = NaytiTheme.colors.inkMuted,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+        KromkaSheetSurface {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            start = NaytiSpacing.Screen,
+                            end = NaytiSpacing.Screen,
+                            bottom = NaytiSpacing.Section,
+                        ),
+                verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
             ) {
-                ThemeMode.entries.forEach { mode ->
-                    ThemePreview(
-                        mode = mode,
-                        selected = selectedMode == mode,
-                        onClick = { onSelected(mode) },
-                        modifier = Modifier.weight(1f),
-                    )
+                Text(
+                    text = stringResource(R.string.settings_theme_title),
+                    style = NaytiTheme.type.titleL,
+                    color = NaytiTheme.colors.ink,
+                )
+                Text(
+                    text = stringResource(R.string.settings_theme_body),
+                    style = NaytiTheme.type.bodyM,
+                    color = NaytiTheme.colors.inkMuted,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+                ) {
+                    ThemeMode.entries.forEach { mode ->
+                        ThemePreview(
+                            mode = mode,
+                            selected = selectedMode == mode,
+                            onClick = { onSelected(mode) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
         }
@@ -356,7 +362,7 @@ private fun ThemePreview(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val label = stringResource(mode.label)
+    val label = stringResource(if (mode == ThemeMode.System) mode.shortLabel else mode.label)
     val selectedDescription = stringResource(R.string.settings_theme_selected, label)
     Surface(
         onClick = onClick,
@@ -386,23 +392,14 @@ private fun ThemePreview(
                         .fillMaxWidth()
                         .height(88.dp),
             ) {
-                if (mode != ThemeMode.Dark) {
-                    Box(
-                        modifier =
-                            Modifier
-                                .weight(1f)
-                                .fillMaxSize()
-                                .background(Color(0xFFF6F2EE)),
-                    )
-                }
-                if (mode != ThemeMode.Light) {
-                    Box(
-                        modifier =
-                            Modifier
-                                .weight(1f)
-                                .fillMaxSize()
-                                .background(Color(0xFF0F0D0C)),
-                    )
+                when (mode) {
+                    ThemeMode.System -> {
+                        ThemePreviewSwatch(Color(0xFFF6F2EE), Modifier.weight(1f))
+                        ThemePreviewSwatch(Color(0xFF0F0D0C), Modifier.weight(1f))
+                    }
+                    ThemeMode.Light -> ThemePreviewSwatch(Color(0xFFF6F2EE))
+                    ThemeMode.Dark -> ThemePreviewSwatch(Color(0xFF0F0D0C))
+                    ThemeMode.Midnight -> ThemePreviewSwatch(Color.Black)
                 }
             }
             Text(
@@ -413,6 +410,14 @@ private fun ThemePreview(
             )
         }
     }
+}
+
+@Composable
+private fun ThemePreviewSwatch(
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.fillMaxSize().background(color))
 }
 
 @Composable
@@ -444,8 +449,11 @@ private fun SettingsNavigationRow(
             ) {
                 Text(
                     text = title,
-                    style = NaytiTheme.type.titleM,
-                    fontWeight = FontWeight.SemiBold,
+                    style = NaytiTheme.type.titleM.copy(
+                        fontSize = 15.sp,
+                        lineHeight = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
                 )
                 Text(
                     text = body,
@@ -515,7 +523,14 @@ private fun SettingsInfoRow(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
         ) {
-            Text(title, style = NaytiTheme.type.titleM, fontWeight = FontWeight.SemiBold)
+            Text(
+                title,
+                style = NaytiTheme.type.titleM.copy(
+                    fontSize = 15.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+            )
             Text(body, style = NaytiTheme.type.labelS, color = NaytiTheme.colors.inkMuted)
         }
     }
@@ -538,7 +553,14 @@ private fun SettingsValueInfoRow(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
         ) {
-            Text(title, style = NaytiTheme.type.titleM, fontWeight = FontWeight.SemiBold)
+            Text(
+                title,
+                style = NaytiTheme.type.titleM.copy(
+                    fontSize = 15.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+            )
             Text(body, style = NaytiTheme.type.labelS, color = NaytiTheme.colors.inkMuted)
         }
         Text(
@@ -578,7 +600,14 @@ private fun SettingsCompactActionRow(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
             ) {
-                Text(title, style = NaytiTheme.type.titleM, fontWeight = FontWeight.SemiBold)
+                Text(
+                    title,
+                    style = NaytiTheme.type.titleM.copy(
+                        fontSize = 15.sp,
+                        lineHeight = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                )
                 Text(body, style = NaytiTheme.type.labelS, color = NaytiTheme.colors.inkMuted)
             }
             NaytiIconMark(
@@ -692,7 +721,14 @@ private fun SettingsRowLayout(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
             ) {
-                Text(title, style = NaytiTheme.type.titleM, fontWeight = FontWeight.SemiBold)
+                Text(
+                    title,
+                    style = NaytiTheme.type.titleM.copy(
+                        fontSize = 15.sp,
+                        lineHeight = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                )
                 Text(body, style = NaytiTheme.type.bodyM, color = NaytiTheme.colors.inkMuted)
                 detail?.let {
                     Text(it, style = NaytiTheme.type.labelS, color = NaytiTheme.colors.accent)
@@ -828,6 +864,14 @@ private val ThemeMode.label: Int
             ThemeMode.System -> R.string.settings_theme_system
             ThemeMode.Light -> R.string.settings_theme_light
             ThemeMode.Dark -> R.string.settings_theme_dark
+            ThemeMode.Midnight -> R.string.settings_theme_midnight
+        }
+
+private val ThemeMode.shortLabel: Int
+    get() =
+        when (this) {
+            ThemeMode.System -> R.string.settings_theme_system_short
+            else -> label
         }
 
 private fun Long.asQuantity(): Int = coerceIn(0, Int.MAX_VALUE.toLong()).toInt()

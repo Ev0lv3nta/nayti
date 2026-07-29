@@ -76,6 +76,7 @@ import app.nayti.ui.ViewerUiState
 import app.nayti.ui.ViewerUnavailableReason
 import app.nayti.ui.designsystem.component.ChromeMaterial
 import app.nayti.ui.designsystem.component.GlassSurface
+import app.nayti.ui.designsystem.component.KromkaSheetSurface
 import app.nayti.ui.designsystem.component.NaytiBackdrop
 import app.nayti.ui.designsystem.component.naytiBackdropSource
 import app.nayti.ui.designsystem.component.rememberNaytiBackdrop
@@ -147,7 +148,7 @@ fun PhotoViewerScreen(
             )
 
             is ViewerUiState.Ready -> {
-                val backdrop = rememberNaytiBackdrop()
+                val backdrop = rememberNaytiBackdrop(enableMeasuredBlur = true)
                 Box(Modifier.fillMaxSize()) {
                     ViewerPhoto(
                         state = visibleState,
@@ -200,42 +201,62 @@ fun PhotoViewerScreen(
     }
 
     when (sheet) {
-        ViewerSheet.Similar -> ModalBottomSheet(onDismissRequest = { sheet = null }) {
-            SimilarResults(
-                sourceAssetId = assetId,
-                state = similarState,
-                accessRevision = accessRevision,
-                onLoadThumbnail = onLoadThumbnail,
-                onOpenAsset = { selected ->
-                    sheet = null
-                    onOpenAsset(selected)
-                },
-                onRetry = onFindSimilar,
-            )
-        }
-        ViewerSheet.Duplicates -> ModalBottomSheet(onDismissRequest = { sheet = null }) {
-            DuplicateResults(
-                sourceAssetId = assetId,
-                state = duplicateState,
-                accessRevision = accessRevision,
-                onLoadThumbnail = onLoadThumbnail,
-                onOpenAsset = { selected ->
-                    sheet = null
-                    onOpenAsset(selected)
-                },
-                onRetry = onFindDuplicates,
-            )
-        }
+        ViewerSheet.Similar ->
+            ModalBottomSheet(
+                onDismissRequest = { sheet = null },
+                containerColor = Color.Transparent,
+                dragHandle = null,
+            ) {
+                KromkaSheetSurface {
+                    SimilarResults(
+                        sourceAssetId = assetId,
+                        state = similarState,
+                        accessRevision = accessRevision,
+                        onLoadThumbnail = onLoadThumbnail,
+                        onOpenAsset = { selected ->
+                            sheet = null
+                            onOpenAsset(selected)
+                        },
+                        onRetry = onFindSimilar,
+                    )
+                }
+            }
+        ViewerSheet.Duplicates ->
+            ModalBottomSheet(
+                onDismissRequest = { sheet = null },
+                containerColor = Color.Transparent,
+                dragHandle = null,
+            ) {
+                KromkaSheetSurface {
+                    DuplicateResults(
+                        sourceAssetId = assetId,
+                        state = duplicateState,
+                        accessRevision = accessRevision,
+                        onLoadThumbnail = onLoadThumbnail,
+                        onOpenAsset = { selected ->
+                            sheet = null
+                            onOpenAsset(selected)
+                        },
+                        onRetry = onFindDuplicates,
+                    )
+                }
+            }
         ViewerSheet.MatchDetails -> {
             val ready = visibleState as? ViewerUiState.Ready
             val provenance = searchProvenance
             if (ready != null && provenance != null) {
-                ModalBottomSheet(onDismissRequest = { sheet = null }) {
-                    MatchDetails(
-                        provenance = provenance,
-                        readyChannels = ready.evidence.readyChannels,
-                        outsidePreparationPeriod = ready.evidence.outsidePreparationPeriod,
-                    )
+                ModalBottomSheet(
+                    onDismissRequest = { sheet = null },
+                    containerColor = Color.Transparent,
+                    dragHandle = null,
+                ) {
+                    KromkaSheetSurface {
+                        MatchDetails(
+                            provenance = provenance,
+                            readyChannels = ready.evidence.readyChannels,
+                            outsidePreparationPeriod = ready.evidence.outsidePreparationPeriod,
+                        )
+                    }
                 }
             }
         }
@@ -425,42 +446,39 @@ private fun ViewerChrome(
                 MatchReasonCompact(
                     provenance = provenance,
                     onClick = onShowDetails,
+                    backdrop = backdrop,
                 )
             }
-            GlassSurface(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                backdrop = backdrop,
-                material = ChromeMaterial.Glass,
-                shape = RoundedCornerShape(28.dp),
-                hairlineOnTop = false,
+                horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(NaytiSpacing.Small),
-                    horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
-                ) {
-                    ViewerAction(
-                        icon = NaytiIcon.Scene,
-                        label = stringResource(R.string.viewer_similar_action),
-                        onClick = onShowSimilar,
-                        modifier = Modifier.weight(1f),
-                    )
-                    ViewerAction(
-                        icon = NaytiIcon.Copies,
-                        label = stringResource(R.string.viewer_copies_action),
-                        onClick = onShowDuplicates,
-                        modifier = Modifier.weight(1f),
-                    )
-                    ViewerAction(
-                        icon = NaytiIcon.Text,
-                        label = stringResource(R.string.viewer_text_action),
-                        onClick = onToggleText,
-                        modifier = Modifier.weight(1f),
-                        enabled = state.evidence.regions.isNotEmpty(),
-                        selected = showText,
-                    )
-                }
+                ViewerAction(
+                    icon = NaytiIcon.Scene,
+                    label = stringResource(R.string.viewer_similar_action),
+                    onClick = onShowSimilar,
+                    modifier = Modifier.weight(1f),
+                    iconColor = NaytiTheme.colors.evidencePhoto,
+                    backdrop = backdrop,
+                )
+                ViewerAction(
+                    icon = NaytiIcon.Copies,
+                    label = stringResource(R.string.viewer_copies_action),
+                    onClick = onShowDuplicates,
+                    modifier = Modifier.weight(1f),
+                    iconColor = NaytiTheme.colors.evidenceText,
+                    backdrop = backdrop,
+                )
+                ViewerAction(
+                    icon = NaytiIcon.Text,
+                    label = stringResource(R.string.viewer_text_action),
+                    onClick = onToggleText,
+                    modifier = Modifier.weight(1f),
+                    enabled = state.evidence.regions.isNotEmpty(),
+                    selected = showText,
+                    iconColor = NaytiTheme.colors.evidenceText,
+                    backdrop = backdrop,
+                )
             }
         }
     }
@@ -470,36 +488,43 @@ private fun ViewerChrome(
 private fun MatchReasonCompact(
     provenance: UnifiedSearchHit,
     onClick: () -> Unit,
+    backdrop: NaytiBackdrop,
 ) {
-    Row(
+    GlassSurface(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("viewer-match-reason")
-            .clip(NaytiTheme.shapes.control)
-            .background(Color.Black.copy(alpha = 0.62f))
-            .clickable(onClick = onClick)
-            .padding(horizontal = NaytiSpacing.Medium, vertical = NaytiSpacing.Small),
-        horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
-        verticalAlignment = Alignment.CenterVertically,
+            .clickable(onClick = onClick),
+        material = ChromeMaterial.Glass,
+        backdrop = backdrop,
+        shape = NaytiTheme.shapes.card,
     ) {
-        NaytiIconMark(
-            icon = NaytiIcon.Info,
-            color = Color.White,
-            size = 18.dp,
-        )
-        Text(
-            text = stringResource(R.string.viewer_why_found, provenance.reason.label()),
-            style = NaytiTheme.type.labelL,
-            color = Color.White,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        NaytiIconMark(
-            icon = NaytiIcon.ChevronRight,
-            color = Color.White.copy(alpha = 0.78f),
-            size = 18.dp,
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = NaytiSpacing.Medium, vertical = NaytiSpacing.Small),
+            horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NaytiIconMark(
+                icon = NaytiIcon.Info,
+                color = Color.White,
+                size = 18.dp,
+            )
+            Text(
+                text = stringResource(R.string.viewer_why_found, provenance.reason.label()),
+                style = NaytiTheme.type.labelL,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            NaytiIconMark(
+                icon = NaytiIcon.ChevronRight,
+                color = Color.White.copy(alpha = 0.78f),
+                size = 18.dp,
+            )
+        }
     }
 }
 
@@ -659,38 +684,44 @@ private fun ViewerAction(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     selected: Boolean = false,
+    iconColor: Color = NaytiTheme.colors.ink,
+    backdrop: NaytiBackdrop,
 ) {
-    Row(
+    GlassSurface(
         modifier = modifier
             .height(NaytiSpacing.MinTouchTarget)
-            .clip(NaytiTheme.shapes.control)
-            .background(
-                if (selected) {
-                    NaytiTheme.colors.accentContainer
-                } else {
-                    NaytiTheme.colors.surfaceHigh
-                },
-            )
             .semantics {
                 role = Role.Button
                 this.selected = selected
             }
             .clickable(enabled = enabled, onClick = onClick),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
+        material = ChromeMaterial.Glass,
+        backdrop = backdrop,
+        shape = NaytiTheme.shapes.card,
     ) {
-        NaytiIconMark(
-            icon = icon,
-            color = NaytiTheme.colors.ink.copy(alpha = if (enabled) 1f else 0.42f),
-            size = 18.dp,
-        )
-        Spacer(Modifier.size(NaytiSpacing.Small))
-        Text(
-            text = label,
-            style = NaytiTheme.type.labelL,
-            color = NaytiTheme.colors.ink.copy(alpha = if (enabled) 1f else 0.42f),
-            maxLines = 1,
-        )
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NaytiIconMark(
+                icon = icon,
+                color =
+                    if (selected) {
+                        NaytiTheme.colors.accent
+                    } else {
+                        iconColor.copy(alpha = if (enabled) 1f else 0.42f)
+                    },
+                size = 18.dp,
+            )
+            Spacer(Modifier.size(NaytiSpacing.Small))
+            Text(
+                text = label,
+                style = NaytiTheme.type.labelL,
+                color = NaytiTheme.colors.ink.copy(alpha = if (enabled) 1f else 0.42f),
+                maxLines = 1,
+            )
+        }
     }
 }
 

@@ -2,19 +2,10 @@
 <resources>
     <string name="readiness_title">Индекс</string>
     <string name="readiness_subtitle">Что уже готово к поиску. Подготовка идёт только по вашей команде и продолжается с места остановки.</string>
-    <string name="readiness_channels_title">Способы поиска</string>
-    <string name="readiness_channel_literal">Текст на фото</string>
-    <string name="readiness_channel_semantic">Смысл текста</string>
-    <string name="readiness_channel_visual">Содержимое фото</string>
-    <string name="readiness_channel_duplicates">Копии и похожие кадры</string>
     <string name="readiness_channel_short_text">Текст</string>
     <string name="readiness_channel_short_meaning">Смысл</string>
-    <string name="readiness_channel_short_photo">Фото</string>
+    <string name="readiness_channel_short_photo">Сцена</string>
     <string name="readiness_channel_short_copies">Копии</string>
-    <string name="readiness_channel_counts">%1$d / %2$d</string>
-    <string name="readiness_channel_gaps">Пропуски: %1$d</string>
-    <string name="readiness_channel_no_gaps">Пропусков нет</string>
-    <string name="readiness_channel_waiting">Точные числа появятся после проверки компонентов поиска.</string>
     <string name="readiness_channel_state">%1$s. Готово %2$d из %3$d. Пропуски: %4$d.</string>
     <string name="readiness_channel_waiting_state">%1$s. Точные числа пока недоступны.</string>
 
@@ -49,14 +40,13 @@
     <string name="readiness_period_title">Период</string>
     <string name="readiness_period_change">Изменить</string>
     <string name="readiness_period_sheet_title">Какие фото готовить</string>
-    <string name="readiness_period_one_month">1 месяц</string>
+    <string name="readiness_period_one_month">30 дней</string>
     <string name="readiness_period_three_months">3 месяца</string>
+    <string name="readiness_period_year">Год</string>
+    <string name="readiness_period_all_short">Всё</string>
     <string name="readiness_period_all_description">Вся доступная медиатека · %1$d фото</string>
     <string name="readiness_period_since_description">С %1$s · %2$d из %3$d фото</string>
     <string name="readiness_period_reuse">Готовые данные переиспользуются. Обработаются только отсутствующие или устаревшие.</string>
-    <string name="readiness_period_plus_one">+1 месяц</string>
-    <string name="readiness_period_plus_three">+3 месяца</string>
-    <string name="readiness_period_all">Вся медиатека</string>
     <string name="readiness_period_date">Выбрать произвольную дату</string>
     <string name="readiness_period_unknown_dates">Без надёжной даты: %1$d фото. Они появятся только при выборе всей медиатеки.</string>
     <string name="readiness_period_pause_title">Расширить период подготовки?</string>
@@ -74,24 +64,21 @@
     <string name="readiness_cancel_body">Текущая задача завершится. Уже готовые фотографии и данные поиска останутся.</string>
     <string name="readiness_cancel_confirm">Отменить подготовку</string>
     <string name="readiness_cancel_keep">Продолжить задачу</string>
-
-    <string name="settings_redesign_subtitle">Оформление, медиатека и локальные данные.</string>
     <string name="settings_appearance_section">Оформление</string>
     <string name="settings_theme_title">Тема</string>
     <string name="settings_theme_body">Меняет только интерфейс. Фотографии всегда показываются без обработки.</string>
-    <string name="settings_theme_body_short">Система, светлая или тёмная</string>
     <string name="settings_theme_system">Как в системе</string>
+    <string name="settings_theme_system_short">Система</string>
     <string name="settings_theme_light">Светлая</string>
     <string name="settings_theme_dark">Тёмная</string>
+    <string name="settings_theme_midnight">Полночь</string>
     <string name="settings_theme_selected">%1$s, выбрано</string>
     <string name="settings_media_section">Медиатека</string>
     <string name="settings_media_no_access">Доступ не предоставлен</string>
     <string name="settings_media_android_selection">Выбраны в системном окне Android</string>
     <string name="settings_models_file_title">Файл с моделями</string>
     <string name="settings_models_file_body">Проверен локально</string>
-    <string name="settings_preparation_title">Подготовка поиска</string>
     <string name="settings_preparation_body">Проверьте готовность четырёх способов поиска и расширьте период.</string>
-    <string name="settings_preparation_action">Открыть готовность</string>
     <string name="settings_storage_section">Данные</string>
     <string name="settings_advanced_section">Дополнительно</string>
     <string name="settings_advanced_title">Технические операции</string>
@@ -113,8 +100,6 @@
     <string name="settings_previous_version_failed">Не удалось включить %2$s. Версия %1$s осталась рабочей.</string>
     <string name="settings_previous_version_action">Вернуться к %1$s</string>
     <string name="settings_diagnostics_body">Создаёт обезличенный отчёт только с версиями, состояниями и счётчиками.</string>
-    <string name="settings_destructive_show">Управление данными</string>
-    <string name="settings_destructive_hide">Скрыть управление данными</string>
     <string name="settings_storage_originals_not_copied">Оригиналы фотографий не копируются</string>
     <string name="settings_destructive_title">Сбросить индекс</string>
     <string name="settings_destructive_body">Фото и модели останутся</string>

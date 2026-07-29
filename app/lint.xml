@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- License and provenance notices are shipped intentionally and opened outside R references. -->
+    <issue id="UnusedResources">
+        <ignore path="src/main/res/raw/golos_text_ofl.txt" />
+        <ignore path="src/main/res/raw/golos_text_provenance.txt" />
+    </issue>
+</lint>

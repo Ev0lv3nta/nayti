@@ -12,6 +12,9 @@ internal object NaytiPalette {
     const val Ink000 = 0xFF0F0D0CL
     const val Ink050 = 0xFF141110L
     const val Ink100 = 0xFF1A1615L
+    const val InkEdgeTop = 0xFF1E1918L
+    const val InkEdgeBottom = 0xFF171312L
+    const val InkGlassTop = 0xFF221D1BL
     const val Ink150 = 0xFF221D1BL
     const val Ink200 = 0xFF2B2523L
     const val Ink300 = 0xFF332C29L
@@ -23,6 +26,7 @@ internal object NaytiPalette {
     // Warm paper rather than a neutral white inversion of the dark theme.
     const val Paper000 = 0xFFFFFFFFL
     const val Paper050 = 0xFFF6F2EEL
+    const val Paper075 = 0xFFFCF9F6L
     const val Paper100 = 0xFFFBF7F3L
     const val Paper150 = 0xFFF3EDE7L
     const val Paper200 = 0xFFE5DCD4L
@@ -34,9 +38,13 @@ internal object NaytiPalette {
 
     // Garnet is reserved for primary actions and selected states.
     const val AccentLight = 0xFFA81B38L
+    const val AccentLightTop = 0xFFC43050L
+    const val AccentLightBottom = 0xFF9D1F3BL
     const val AccentLightContainer = 0xFFF6DDE2L
     const val AccentLightOnContainer = 0xFF65102BL
     const val AccentDark = 0xFFE1596FL
+    const val AccentDarkTop = 0xFFC43050L
+    const val AccentDarkBottom = 0xFF9D1F3BL
     const val AccentDarkContainer = 0xFF4A121FL
     const val AccentDarkOnContainer = 0xFFF3EEEAL
 

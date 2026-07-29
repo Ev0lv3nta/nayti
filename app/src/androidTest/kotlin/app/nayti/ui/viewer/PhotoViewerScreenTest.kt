@@ -29,6 +29,7 @@ import app.nayti.ui.ViewerUiState
 import app.nayti.ui.ViewerUnavailableReason
 import app.nayti.ui.assertTouchHeightIsAtLeast
 import app.nayti.ui.designsystem.theme.NaytiTheme
+import app.nayti.ui.designsystem.theme.ThemeMode
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -114,7 +115,7 @@ class PhotoViewerScreenTest {
             CompositionLocalProvider(
                 LocalDensity provides Density(density.density, fontScale = 2f),
             ) {
-                NaytiTheme(darkTheme = true) {
+                NaytiTheme(themeMode = ThemeMode.Dark) {
                     PhotoViewerScreen(
                         assetId = 7,
                         state = ViewerUiState.Unavailable(7, ViewerUnavailableReason.Missing),
@@ -152,7 +153,7 @@ class PhotoViewerScreenTest {
         nextAssetId: Long? = null,
     ) {
         composeRule.setContent {
-            NaytiTheme(darkTheme = true) {
+            NaytiTheme(themeMode = ThemeMode.Dark) {
                 PhotoViewerScreen(
                     assetId = assetId,
                     state = state,

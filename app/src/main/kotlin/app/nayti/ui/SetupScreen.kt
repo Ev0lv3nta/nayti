@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -40,6 +39,8 @@ import app.nayti.indexer.OcrIndexingStatus
 import app.nayti.platform.media.MediaAccessScope
 import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
+import app.nayti.ui.designsystem.component.EdgeSurface
+import app.nayti.ui.designsystem.component.KromkaButton
 import app.nayti.ui.designsystem.theme.NaytiSpacing
 import app.nayti.ui.designsystem.theme.NaytiTheme
 
@@ -245,11 +246,7 @@ private fun SetupActions(
                 SetupNextAction.WAIT_FOR_CATALOG,
                 SetupNextAction.WAIT_FOR_PREPARATION,
             )
-    Surface(
-        color = NaytiTheme.colors.surface,
-        contentColor = NaytiTheme.colors.ink,
-        shadowElevation = 8.dp,
-    ) {
+    EdgeSurface {
         Column(
             modifier =
                 Modifier
@@ -258,7 +255,7 @@ private fun SetupActions(
             verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Button(
+            KromkaButton(
                 onClick = {
                     when (action) {
                         SetupNextAction.IMPORT_MODEL_PACK -> onImportModelPack()
@@ -289,9 +286,7 @@ private fun SetupActions(
 
 @Composable
 private fun PrivacyPromise() {
-    Surface(
-        color = NaytiTheme.colors.accentContainer,
-        contentColor = NaytiTheme.colors.onAccentContainer,
+    EdgeSurface(
         shape = NaytiTheme.shapes.card,
     ) {
         Row(
@@ -308,7 +303,7 @@ private fun PrivacyPromise() {
             ) {
                 NaytiIconMark(
                     icon = NaytiIcon.Shield,
-                    color = NaytiTheme.colors.onAccentContainer,
+                    color = NaytiTheme.colors.evidencePhoto,
                     size = 22.dp,
                 )
             }
@@ -316,8 +311,16 @@ private fun PrivacyPromise() {
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
             ) {
-                Text(stringResource(R.string.setup_privacy_title), style = NaytiTheme.type.titleM)
-                Text(stringResource(R.string.setup_privacy_body), style = NaytiTheme.type.bodyM)
+                Text(
+                    stringResource(R.string.setup_privacy_title),
+                    style = NaytiTheme.type.titleM,
+                    color = NaytiTheme.colors.ink,
+                )
+                Text(
+                    stringResource(R.string.setup_privacy_body),
+                    style = NaytiTheme.type.bodyM,
+                    color = NaytiTheme.colors.inkMuted,
+                )
             }
         }
     }
@@ -332,9 +335,7 @@ private fun SetupStepRow(
     complete: Boolean,
     busy: Boolean,
 ) {
-    Surface(
-        color = NaytiTheme.colors.surface,
-        contentColor = NaytiTheme.colors.ink,
+    EdgeSurface(
         shape = NaytiTheme.shapes.card,
     ) {
         Column {

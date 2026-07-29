@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.core.content.edit
 import app.nayti.ui.NaytiApp
 import app.nayti.ui.designsystem.theme.NaytiTheme
 import app.nayti.ui.designsystem.theme.ThemeMode
@@ -50,10 +51,9 @@ class MainActivity : ComponentActivity() {
                         themeMode = themeMode,
                         onThemeModeChange = { selected ->
                             themeMode = selected
-                            appearancePreferences
-                                .edit()
-                                .putString(AppearanceThemeKey, selected.name)
-                                .apply()
+                            appearancePreferences.edit {
+                                putString(AppearanceThemeKey, selected.name)
+                            }
                         },
                     )
                 }

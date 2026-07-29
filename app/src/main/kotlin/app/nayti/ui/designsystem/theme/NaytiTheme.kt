@@ -15,6 +15,7 @@ enum class ThemeMode {
     System,
     Light,
     Dark,
+    Midnight,
 }
 
 /**
@@ -30,32 +31,21 @@ fun NaytiTheme(
     content: @Composable () -> Unit,
 ) {
     val systemDark = isSystemInDarkTheme()
-    val darkTheme = when (themeMode) {
-        ThemeMode.System -> systemDark
-        ThemeMode.Light -> false
-        ThemeMode.Dark -> true
+    val colors = when (themeMode) {
+        ThemeMode.System -> if (systemDark) NaytiDarkColors else NaytiLightColors
+        ThemeMode.Light -> NaytiLightColors
+        ThemeMode.Dark -> NaytiDarkColors
+        ThemeMode.Midnight -> NaytiMidnightColors
     }
-    NaytiThemeResolved(darkTheme = darkTheme, content = content)
-}
-
-/**
- * Compatibility entry point for existing previews and tests. New presentation code should pass a
- * [ThemeMode] so the three supported choices stay explicit.
- */
-@Composable
-fun NaytiTheme(
-    darkTheme: Boolean,
-    content: @Composable () -> Unit,
-) {
-    NaytiThemeResolved(darkTheme = darkTheme, content = content)
+    NaytiThemeResolved(colors = colors, content = content)
 }
 
 @Composable
 private fun NaytiThemeResolved(
-    darkTheme: Boolean,
+    colors: NaytiColors,
     content: @Composable () -> Unit,
 ) {
-    val colors = if (darkTheme) NaytiDarkColors else NaytiLightColors
+    val darkTheme = colors.isDark
     val scheme = remember(colors) { colors.toMaterialScheme() }
     val typography = remember { NaytiTypeScaleDefault.toMaterialTypography() }
     val shapes = remember { NaytiShapeScaleDefault.toMaterialShapes() }

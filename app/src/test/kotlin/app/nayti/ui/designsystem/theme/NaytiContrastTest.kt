@@ -258,8 +258,8 @@ class NaytiContrastTest {
     }
 
     private object NaytiChromeAlpha {
-        val GlassDark = NaytiChrome.GlassTintAlphaDark.toDouble()
-        val GlassLight = NaytiChrome.GlassTintAlphaLight.toDouble()
+        val GlassDark = NaytiChrome.GlassTintAlphaDarkTop.toDouble()
+        val GlassLight = NaytiChrome.GlassTintAlphaLightTop.toDouble()
         const val Solid = 1.0
     }
 

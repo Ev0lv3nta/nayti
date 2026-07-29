@@ -64,6 +64,7 @@ import app.nayti.platform.media.MediaPermissionEvaluator
 import app.nayti.platform.media.MediaPermissionSnapshot
 import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
+import app.nayti.ui.designsystem.component.EdgeSurface
 import app.nayti.ui.designsystem.theme.NaytiTheme
 import app.nayti.ui.designsystem.theme.ThemeMode
 import app.nayti.ui.library.LibrarySearchScreen
@@ -381,26 +382,33 @@ private fun RootNavigationBar(
     indexNeedsAttention: Boolean,
     onNavigate: (String) -> Unit,
 ) {
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-        RootDestination.entries.forEach { destination ->
-            NavigationBarItem(
-                selected = currentRoute == destination.route,
-                onClick = { onNavigate(destination.route) },
-                icon = {
-                    RootDestinationIcon(
-                        destination = destination,
-                        indexNeedsAttention = indexNeedsAttention,
-                    )
-                },
-                label = { Text(stringResource(destination.title)) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = NaytiTheme.colors.accent,
-                    selectedTextColor = NaytiTheme.colors.accent,
-                    indicatorColor = NaytiTheme.colors.accentContainer,
-                    unselectedIconColor = NaytiTheme.colors.inkMuted,
-                    unselectedTextColor = NaytiTheme.colors.inkMuted,
-                ),
-            )
+    EdgeSurface {
+        NavigationBar(containerColor = androidx.compose.ui.graphics.Color.Transparent) {
+            RootDestination.entries.forEach { destination ->
+                NavigationBarItem(
+                    selected = currentRoute == destination.route,
+                    onClick = { onNavigate(destination.route) },
+                    icon = {
+                        RootDestinationIcon(
+                            destination = destination,
+                            indexNeedsAttention = indexNeedsAttention,
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = stringResource(destination.title),
+                            style = NaytiTheme.type.labelS,
+                        )
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = NaytiTheme.colors.accent,
+                        selectedTextColor = NaytiTheme.colors.accent,
+                        indicatorColor = NaytiTheme.colors.accentContainer,
+                        unselectedIconColor = NaytiTheme.colors.inkMuted,
+                        unselectedTextColor = NaytiTheme.colors.inkMuted,
+                    ),
+                )
+            }
         }
     }
 }
@@ -630,7 +638,7 @@ private fun RootNavHost(
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
 @Composable
 private fun NaytiPreview() {
-    NaytiTheme(darkTheme = false) {
+    NaytiTheme(themeMode = ThemeMode.Light) {
         NaytiAppContent(
             catalog =
                 CatalogRuntimeState(

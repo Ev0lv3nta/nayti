@@ -50,6 +50,9 @@ import app.nayti.indexer.ModelPackRuntimeState
 import app.nayti.indexer.OcrIndexingState
 import app.nayti.indexer.SearchCapability
 import app.nayti.ui.designsystem.component.EdgeSurface
+import app.nayti.ui.designsystem.component.KromkaButton
+import app.nayti.ui.designsystem.component.KromkaChoiceChip
+import app.nayti.ui.designsystem.component.KromkaSheetSurface
 import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
 import app.nayti.ui.designsystem.theme.NaytiSpacing
@@ -80,6 +83,7 @@ fun ReadinessScreen(
     catalog: CatalogRuntimeState,
     modelPack: ModelPackRuntimeState,
     indexing: OcrIndexingState,
+    modifier: Modifier = Modifier,
     showBack: Boolean = true,
     onBack: () -> Unit,
     onRequestAccess: () -> Unit,
@@ -90,7 +94,6 @@ fun ReadinessScreen(
     onRetryGaps: () -> Unit,
     onChangePeriod: (ReadinessPeriodSelection) -> Unit,
     onOpenSettings: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     val state = PreparationUiMapper.map(catalog, modelPack, indexing)
     var showDetails by rememberSaveable { mutableStateOf(false) }
@@ -512,11 +515,15 @@ private fun ReadinessOverviewCard(
                 }
             }
             state.primaryAction?.let { action ->
-                Button(
+                KromkaButton(
                     onClick = onPrimaryAction,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                 ) {
-                    Text(stringResource(action.label))
+                    Text(
+                        text = stringResource(action.label),
+                        style = NaytiTheme.type.labelL,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 }
             }
         }
@@ -644,73 +651,97 @@ private fun ReadinessPeriodSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        dragHandle = null,
     ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        start = NaytiSpacing.Screen,
-                        end = NaytiSpacing.Screen,
-                        bottom = NaytiSpacing.Section,
-                    ),
-            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
-        ) {
-            Text(
-                text = stringResource(R.string.readiness_period_sheet_title),
-                style = NaytiTheme.type.titleL,
-                color = NaytiTheme.colors.ink,
-            )
-            Text(
-                text = stringResource(R.string.readiness_period_reuse),
-                style = NaytiTheme.type.bodyM,
-                color = NaytiTheme.colors.inkMuted,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
-            ) {
-                OutlinedButton(
-                    onClick = { onSelect(ReadinessPeriodSelection.ExtendByMonths(1)) },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(stringResource(R.string.readiness_period_one_month))
-                }
-                OutlinedButton(
-                    onClick = { onSelect(ReadinessPeriodSelection.ExtendByMonths(3)) },
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(stringResource(R.string.readiness_period_three_months))
-                }
-            }
-            OutlinedButton(
-                onClick = { onSelect(ReadinessPeriodSelection.AllMedia) },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = indexing.scope.takenFromMillis != null,
-            ) {
-                Text(stringResource(R.string.readiness_period_all))
-            }
-            TextButton(
-                onClick = onSelectDate,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                NaytiIconMark(icon = NaytiIcon.Period, size = 18.dp)
-                Spacer(Modifier.width(NaytiSpacing.Small))
-                Text(stringResource(R.string.readiness_period_date))
-            }
-            if (indexing.scope.unknownDateAssets > 0 && indexing.scope.takenFromMillis != null) {
-                Text(
-                    text =
-                        stringResource(
-                            R.string.readiness_period_unknown_dates,
-                            indexing.scope.unknownDateAssets,
+        KromkaSheetSurface {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            start = NaytiSpacing.Screen,
+                            end = NaytiSpacing.Screen,
+                            bottom = NaytiSpacing.Section,
                         ),
-                    style = NaytiTheme.type.labelS,
+                verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+            ) {
+                Text(
+                    text = stringResource(R.string.readiness_period_sheet_title),
+                    style = NaytiTheme.type.titleL,
+                    color = NaytiTheme.colors.ink,
+                )
+                Text(
+                    text = stringResource(R.string.readiness_period_reuse),
+                    style = NaytiTheme.type.bodyM,
                     color = NaytiTheme.colors.inkMuted,
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+                ) {
+                    KromkaChoiceChip(
+                        selected = indexing.scope.takenFromMillis.matchesPresetMonths(1),
+                        onClick = { onSelect(ReadinessPeriodSelection.ExtendByMonths(1)) },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(stringResource(R.string.readiness_period_one_month))
+                    }
+                    KromkaChoiceChip(
+                        selected = indexing.scope.takenFromMillis.matchesPresetMonths(3),
+                        onClick = { onSelect(ReadinessPeriodSelection.ExtendByMonths(3)) },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(stringResource(R.string.readiness_period_three_months))
+                    }
+                    KromkaChoiceChip(
+                        selected = indexing.scope.takenFromMillis.matchesPresetMonths(12),
+                        onClick = { onSelect(ReadinessPeriodSelection.ExtendByMonths(12)) },
+                        modifier = Modifier.weight(0.72f),
+                    ) {
+                        Text(stringResource(R.string.readiness_period_year))
+                    }
+                    KromkaChoiceChip(
+                        selected = indexing.scope.takenFromMillis == null,
+                        onClick = { onSelect(ReadinessPeriodSelection.AllMedia) },
+                        modifier = Modifier.weight(0.72f),
+                    ) {
+                        Text(stringResource(R.string.readiness_period_all_short))
+                    }
+                }
+                TextButton(
+                    onClick = onSelectDate,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    NaytiIconMark(icon = NaytiIcon.Period, size = 18.dp)
+                    Spacer(Modifier.width(NaytiSpacing.Small))
+                    Text(stringResource(R.string.readiness_period_date))
+                }
+                if (indexing.scope.unknownDateAssets > 0 && indexing.scope.takenFromMillis != null) {
+                    Text(
+                        text =
+                            stringResource(
+                                R.string.readiness_period_unknown_dates,
+                                indexing.scope.unknownDateAssets,
+                            ),
+                        style = NaytiTheme.type.labelS,
+                        color = NaytiTheme.colors.inkMuted,
+                    )
+                }
             }
         }
     }
+}
+
+private fun Long?.matchesPresetMonths(months: Long): Boolean {
+    val actual = this ?: return false
+    val expected =
+        ZonedDateTime.now(ZoneId.systemDefault())
+            .minusMonths(months)
+            .toInstant()
+            .toEpochMilli()
+    val toleranceMillis = 3L * 24L * 60L * 60L * 1_000L
+    return kotlin.math.abs(actual - expected) <= toleranceMillis
 }
 
 @Composable

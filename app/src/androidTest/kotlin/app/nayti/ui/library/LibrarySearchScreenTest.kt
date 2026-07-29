@@ -145,6 +145,23 @@ class LibrarySearchScreenTest {
     }
 
     @Test
+    fun searchFieldGrowsWithLargeTextInsteadOfClippingIt() {
+        composeRule.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(1f, fontScale = 2.5f)) {
+                TestContent()
+            }
+        }
+
+        val fieldHeight = composeRule
+            .onNodeWithTag("search-query")
+            .fetchSemanticsNode()
+            .boundsInRoot
+            .height
+
+        assertTrue("Search field height was $fieldHeight px", fieldHeight >= 60f)
+    }
+
+    @Test
     fun mediumLayoutUsesFivePhotoColumnsAndAccessibleSearchActions() {
         composeRule.setContent {
             CompositionLocalProvider(LocalDensity provides Density(1f, fontScale = 1f)) {

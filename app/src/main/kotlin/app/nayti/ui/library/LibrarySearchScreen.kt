@@ -3,6 +3,7 @@ package app.nayti.ui.library
 import android.app.DatePickerDialog
 import android.content.Context
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -30,6 +32,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
@@ -38,8 +41,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,7 +55,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -456,6 +459,10 @@ private fun SearchChrome(
 ) {
     val clearDescription = stringResource(R.string.search_redesign_clear)
     val submitDescription = stringResource(R.string.search_redesign_submit)
+    val fieldMinHeight = with(LocalDensity.current) {
+        maxOf(50.dp, NaytiTheme.type.bodyL.lineHeight.toDp() + 8.dp)
+    }
+    var fieldFocused by remember { mutableStateOf(false) }
     GlassSurface(
         modifier = modifier.fillMaxWidth(),
         backdrop = backdrop,
@@ -473,54 +480,87 @@ private fun SearchChrome(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(50.dp)
-                        .kromkaRecessedField(fieldShape),
+                        .heightIn(min = fieldMinHeight)
+                        .kromkaRecessedField(fieldShape)
+                        .then(
+                            if (fieldFocused) {
+                                Modifier.border(
+                                    NaytiSpacing.Hairline,
+                                    NaytiTheme.colors.accent,
+                                    fieldShape,
+                                )
+                            } else {
+                                Modifier
+                            },
+                        ),
                 ) {
-                    OutlinedTextField(
+                    BasicTextField(
                         value = query,
                         onValueChange = onQueryChange,
-                        modifier = Modifier.fillMaxSize(),
-                        placeholder = {
-                            Text(
-                                if (photoCount > 0) {
-                                    stringResource(
-                                        R.string.search_redesign_hint_count,
-                                        java.text.NumberFormat.getIntegerInstance().format(photoCount),
-                                    )
-                                } else {
-                                    stringResource(R.string.search_surface_hint)
-                                },
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        },
-                        leadingIcon = { NaytiIconMark(NaytiIcon.Search) },
-                        trailingIcon = {
-                            if (query.isNotEmpty() && !searching) {
-                                IconButton(
-                                    onClick = onClear,
-                                    modifier = Modifier
-                                        .testTag("search-clear")
-                                        .semantics {
-                                            contentDescription = clearDescription
-                                        },
-                                ) {
-                                    NaytiIconMark(NaytiIcon.Close)
-                                }
-                            }
-                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { fieldFocused = it.isFocused }
+                            .testTag("search-query"),
+                        textStyle = NaytiTheme.type.bodyL.copy(color = NaytiTheme.colors.ink),
+                        cursorBrush = SolidColor(NaytiTheme.colors.accent),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
                         singleLine = true,
-                        shape = fieldShape,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            disabledContainerColor = Color.Transparent,
-                            focusedBorderColor = NaytiTheme.colors.accent,
-                            unfocusedBorderColor = Color.Transparent,
-                            cursorColor = NaytiTheme.colors.accent,
-                        ),
+                        decorationBox = { innerTextField ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = fieldMinHeight)
+                                    .padding(
+                                        start = 14.dp,
+                                        end = if (query.isNotEmpty() && !searching) 4.dp else 14.dp,
+                                    ),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                NaytiIconMark(
+                                    icon = NaytiIcon.Search,
+                                    color = NaytiTheme.colors.inkMuted,
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Box(
+                                    modifier = Modifier.weight(1f),
+                                    contentAlignment = Alignment.CenterStart,
+                                ) {
+                                    if (query.isEmpty()) {
+                                        Text(
+                                            if (photoCount > 0) {
+                                                stringResource(
+                                                    R.string.search_redesign_hint_count,
+                                                    java.text.NumberFormat
+                                                        .getIntegerInstance()
+                                                        .format(photoCount),
+                                                )
+                                            } else {
+                                                stringResource(R.string.search_surface_hint)
+                                            },
+                                            color = NaytiTheme.colors.inkMuted,
+                                            style = NaytiTheme.type.bodyL,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                                if (query.isNotEmpty() && !searching) {
+                                    IconButton(
+                                        onClick = onClear,
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .testTag("search-clear")
+                                            .semantics {
+                                                contentDescription = clearDescription
+                                            },
+                                    ) {
+                                        NaytiIconMark(NaytiIcon.Close)
+                                    }
+                                }
+                            }
+                        },
                     )
                 }
                 if (query.isNotBlank() || searching) {

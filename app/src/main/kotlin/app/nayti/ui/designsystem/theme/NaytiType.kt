@@ -4,20 +4,27 @@ import androidx.compose.material3.Typography
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import app.nayti.R
 
 /**
  * Type scale of the shell.
  *
- * The system grotesque is used deliberately: a bundled face would add APK weight and a licence to
- * audit without improving Cyrillic rendering. Counters and percentages use tabular figures so
- * numbers stop jittering while preparation progresses.
+ * Golos Text is bundled locally from the pinned Google Fonts source. It covers Cyrillic and is
+ * licensed under OFL-1.1; the exact source revision, hash and license ship in `res/raw`.
+ * Counters and percentages use tabular figures so numbers do not jitter while preparation runs.
  */
 private const val TabularFigures = "tnum"
 
-private val Sans = FontFamily.SansSerif
+private val Sans = FontFamily(
+    Font(R.font.golos_text, weight = FontWeight.Normal),
+    Font(R.font.golos_text, weight = FontWeight.Medium),
+    Font(R.font.golos_text, weight = FontWeight.SemiBold),
+    Font(R.font.golos_text, weight = FontWeight.Bold),
+)
 
 @Immutable
 data class NaytiTypeScale(

@@ -17,7 +17,20 @@ import androidx.compose.ui.graphics.Color
 data class NaytiColors(
     val background: Color,
     val surface: Color,
+    /** Raised surface used by cards and anchored chrome. */
     val surfaceHigh: Color,
+    /** Recessed field or track within a surface. */
+    val surfaceLow: Color,
+    /** Quiet light-facing edge of a raised surface. */
+    val edgeHighlight: Color,
+    /** Quiet lower edge of a raised surface. */
+    val edgeShadow: Color,
+    /** Upper and lower stops of the Kromka card material. */
+    val edgeTop: Color,
+    val edgeBottom: Color,
+    /** Upper and lower stops of translucent anchored chrome. */
+    val glassTop: Color,
+    val glassBottom: Color,
     val hairline: Color,
     /** Decorative border of a filled control; identification never depends on it. */
     val outline: Color,
@@ -29,8 +42,13 @@ data class NaytiColors(
     val inkFaint: Color,
     val accent: Color,
     val onAccent: Color,
+    val accentTop: Color,
+    val accentBottom: Color,
     val accentContainer: Color,
     val onAccentContainer: Color,
+    val evidenceText: Color,
+    val evidenceMeaning: Color,
+    val evidencePhoto: Color,
     val ready: Color,
     val attention: Color,
     val error: Color,
@@ -41,6 +59,13 @@ internal val NaytiLightColors = NaytiColors(
     background = Color(NaytiPalette.Paper050),
     surface = Color(NaytiPalette.Paper000),
     surfaceHigh = Color(NaytiPalette.Paper100),
+    surfaceLow = Color(NaytiPalette.Paper150),
+    edgeHighlight = Color(NaytiPalette.Paper000),
+    edgeShadow = Color(NaytiPalette.Paper200),
+    edgeTop = Color(NaytiPalette.Paper000),
+    edgeBottom = Color(NaytiPalette.Paper075),
+    glassTop = Color(NaytiPalette.Paper000),
+    glassBottom = Color(NaytiPalette.Paper100),
     hairline = Color(NaytiPalette.Paper200),
     outline = Color(NaytiPalette.Paper300),
     outlineStrong = Color(NaytiPalette.Paper350),
@@ -49,8 +74,13 @@ internal val NaytiLightColors = NaytiColors(
     inkFaint = Color(NaytiPalette.Paper600),
     accent = Color(NaytiPalette.AccentLight),
     onAccent = Color(NaytiPalette.Paper000),
+    accentTop = Color(NaytiPalette.AccentLightTop),
+    accentBottom = Color(NaytiPalette.AccentLightBottom),
     accentContainer = Color(NaytiPalette.AccentLightContainer),
     onAccentContainer = Color(NaytiPalette.AccentLightOnContainer),
+    evidenceText = Color(NaytiPalette.EvidenceTextLight),
+    evidenceMeaning = Color(NaytiPalette.EvidenceMeaningLight),
+    evidencePhoto = Color(NaytiPalette.EvidencePhotoLight),
     ready = Color(NaytiPalette.ReadyLight),
     attention = Color(NaytiPalette.AttentionLight),
     error = Color(NaytiPalette.ErrorLight),
@@ -61,6 +91,13 @@ internal val NaytiDarkColors = NaytiColors(
     background = Color(NaytiPalette.Ink000),
     surface = Color(NaytiPalette.Ink100),
     surfaceHigh = Color(NaytiPalette.Ink150),
+    surfaceLow = Color(NaytiPalette.Ink200),
+    edgeHighlight = Color(NaytiPalette.Ink300),
+    edgeShadow = Color(NaytiPalette.Ink000),
+    edgeTop = Color(NaytiPalette.InkEdgeTop),
+    edgeBottom = Color(NaytiPalette.InkEdgeBottom),
+    glassTop = Color(NaytiPalette.InkGlassTop),
+    glassBottom = Color(NaytiPalette.Ink050),
     hairline = Color(NaytiPalette.Ink200),
     outline = Color(NaytiPalette.Ink300),
     outlineStrong = Color(NaytiPalette.Ink350),
@@ -68,13 +105,26 @@ internal val NaytiDarkColors = NaytiColors(
     inkMuted = Color(NaytiPalette.Ink500),
     inkFaint = Color(NaytiPalette.Ink400),
     accent = Color(NaytiPalette.AccentDark),
-    onAccent = Color(NaytiPalette.AccentLightOnContainer),
+    onAccent = Color(NaytiPalette.Paper900),
+    accentTop = Color(NaytiPalette.AccentDarkTop),
+    accentBottom = Color(NaytiPalette.AccentDarkBottom),
     accentContainer = Color(NaytiPalette.AccentDarkContainer),
     onAccentContainer = Color(NaytiPalette.AccentDarkOnContainer),
+    evidenceText = Color(NaytiPalette.EvidenceTextDark),
+    evidenceMeaning = Color(NaytiPalette.EvidenceMeaningDark),
+    evidencePhoto = Color(NaytiPalette.EvidencePhotoDark),
     ready = Color(NaytiPalette.ReadyDark),
     attention = Color(NaytiPalette.AttentionDark),
     error = Color(NaytiPalette.ErrorDark),
     isDark = true,
+)
+
+/**
+ * AMOLED-first variant. Interactive surfaces retain the same Kromka depth, while the canvas and
+ * lowest Material containers use true black so inactive pixels on OLED devices are actually off.
+ */
+internal val NaytiMidnightColors = NaytiDarkColors.copy(
+    background = Color.Black,
 )
 
 /**

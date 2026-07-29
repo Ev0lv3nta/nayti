@@ -11,18 +11,41 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
+enum class ThemeMode {
+    System,
+    Light,
+    Dark,
+    Midnight,
+}
+
 /**
  * Theme of the redesigned shell.
  *
  * Dynamic colour stays off: the alpha has to be reviewable for contrast and identity independently
- * of the firmware wallpaper. The theme follows the system light/dark setting.
+ * of the firmware wallpaper. [ThemeMode] is intentionally presentation-only here; persistence is
+ * owned by the settings layer.
  */
 @Composable
 fun NaytiTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: ThemeMode = ThemeMode.System,
     content: @Composable () -> Unit,
 ) {
-    val colors = if (darkTheme) NaytiDarkColors else NaytiLightColors
+    val systemDark = isSystemInDarkTheme()
+    val colors = when (themeMode) {
+        ThemeMode.System -> if (systemDark) NaytiDarkColors else NaytiLightColors
+        ThemeMode.Light -> NaytiLightColors
+        ThemeMode.Dark -> NaytiDarkColors
+        ThemeMode.Midnight -> NaytiMidnightColors
+    }
+    NaytiThemeResolved(colors = colors, content = content)
+}
+
+@Composable
+private fun NaytiThemeResolved(
+    colors: NaytiColors,
+    content: @Composable () -> Unit,
+) {
+    val darkTheme = colors.isDark
     val scheme = remember(colors) { colors.toMaterialScheme() }
     val typography = remember { NaytiTypeScaleDefault.toMaterialTypography() }
     val shapes = remember { NaytiShapeScaleDefault.toMaterialShapes() }

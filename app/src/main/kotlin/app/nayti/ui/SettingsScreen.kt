@@ -1,21 +1,28 @@
 package app.nayti.ui
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,12 +31,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.nayti.BuildConfig
 import app.nayti.R
 import app.nayti.indexer.CatalogRuntimeState
@@ -37,13 +48,15 @@ import app.nayti.indexer.ModelPackRuntimeState
 import app.nayti.indexer.ModelPackRuntimeStatus
 import app.nayti.indexer.OcrIndexingState
 import app.nayti.platform.media.MediaAccessScope
+import app.nayti.ui.designsystem.component.EdgeSurface
+import app.nayti.ui.designsystem.component.KromkaSheetSurface
 import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
 import app.nayti.ui.designsystem.theme.NaytiSpacing
 import app.nayti.ui.designsystem.theme.NaytiTheme
-import app.nayti.ui.preparation.PreparationPrimaryAction
-import app.nayti.ui.preparation.PreparationUiMapper
+import app.nayti.ui.designsystem.theme.ThemeMode
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SettingsScreen(
     catalog: CatalogRuntimeState,
@@ -63,8 +76,12 @@ internal fun SettingsScreen(
     onOpenPreparation: () -> Unit = {},
     onSelectIndexingMonths: (Long?) -> Unit = {},
     onSelectIndexingStartDate: (Long) -> Unit = {},
+    themeMode: ThemeMode = ThemeMode.System,
+    onThemeModeChange: (ThemeMode) -> Unit = {},
 ) {
     var showResetConfirmation by rememberSaveable { mutableStateOf(false) }
+    var showAdvanced by rememberSaveable { mutableStateOf(false) }
+    var showThemeSheet by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { onRefreshStorage() }
 
     if (showResetConfirmation) {
@@ -102,168 +119,150 @@ internal fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Section),
     ) {
         item {
-            ScreenHeader(
-                eyebrow = stringResource(R.string.data_eyebrow),
-                title = stringResource(R.string.data_title),
-                subtitle = stringResource(R.string.data_subtitle),
+            Text(
+                text = stringResource(R.string.data_title),
+                modifier = Modifier.semantics { heading() },
+                style = NaytiTheme.type.hero,
+                color = NaytiTheme.colors.ink,
             )
         }
 
         item {
-            SettingsSection(title = stringResource(R.string.settings_library_section)) {
-                SettingsActionRow(
-                    icon = NaytiIcon.Photos,
-                    title = stringResource(R.string.catalog_data_title),
-                    body = stringResource(R.string.catalog_data_details),
-                    actionLabel =
-                        stringResource(
-                            if (catalog.access.permission.scope == MediaAccessScope.None) {
-                                R.string.connect_library
-                            } else {
-                                R.string.change_selection
-                            },
-                        ),
-                    onAction = onRequestAccess,
+            SettingsSection(title = stringResource(R.string.settings_appearance_section)) {
+                ThemeSettingsRow(
+                    selectedMode = themeMode,
+                    onClick = { showThemeSheet = true },
                 )
             }
         }
 
         item {
-            SettingsSection(title = stringResource(R.string.settings_period_section)) {
-                val preparation = PreparationUiMapper.map(catalog, modelPack, indexing)
-                val hasSelectedPhotos = indexing.scope.eligibleAssets > 0
-                val hasOutstandingWork =
-                    indexing.outstanding > 0 ||
-                        indexing.capabilities.any { capability -> capability.outstanding > 0 }
-                val scopeReady =
-                    hasSelectedPhotos &&
-                        preparation.primaryAction == null &&
-                        !hasOutstandingWork &&
-                        indexing.permanentGaps == 0L &&
-                        indexing.capabilities.all { capability -> capability.permanentGaps == 0L } &&
-                        (
-                            indexing.committed > 0 ||
-                                indexing.capabilities.any { capability -> capability.committed > 0 }
-                        )
-                val actionSupportingText =
-                    stringResource(
-                        when {
-                            !hasSelectedPhotos -> R.string.indexing_scope_action_empty
-                            preparation.isRunning -> R.string.indexing_scope_action_running
-                            scopeReady -> R.string.indexing_scope_action_ready
-                            preparation.primaryAction == PreparationPrimaryAction.Start ->
-                                R.string.indexing_scope_action_pending
-                            else -> R.string.indexing_scope_action_attention
-                        },
-                    )
-                val startsImmediately =
-                    preparation.primaryAction == PreparationPrimaryAction.Start
-                IndexingScopeCard(
-                    indexing = indexing,
-                    onSelectMonths = onSelectIndexingMonths,
-                    onSelectStartDate = onSelectIndexingStartDate,
-                    actionSupportingText = actionSupportingText,
-                    actionLabel =
-                        if (startsImmediately) {
-                            stringResource(R.string.indexing_scope_action_start)
-                        } else if (hasSelectedPhotos) {
-                            stringResource(R.string.indexing_scope_action_details)
-                        } else {
-                            null
-                        },
-                    onAction =
-                        if (startsImmediately) {
-                            onStartIndexing
-                        } else {
-                            onOpenPreparation
-                        },
+            SettingsSection(title = stringResource(R.string.settings_media_section)) {
+                SettingsNavigationRow(
+                    icon = NaytiIcon.Photos,
+                    title = stringResource(R.string.catalog_data_title),
+                    body =
+                        stringResource(
+                            if (catalog.access.permission.scope == MediaAccessScope.None) {
+                                R.string.settings_media_no_access
+                            } else {
+                                R.string.settings_media_android_selection
+                            },
+                        ),
+                    value = catalog.summary.available.toString(),
+                    onClick = onRequestAccess,
+                )
+                HorizontalDivider(color = NaytiTheme.colors.hairline)
+                SettingsNavigationRow(
+                    icon = NaytiIcon.Models,
+                    title = stringResource(R.string.settings_models_file_title),
+                    body =
+                        stringResource(R.string.settings_models_file_body) +
+                            " · " + formatStorage(localStorage.modelBytes),
+                    value = modelPack.installed?.packVersion ?: "—",
+                    onClick = onImportModelPack,
                 )
             }
         }
 
         item {
             val hiddenCount = catalog.summary.retainedQuarantine
-            SettingsSection(title = stringResource(R.string.settings_search_data_section)) {
-                SettingsInfoRow(
+            SettingsSection(title = stringResource(R.string.settings_storage_section)) {
+                SettingsValueInfoRow(
                     icon = NaytiIcon.Storage,
                     title = stringResource(R.string.storage_title),
-                    body =
-                        stringResource(
-                            R.string.storage_details,
-                            formatStorage(localStorage.indexBytes),
-                            formatStorage(localStorage.modelBytes),
-                        ),
+                    body = stringResource(R.string.settings_storage_originals_not_copied),
+                    value = formatStorage(localStorage.indexBytes),
                 )
-                HorizontalDivider(color = NaytiTheme.colors.hairline)
-                SettingsActionRow(
-                    icon = if (hiddenCount == 0L) NaytiIcon.Shield else NaytiIcon.Delete,
-                    title = stringResource(R.string.quarantine_title),
-                    body =
-                        if (hiddenCount == 0L) {
-                            stringResource(R.string.quarantine_empty)
-                        } else {
+                if (hiddenCount > 0) {
+                    HorizontalDivider(color = NaytiTheme.colors.hairline)
+                    SettingsInfoRow(
+                        icon = NaytiIcon.Info,
+                        title = stringResource(R.string.settings_hidden_data_title),
+                        body =
                             pluralStringResource(
                                 R.plurals.quarantine_count,
-                                hiddenCount.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                                hiddenCount.asQuantity(),
                                 hiddenCount,
-                            )
-                        },
-                    actionLabel =
-                        if (hiddenCount == 0L) {
-                            null
-                        } else {
-                            stringResource(R.string.quarantine_reset_action)
-                        },
-                    onAction = { showResetConfirmation = true },
-                    actionEnabled = searchDataReset != SearchDataResetState.Resetting,
-                    destructive = hiddenCount > 0L,
-                )
+                            ),
+                    )
+                }
                 HorizontalDivider(color = NaytiTheme.colors.hairline)
-                SettingsActionRow(
+                SettingsCompactActionRow(
                     icon = NaytiIcon.Delete,
-                    title = stringResource(R.string.reset_index_title),
-                    body = searchDataResetDescription(searchDataReset),
-                    actionLabel = stringResource(R.string.reset_index_action),
-                    onAction = { showResetConfirmation = true },
-                    actionEnabled = searchDataReset != SearchDataResetState.Resetting,
+                    title = stringResource(R.string.settings_destructive_title),
+                    body =
+                        if (searchDataReset == SearchDataResetState.Idle) {
+                            stringResource(R.string.settings_destructive_body)
+                        } else {
+                            searchDataResetDescription(searchDataReset)
+                        },
+                    onClick = { showResetConfirmation = true },
                     destructive = true,
                 )
             }
         }
 
         item {
-            SettingsSection(title = stringResource(R.string.settings_models_section)) {
-                SettingsActionRow(
-                    icon = NaytiIcon.Models,
-                    title = stringResource(R.string.model_pack_title),
-                    body = modelPackDescription(modelPack),
-                    detail =
-                        modelPack.candidate
-                            ?.takeIf { it.packVersion != modelPack.installed?.packVersion }
-                            ?.let { stringResource(R.string.model_pack_candidate, it.packVersion) },
-                    actionLabel =
-                        stringResource(
-                            if (modelPack.installed == null) {
-                                R.string.model_pack_import
-                            } else {
-                                R.string.model_pack_replace
-                            },
-                        ),
-                    onAction = onImportModelPack,
-                    actionEnabled = modelPack.status != ModelPackRuntimeStatus.Installing,
-                )
-                HorizontalDivider(color = NaytiTheme.colors.hairline)
-                ModelPackRollbackRow(modelPackRollback, onRollbackModelPack)
-            }
-        }
-
-        item {
-            SettingsSection(title = stringResource(R.string.settings_privacy_section)) {
+            EdgeSurface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = NaytiTheme.shapes.card,
+            ) {
                 SettingsInfoRow(
                     icon = NaytiIcon.Shield,
                     title = stringResource(R.string.privacy_title),
                     body = stringResource(R.string.privacy_details),
                 )
+            }
+        }
+
+        item {
+            SettingsSection(title = stringResource(R.string.settings_advanced_section)) {
+                SettingsDisclosureRow(
+                    icon = NaytiIcon.Settings,
+                    title = stringResource(R.string.settings_advanced_title),
+                    body = stringResource(R.string.settings_advanced_body),
+                    expanded = showAdvanced,
+                    onToggle = { showAdvanced = !showAdvanced },
+                )
+                if (showAdvanced) {
+                    HorizontalDivider(color = NaytiTheme.colors.hairline)
+                    SettingsActionRow(
+                        icon = NaytiIcon.Models,
+                        title = stringResource(R.string.settings_search_components_title),
+                        body = searchComponentsDescription(modelPack),
+                        detail =
+                            modelPack.candidate
+                                ?.takeIf { it.packVersion != modelPack.installed?.packVersion }
+                                ?.let { stringResource(R.string.model_pack_candidate, it.packVersion) },
+                        actionLabel =
+                            stringResource(
+                                if (modelPack.installed == null) {
+                                    R.string.settings_search_components_choose
+                                } else {
+                                    R.string.settings_search_components_replace
+                                },
+                            ),
+                        onAction = onImportModelPack,
+                        actionEnabled = modelPack.status != ModelPackRuntimeStatus.Installing,
+                    )
+                    if (modelPackRollback.isVisible) {
+                        HorizontalDivider(color = NaytiTheme.colors.hairline)
+                        PreviousVersionRow(
+                            state = modelPackRollback,
+                            onRollback = onRollbackModelPack,
+                        )
+                    }
+                    HorizontalDivider(color = NaytiTheme.colors.hairline)
+                    SettingsActionRow(
+                        icon = NaytiIcon.Export,
+                        title = stringResource(R.string.diagnostics_title),
+                        body = diagnosticsDescription(diagnosticsExport),
+                        actionLabel = stringResource(R.string.diagnostics_export),
+                        onAction = onExportDiagnostics,
+                        actionEnabled = diagnosticsExport != DiagnosticsExportState.Writing,
+                    )
+                }
             }
         }
 
@@ -274,16 +273,206 @@ internal fun SettingsScreen(
                     title = stringResource(R.string.about_title),
                     body = stringResource(R.string.about_details, BuildConfig.VERSION_NAME),
                 )
-                HorizontalDivider(color = NaytiTheme.colors.hairline)
-                SettingsActionRow(
-                    icon = NaytiIcon.Export,
-                    title = stringResource(R.string.diagnostics_title),
-                    body = diagnosticsDescription(diagnosticsExport),
-                    actionLabel = stringResource(R.string.diagnostics_export),
-                    onAction = onExportDiagnostics,
-                    actionEnabled = diagnosticsExport != DiagnosticsExportState.Writing,
+            }
+        }
+    }
+    if (showThemeSheet) {
+        ThemeSelectionSheet(
+            selectedMode = themeMode,
+            onDismiss = { showThemeSheet = false },
+            onSelected = { mode ->
+                onThemeModeChange(mode)
+                showThemeSheet = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun ThemeSettingsRow(
+    selectedMode: ThemeMode,
+    onClick: () -> Unit,
+) {
+    SettingsNavigationRow(
+        icon = NaytiIcon.Settings,
+        title = stringResource(R.string.settings_theme_title),
+        body = stringResource(selectedMode.label),
+        value = "",
+        onClick = onClick,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ThemeSelectionSheet(
+    selectedMode: ThemeMode,
+    onDismiss: () -> Unit,
+    onSelected: (ThemeMode) -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = Color.Transparent,
+        dragHandle = null,
+    ) {
+        KromkaSheetSurface {
+            Column(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            start = NaytiSpacing.Screen,
+                            end = NaytiSpacing.Screen,
+                            bottom = NaytiSpacing.Section,
+                        ),
+                verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+            ) {
+                Text(
+                    text = stringResource(R.string.settings_theme_title),
+                    style = NaytiTheme.type.titleL,
+                    color = NaytiTheme.colors.ink,
+                )
+                Text(
+                    text = stringResource(R.string.settings_theme_body),
+                    style = NaytiTheme.type.bodyM,
+                    color = NaytiTheme.colors.inkMuted,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+                ) {
+                    ThemeMode.entries.forEach { mode ->
+                        ThemePreview(
+                            mode = mode,
+                            selected = selectedMode == mode,
+                            onClick = { onSelected(mode) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemePreview(
+    mode: ThemeMode,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val label = stringResource(if (mode == ThemeMode.System) mode.shortLabel else mode.label)
+    val selectedDescription = stringResource(R.string.settings_theme_selected, label)
+    Surface(
+        onClick = onClick,
+        modifier =
+            modifier.semantics {
+                this.selected = selected
+                if (selected) stateDescription = selectedDescription
+            },
+        shape = NaytiTheme.shapes.card,
+        color = NaytiTheme.colors.surfaceHigh,
+        border =
+            if (selected) {
+                BorderStroke(2.dp, NaytiTheme.colors.accent)
+            } else {
+                null
+            },
+        contentColor = NaytiTheme.colors.ink,
+    ) {
+        Column(
+            modifier = Modifier.padding(NaytiSpacing.XSmall),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
+        ) {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(88.dp),
+            ) {
+                when (mode) {
+                    ThemeMode.System -> {
+                        ThemePreviewSwatch(Color(0xFFF6F2EE), Modifier.weight(1f))
+                        ThemePreviewSwatch(Color(0xFF0F0D0C), Modifier.weight(1f))
+                    }
+                    ThemeMode.Light -> ThemePreviewSwatch(Color(0xFFF6F2EE))
+                    ThemeMode.Dark -> ThemePreviewSwatch(Color(0xFF0F0D0C))
+                    ThemeMode.Midnight -> ThemePreviewSwatch(Color.Black)
+                }
+            }
+            Text(
+                text = label,
+                style = NaytiTheme.type.labelS,
+                color = if (selected) NaytiTheme.colors.accent else NaytiTheme.colors.inkMuted,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThemePreviewSwatch(
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier = modifier.fillMaxSize().background(color))
+}
+
+@Composable
+private fun SettingsNavigationRow(
+    icon: NaytiIcon,
+    title: String,
+    body: String,
+    value: String,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        color = Color.Transparent,
+        contentColor = NaytiTheme.colors.ink,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Screen),
+            horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NaytiIconMark(
+                icon = icon,
+                color = NaytiTheme.colors.inkMuted,
+                size = 22.dp,
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
+            ) {
+                Text(
+                    text = title,
+                    style = NaytiTheme.type.titleM.copy(
+                        fontSize = 15.sp,
+                        lineHeight = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                )
+                Text(
+                    text = body,
+                    style = NaytiTheme.type.labelS,
+                    color = NaytiTheme.colors.inkMuted,
                 )
             }
+            if (value.isNotBlank()) {
+                Text(
+                    text = value,
+                    style = NaytiTheme.type.labelL,
+                    color = NaytiTheme.colors.inkMuted,
+                )
+            }
+            NaytiIconMark(
+                icon = NaytiIcon.ChevronRight,
+                color = NaytiTheme.colors.inkFaint,
+                size = 18.dp,
+            )
         }
     }
 }
@@ -300,10 +489,9 @@ private fun SettingsSection(
             color = NaytiTheme.colors.inkMuted,
             modifier = Modifier.padding(horizontal = NaytiSpacing.XSmall).semantics { heading() },
         )
-        Surface(
+        EdgeSurface(
+            modifier = Modifier.fillMaxWidth(),
             shape = NaytiTheme.shapes.card,
-            color = NaytiTheme.colors.surface,
-            contentColor = NaytiTheme.colors.ink,
         ) {
             Column(content = content)
         }
@@ -316,7 +504,119 @@ private fun SettingsInfoRow(
     title: String,
     body: String,
 ) {
-    SettingsRowLayout(icon = icon, title = title, body = body)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Screen),
+        horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        NaytiIconMark(
+            icon = icon,
+            color =
+                if (icon == NaytiIcon.Shield) {
+                    NaytiTheme.colors.evidencePhoto
+                } else {
+                    NaytiTheme.colors.inkMuted
+                },
+            size = 22.dp,
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
+        ) {
+            Text(
+                title,
+                style = NaytiTheme.type.titleM.copy(
+                    fontSize = 15.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+            )
+            Text(body, style = NaytiTheme.type.labelS, color = NaytiTheme.colors.inkMuted)
+        }
+    }
+}
+
+@Composable
+private fun SettingsValueInfoRow(
+    icon: NaytiIcon,
+    title: String,
+    body: String,
+    value: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Screen),
+        horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        NaytiIconMark(icon = icon, color = NaytiTheme.colors.inkMuted, size = 22.dp)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
+        ) {
+            Text(
+                title,
+                style = NaytiTheme.type.titleM.copy(
+                    fontSize = 15.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+            )
+            Text(body, style = NaytiTheme.type.labelS, color = NaytiTheme.colors.inkMuted)
+        }
+        Text(
+            text = value,
+            style = NaytiTheme.type.labelL,
+            color = NaytiTheme.colors.inkMuted,
+        )
+    }
+}
+
+@Composable
+private fun SettingsCompactActionRow(
+    icon: NaytiIcon,
+    title: String,
+    body: String,
+    onClick: () -> Unit,
+    destructive: Boolean = false,
+) {
+    val contentColor =
+        if (destructive) {
+            NaytiTheme.colors.error
+        } else {
+            NaytiTheme.colors.ink
+        }
+    Surface(
+        onClick = onClick,
+        color = Color.Transparent,
+        contentColor = contentColor,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(NaytiSpacing.Screen),
+            horizontalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NaytiIconMark(icon = icon, color = contentColor, size = 22.dp)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
+            ) {
+                Text(
+                    title,
+                    style = NaytiTheme.type.titleM.copy(
+                        fontSize = 15.sp,
+                        lineHeight = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                )
+                Text(body, style = NaytiTheme.type.labelS, color = NaytiTheme.colors.inkMuted)
+            }
+            NaytiIconMark(
+                icon = NaytiIcon.ChevronRight,
+                color = NaytiTheme.colors.inkFaint,
+                size = 18.dp,
+            )
+        }
+    }
 }
 
 @Composable
@@ -336,14 +636,14 @@ private fun SettingsActionRow(
         body = body,
         detail = detail,
     ) {
-        if (actionLabel != null) {
+        actionLabel?.let { label ->
             OutlinedButton(
                 onClick = onAction,
                 enabled = actionEnabled,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    text = actionLabel,
+                    text = label,
                     color =
                         if (destructive && actionEnabled) {
                             NaytiTheme.colors.error
@@ -352,6 +652,42 @@ private fun SettingsActionRow(
                         },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun SettingsDisclosureRow(
+    icon: NaytiIcon,
+    title: String,
+    body: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    destructive: Boolean = false,
+) {
+    SettingsRowLayout(
+        icon = icon,
+        title = title,
+        body = body,
+    ) {
+        OutlinedButton(
+            onClick = onToggle,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text =
+                    if (expanded) {
+                        stringResource(R.string.settings_advanced_hide)
+                    } else {
+                        stringResource(R.string.settings_advanced_show)
+                    },
+                color =
+                    if (destructive) {
+                        NaytiTheme.colors.error
+                    } else {
+                        androidx.compose.ui.graphics.Color.Unspecified
+                    },
+            )
         }
     }
 }
@@ -385,7 +721,14 @@ private fun SettingsRowLayout(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
             ) {
-                Text(title, style = NaytiTheme.type.titleM, fontWeight = FontWeight.SemiBold)
+                Text(
+                    title,
+                    style = NaytiTheme.type.titleM.copy(
+                        fontSize = 15.sp,
+                        lineHeight = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                )
                 Text(body, style = NaytiTheme.type.bodyM, color = NaytiTheme.colors.inkMuted)
                 detail?.let {
                     Text(it, style = NaytiTheme.type.labelS, color = NaytiTheme.colors.accent)
@@ -397,7 +740,7 @@ private fun SettingsRowLayout(
 }
 
 @Composable
-private fun ModelPackRollbackRow(
+private fun PreviousVersionRow(
     state: ModelPackRollbackState,
     onRollback: () -> Unit,
 ) {
@@ -410,44 +753,40 @@ private fun ModelPackRollbackRow(
         }
     SettingsActionRow(
         icon = NaytiIcon.Clock,
-        title = stringResource(R.string.model_pack_rollback_title),
-        body = modelPackRollbackDescription(state),
+        title = stringResource(R.string.settings_previous_version_title),
+        body = previousVersionDescription(state),
         actionLabel =
-            targetVersion?.let { stringResource(R.string.model_pack_rollback_action, it) },
+            targetVersion?.let {
+                stringResource(R.string.settings_previous_version_action, it)
+            },
         onAction = onRollback,
         actionEnabled = state !is ModelPackRollbackState.RollingBack,
     )
 }
 
 @Composable
-private fun modelPackRollbackDescription(state: ModelPackRollbackState): String =
+private fun previousVersionDescription(state: ModelPackRollbackState): String =
     when (state) {
-        ModelPackRollbackState.Loading -> stringResource(R.string.model_pack_rollback_loading)
-        is ModelPackRollbackState.Unavailable ->
-            if (state.rollbackCompleted) {
-                stringResource(R.string.model_pack_rollback_succeeded, state.activeVersion.orEmpty())
-            } else {
-                stringResource(R.string.model_pack_rollback_unavailable)
-            }
         is ModelPackRollbackState.Available ->
-            if (state.rollbackCompleted) {
-                stringResource(
-                    R.string.model_pack_rollback_succeeded_with_previous,
-                    state.activeVersion,
-                    state.targetVersion,
-                )
-            } else {
-                stringResource(
-                    R.string.model_pack_rollback_available,
-                    state.activeVersion,
-                    state.targetVersion,
-                )
-            }
+            stringResource(
+                R.string.settings_previous_version_available,
+                state.activeVersion,
+                state.targetVersion,
+            )
         is ModelPackRollbackState.RollingBack ->
-            stringResource(R.string.model_pack_rollback_running, state.targetVersion)
+            stringResource(R.string.settings_previous_version_running, state.targetVersion)
         is ModelPackRollbackState.Failed ->
-            stringResource(R.string.model_pack_rollback_failed, state.activeVersion)
+            stringResource(
+                R.string.settings_previous_version_failed,
+                state.activeVersion,
+                state.targetVersion,
+            )
+        ModelPackRollbackState.Loading -> stringResource(R.string.model_pack_rollback_loading)
+        is ModelPackRollbackState.Unavailable -> ""
     }
+
+private val ModelPackRollbackState.isVisible: Boolean
+    get() = this !is ModelPackRollbackState.Unavailable
 
 @Composable
 private fun searchDataResetDescription(state: SearchDataResetState): String =
@@ -472,34 +811,67 @@ private fun formatStorage(bytes: Long): String {
 
 @Composable
 private fun diagnosticsDescription(state: DiagnosticsExportState): String =
-    stringResource(
-        when (state) {
-            DiagnosticsExportState.Idle -> R.string.diagnostics_details
-            DiagnosticsExportState.Writing -> R.string.diagnostics_writing
-            DiagnosticsExportState.Saved -> R.string.diagnostics_saved
-            DiagnosticsExportState.Failed -> R.string.diagnostics_failed
-        },
-    )
+    when (state) {
+        DiagnosticsExportState.Idle -> stringResource(R.string.settings_diagnostics_body)
+        DiagnosticsExportState.Writing -> stringResource(R.string.diagnostics_writing)
+        DiagnosticsExportState.Saved -> stringResource(R.string.diagnostics_saved)
+        DiagnosticsExportState.Failed -> stringResource(R.string.diagnostics_failed)
+    }
 
 @Composable
-private fun modelPackDescription(state: ModelPackRuntimeState): String =
+private fun searchComponentsDescription(state: ModelPackRuntimeState): String =
     when (state.status) {
-        ModelPackRuntimeStatus.Loading -> stringResource(R.string.model_pack_loading)
-        ModelPackRuntimeStatus.Missing -> stringResource(R.string.model_pack_missing)
-        ModelPackRuntimeStatus.Installing -> stringResource(R.string.model_pack_installing)
+        ModelPackRuntimeStatus.Loading ->
+            stringResource(R.string.settings_search_components_loading)
+        ModelPackRuntimeStatus.Missing ->
+            stringResource(R.string.settings_search_components_missing)
+        ModelPackRuntimeStatus.Installing ->
+            stringResource(R.string.settings_search_components_installing)
         ModelPackRuntimeStatus.Ready ->
             stringResource(
-                R.string.model_pack_ready,
+                R.string.settings_search_components_ready,
                 state.installed?.packVersion.orEmpty(),
                 (state.installed?.payloadBytes ?: 0) / (1024 * 1024),
             )
         ModelPackRuntimeStatus.Failed ->
             if (state.installed == null) {
-                stringResource(R.string.model_pack_failed)
+                stringResource(R.string.settings_search_components_failed)
             } else {
                 stringResource(
-                    R.string.model_pack_failed_using_previous,
+                    R.string.settings_search_components_failed_previous,
                     state.installed?.packVersion.orEmpty(),
                 )
             }
     }
+
+@Composable
+private fun preparationSettingsDescription(
+    indexing: OcrIndexingState,
+): String {
+    return if (indexing.scope.takenFromMillis == null) {
+        stringResource(
+            R.string.readiness_period_all_description,
+            indexing.scope.eligibleAssets,
+        )
+    } else {
+        stringResource(R.string.settings_preparation_body)
+    }
+}
+
+private val ThemeMode.label: Int
+    get() =
+        when (this) {
+            ThemeMode.System -> R.string.settings_theme_system
+            ThemeMode.Light -> R.string.settings_theme_light
+            ThemeMode.Dark -> R.string.settings_theme_dark
+            ThemeMode.Midnight -> R.string.settings_theme_midnight
+        }
+
+private val ThemeMode.shortLabel: Int
+    get() =
+        when (this) {
+            ThemeMode.System -> R.string.settings_theme_system_short
+            else -> label
+        }
+
+private fun Long.asQuantity(): Int = coerceIn(0, Int.MAX_VALUE.toLong()).toInt()

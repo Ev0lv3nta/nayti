@@ -92,8 +92,12 @@ if [[ "${NAYTI_SKIP_HOST_NATIVE_TESTS:-0}" != "1" ]]; then
   if [[ -z "$cmake_bin" ]] && command -v cmake >/dev/null 2>&1; then
     cmake_bin="$(command -v cmake)"
   fi
-  if [[ -z "$cmake_bin" ]] && [[ -n "${ANDROID_SDK_ROOT:-}" ]]; then
-    cmake_bin="$ANDROID_SDK_ROOT/cmake/3.22.1/bin/cmake"
+  if [[ -z "$cmake_bin" ]] && [[ -n "$sdk_root" ]]; then
+    for candidate in "$sdk_root"/cmake/*/bin/cmake; do
+      if [[ -x "$candidate" ]]; then
+        cmake_bin="$candidate"
+      fi
+    done
   fi
   if [[ ! -x "$cmake_bin" ]]; then
     echo "CMake 3.22.1+ is required for host native tests." >&2

@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -25,8 +27,10 @@ import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -60,11 +64,14 @@ import app.nayti.platform.media.MediaPermissionEvaluator
 import app.nayti.platform.media.MediaPermissionSnapshot
 import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
+import app.nayti.ui.designsystem.component.EdgeSurface
 import app.nayti.ui.designsystem.theme.NaytiTheme
+import app.nayti.ui.designsystem.theme.ThemeMode
 import app.nayti.ui.library.LibrarySearchScreen
-import app.nayti.ui.preparation.PreparationSheet
-import app.nayti.ui.shell.ShellStatusBar
+import app.nayti.ui.preparation.ReadinessPeriodSelection
+import app.nayti.ui.preparation.ReadinessScreen
 import app.nayti.ui.shell.ShellStatusMapper
+import app.nayti.ui.shell.ShellStatusTone
 import app.nayti.ui.viewer.PhotoViewerScreen
 
 private enum class RootDestination(
@@ -73,14 +80,19 @@ private enum class RootDestination(
     val icon: NaytiIcon,
 ) {
     Search("search", R.string.nav_search, NaytiIcon.Search),
-    Data("data", R.string.nav_data, NaytiIcon.Settings),
+    Index("index", R.string.nav_index, NaytiIcon.Index),
+    Settings("settings", R.string.nav_settings, NaytiIcon.Settings),
 }
 
 private const val ViewerRoute = "viewer/{assetId}"
 private val NavigationRailBreakpoint = 700.dp
 
 @Composable
-fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
+fun NaytiApp(
+    themeMode: ThemeMode = ThemeMode.System,
+    onThemeModeChange: (ThemeMode) -> Unit = {},
+    viewModel: CatalogViewModel = viewModel(),
+) {
     val catalog by viewModel.catalog.collectAsStateWithLifecycle()
     val modelPack by viewModel.modelPack.collectAsStateWithLifecycle()
     val indexing by viewModel.indexing.collectAsStateWithLifecycle()
@@ -167,6 +179,8 @@ fun NaytiApp(viewModel: CatalogViewModel = viewModel()) {
             onExportDiagnostics = { diagnosticsLauncher.launch("nayti-diagnostics.json") },
             onResetSearchData = viewModel::resetSearchData,
             onRollbackModelPack = viewModel::rollbackModelPack,
+            themeMode = themeMode,
+            onThemeModeChange = onThemeModeChange,
         )
     }
 }
@@ -206,13 +220,45 @@ private fun NaytiAppContent(
     onExportDiagnostics: () -> Unit,
     onResetSearchData: () -> Unit,
     onRollbackModelPack: () -> Unit,
+    themeMode: ThemeMode = ThemeMode.System,
+    onThemeModeChange: (ThemeMode) -> Unit = {},
 ) {
     val navController = rememberNavController()
     val currentEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentEntry?.destination?.route
     val showRootNavigation = RootDestination.entries.any { it.route == currentRoute }
     val shellStatus = ShellStatusMapper.map(catalog, modelPack, indexing)
-    var showPreparation by rememberSaveable { mutableStateOf(false) }
+    var pendingPeriodSelection by remember {
+        mutableStateOf<ReadinessPeriodSelection?>(null)
+    }
+
+    fun applyPeriodSelection(selection: ReadinessPeriodSelection) {
+        when (selection) {
+            is ReadinessPeriodSelection.ExtendByMonths ->
+                onSelectIndexingMonths(selection.months)
+            ReadinessPeriodSelection.AllMedia ->
+                onSelectIndexingMonths(null)
+            is ReadinessPeriodSelection.SinceDate ->
+                onSelectIndexingStartDate(selection.epochMillis)
+        }
+    }
+
+    LaunchedEffect(indexing.status, pendingPeriodSelection) {
+        val pending = pendingPeriodSelection
+        if (indexing.status != OcrIndexingStatus.Running && pending != null) {
+            pendingPeriodSelection = null
+            applyPeriodSelection(pending)
+        }
+    }
+
+    val changePeriod: (ReadinessPeriodSelection) -> Unit = { selection ->
+        if (indexing.status == OcrIndexingStatus.Running) {
+            pendingPeriodSelection = selection
+            onPauseIndexing()
+        } else {
+            applyPeriodSelection(selection)
+        }
+    }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val useNavigationRail = maxWidth >= NavigationRailBreakpoint
@@ -222,13 +268,14 @@ private fun NaytiAppContent(
             ) {
                 RootNavigationRail(
                     currentRoute = currentRoute,
+                    indexNeedsAttention =
+                        shellStatus.tone in setOf(
+                            ShellStatusTone.Attention,
+                            ShellStatusTone.Error,
+                        ),
                     onNavigate = navController::navigateToRoot,
                 )
                 Column(modifier = Modifier.weight(1f)) {
-                    ShellStatusBar(
-                        status = shellStatus,
-                        onOpenDetails = { showPreparation = true },
-                    )
                     RootNavHost(
                         navController = navController,
                         catalog = catalog,
@@ -253,15 +300,18 @@ private fun NaytiAppContent(
                         onFindSimilar = onFindSimilar,
                         onFindDuplicates = onFindDuplicates,
                         onStartIndexing = onStartIndexing,
-                        onOpenPreparation = { showPreparation = true },
-                        onSelectIndexingMonths = onSelectIndexingMonths,
-                        onSelectIndexingStartDate = onSelectIndexingStartDate,
+                        onPauseIndexing = onPauseIndexing,
+                        onCancelIndexing = onCancelIndexing,
+                        onRetryIndexingGaps = onRetryIndexingGaps,
+                        onChangePeriod = changePeriod,
                         onOpenViewer = onOpenViewer,
                         onCloseViewer = onCloseViewer,
                         onRefreshStorage = onRefreshStorage,
                         onExportDiagnostics = onExportDiagnostics,
                         onResetSearchData = onResetSearchData,
                         onRollbackModelPack = onRollbackModelPack,
+                        themeMode = themeMode,
+                        onThemeModeChange = onThemeModeChange,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -269,12 +319,16 @@ private fun NaytiAppContent(
         } else {
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.background,
-                topBar = {
+                bottomBar = {
                     if (showRootNavigation) {
-                        ShellStatusBar(
-                            status = shellStatus,
-                            onOpenDetails = { showPreparation = true },
-                            modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars),
+                        RootNavigationBar(
+                            currentRoute = currentRoute,
+                            indexNeedsAttention =
+                                shellStatus.tone in setOf(
+                                    ShellStatusTone.Attention,
+                                    ShellStatusTone.Error,
+                                ),
+                            onNavigate = navController::navigateToRoot,
                         )
                     }
                 },
@@ -303,64 +357,58 @@ private fun NaytiAppContent(
                     onFindSimilar = onFindSimilar,
                     onFindDuplicates = onFindDuplicates,
                     onStartIndexing = onStartIndexing,
-                    onOpenPreparation = { showPreparation = true },
-                    onSelectIndexingMonths = onSelectIndexingMonths,
-                    onSelectIndexingStartDate = onSelectIndexingStartDate,
+                    onPauseIndexing = onPauseIndexing,
+                    onCancelIndexing = onCancelIndexing,
+                    onRetryIndexingGaps = onRetryIndexingGaps,
+                    onChangePeriod = changePeriod,
                     onOpenViewer = onOpenViewer,
                     onCloseViewer = onCloseViewer,
                     onRefreshStorage = onRefreshStorage,
                     onExportDiagnostics = onExportDiagnostics,
                     onResetSearchData = onResetSearchData,
                     onRollbackModelPack = onRollbackModelPack,
+                    themeMode = themeMode,
+                    onThemeModeChange = onThemeModeChange,
                     modifier = Modifier.padding(innerPadding),
                 )
             }
         }
-    }
-    if (showPreparation) {
-        PreparationSheet(
-            catalog = catalog,
-            modelPack = modelPack,
-            indexing = indexing,
-            onDismiss = { showPreparation = false },
-            onRequestAccess = {
-                showPreparation = false
-                onRequestAccess()
-            },
-            onImportModels = {
-                showPreparation = false
-                onImportModelPack()
-            },
-            onStart = onStartIndexing,
-            onPause = onPauseIndexing,
-            onCancel = onCancelIndexing,
-            onRetryGaps = onRetryIndexingGaps,
-            onSelectMonths = onSelectIndexingMonths,
-            onSelectStartDate = onSelectIndexingStartDate,
-            onOpenSettings = {
-                showPreparation = false
-                navController.navigateToRoot(RootDestination.Data.route)
-            },
-        )
     }
 }
 
 @Composable
 private fun RootNavigationBar(
     currentRoute: String?,
+    indexNeedsAttention: Boolean,
     onNavigate: (String) -> Unit,
 ) {
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-        RootDestination.entries.forEach { destination ->
-            NavigationBarItem(
-                selected = currentRoute == destination.route,
-                onClick = { onNavigate(destination.route) },
-                icon = { NaytiIconMark(destination.icon) },
-                label = { Text(stringResource(destination.title)) },
-                colors = NavigationBarItemDefaults.colors(
-                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                ),
-            )
+    EdgeSurface {
+        NavigationBar(containerColor = androidx.compose.ui.graphics.Color.Transparent) {
+            RootDestination.entries.forEach { destination ->
+                NavigationBarItem(
+                    selected = currentRoute == destination.route,
+                    onClick = { onNavigate(destination.route) },
+                    icon = {
+                        RootDestinationIcon(
+                            destination = destination,
+                            indexNeedsAttention = indexNeedsAttention,
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = stringResource(destination.title),
+                            style = NaytiTheme.type.labelS,
+                        )
+                    },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = NaytiTheme.colors.accent,
+                        selectedTextColor = NaytiTheme.colors.accent,
+                        indicatorColor = NaytiTheme.colors.accentContainer,
+                        unselectedIconColor = NaytiTheme.colors.inkMuted,
+                        unselectedTextColor = NaytiTheme.colors.inkMuted,
+                    ),
+                )
+            }
         }
     }
 }
@@ -368,6 +416,7 @@ private fun RootNavigationBar(
 @Composable
 private fun RootNavigationRail(
     currentRoute: String?,
+    indexNeedsAttention: Boolean,
     onNavigate: (String) -> Unit,
 ) {
     NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
@@ -375,10 +424,33 @@ private fun RootNavigationRail(
             NavigationRailItem(
                 selected = currentRoute == destination.route,
                 onClick = { onNavigate(destination.route) },
-                icon = { NaytiIconMark(destination.icon) },
+                icon = {
+                    RootDestinationIcon(
+                        destination = destination,
+                        indexNeedsAttention = indexNeedsAttention,
+                    )
+                },
                 label = { Text(stringResource(destination.title)) },
             )
         }
+    }
+}
+
+@Composable
+private fun RootDestinationIcon(
+    destination: RootDestination,
+    indexNeedsAttention: Boolean,
+) {
+    if (destination == RootDestination.Index && indexNeedsAttention) {
+        BadgedBox(
+            badge = {
+                Badge(containerColor = NaytiTheme.colors.attention)
+            },
+        ) {
+            NaytiIconMark(destination.icon)
+        }
+    } else {
+        NaytiIconMark(destination.icon)
     }
 }
 
@@ -451,15 +523,18 @@ private fun RootNavHost(
     onFindSimilar: (Long) -> Unit,
     onFindDuplicates: (Long) -> Unit,
     onStartIndexing: () -> Unit,
-    onOpenPreparation: () -> Unit,
-    onSelectIndexingMonths: (Long?) -> Unit,
-    onSelectIndexingStartDate: (Long) -> Unit,
+    onPauseIndexing: () -> Unit,
+    onCancelIndexing: () -> Unit,
+    onRetryIndexingGaps: () -> Unit,
+    onChangePeriod: (ReadinessPeriodSelection) -> Unit,
     onOpenViewer: (Long) -> Unit,
     onCloseViewer: (Long) -> Unit,
     onRefreshStorage: () -> Unit,
     onExportDiagnostics: () -> Unit,
     onResetSearchData: () -> Unit,
     onRollbackModelPack: () -> Unit,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     NavHost(
@@ -485,12 +560,28 @@ private fun RootNavHost(
                     onSearch = onSearch,
                     onCancelSearch = onCancelSearch,
                     onOpenAsset = { assetId -> navController.navigateToViewer(assetId) },
+                )
+            }
+            composable(RootDestination.Index.route) {
+                ReadinessScreen(
+                    catalog = catalog,
+                    modelPack = modelPack,
+                    indexing = indexing,
+                    showBack = false,
+                    onBack = {},
+                    onRequestAccess = onRequestAccess,
+                    onImportModels = onImportModelPack,
+                    onStart = onStartIndexing,
+                    onPause = onPauseIndexing,
+                    onCancel = onCancelIndexing,
+                    onRetryGaps = onRetryIndexingGaps,
+                    onChangePeriod = onChangePeriod,
                     onOpenSettings = {
-                        navController.navigateToRoot(RootDestination.Data.route)
+                        navController.navigateToRoot(RootDestination.Settings.route)
                     },
                 )
             }
-            composable(RootDestination.Data.route) {
+            composable(RootDestination.Settings.route) {
                 SettingsScreen(
                     catalog = catalog,
                     modelPack = modelPack,
@@ -505,10 +596,12 @@ private fun RootNavHost(
                     onExportDiagnostics = onExportDiagnostics,
                     onResetSearchData = onResetSearchData,
                     onRollbackModelPack = onRollbackModelPack,
+                    themeMode = themeMode,
+                    onThemeModeChange = onThemeModeChange,
                     onStartIndexing = onStartIndexing,
-                    onOpenPreparation = onOpenPreparation,
-                    onSelectIndexingMonths = onSelectIndexingMonths,
-                    onSelectIndexingStartDate = onSelectIndexingStartDate,
+                    onOpenPreparation = {
+                        navController.navigateToRoot(RootDestination.Index.route)
+                    },
                 )
             }
             composable(
@@ -545,7 +638,7 @@ private fun RootNavHost(
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
 @Composable
 private fun NaytiPreview() {
-    NaytiTheme(darkTheme = false) {
+    NaytiTheme(themeMode = ThemeMode.Light) {
         NaytiAppContent(
             catalog =
                 CatalogRuntimeState(

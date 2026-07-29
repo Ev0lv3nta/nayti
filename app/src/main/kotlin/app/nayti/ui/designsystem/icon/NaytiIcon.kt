@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.nayti.ui.designsystem.theme.NaytiIconSize
+import kotlin.math.max
 
 /**
  * Small geometric icon set shared by redesigned production surfaces.
@@ -23,6 +25,7 @@ import androidx.compose.ui.unit.dp
  */
 enum class NaytiIcon {
     Search,
+    Index,
     Filters,
     Methods,
     Settings,
@@ -52,14 +55,14 @@ fun NaytiIconMark(
     icon: NaytiIcon,
     modifier: Modifier = Modifier,
     color: Color = LocalContentColor.current,
-    size: Dp = 24.dp,
+    size: Dp = NaytiIconSize.Standard,
 ) {
     Canvas(modifier.size(size)) { drawNaytiIcon(icon, color) }
 }
 
 private fun DrawScope.drawNaytiIcon(icon: NaytiIcon, color: Color) {
     val s = size.minDimension
-    val stroke = Stroke(width = s * 0.075f, cap = StrokeCap.Round)
+    val stroke = Stroke(width = max(s * 0.075f, 1.5.dp.toPx()), cap = StrokeCap.Round)
     fun line(x1: Float, y1: Float, x2: Float, y2: Float) =
         drawLine(color, Offset(x1 * s, y1 * s), Offset(x2 * s, y2 * s), stroke.width, StrokeCap.Round)
 
@@ -67,6 +70,27 @@ private fun DrawScope.drawNaytiIcon(icon: NaytiIcon, color: Color) {
         NaytiIcon.Search -> {
             drawCircle(color, s * 0.28f, Offset(s * 0.43f, s * 0.43f), style = stroke)
             line(0.64f, 0.64f, 0.86f, 0.86f)
+        }
+        NaytiIcon.Index -> {
+            drawArc(
+                color = color,
+                startAngle = -90f,
+                sweepAngle = 175f,
+                useCenter = false,
+                topLeft = Offset(s * 0.14f, s * 0.14f),
+                size = Size(s * 0.72f, s * 0.72f),
+                style = stroke,
+            )
+            drawArc(
+                color = color,
+                startAngle = -90f,
+                sweepAngle = 135f,
+                useCenter = false,
+                topLeft = Offset(s * 0.31f, s * 0.31f),
+                size = Size(s * 0.38f, s * 0.38f),
+                style = stroke,
+            )
+            drawCircle(color, s * 0.07f, Offset(s * 0.5f, s * 0.5f))
         }
         NaytiIcon.Filters -> {
             line(0.16f, 0.3f, 0.84f, 0.3f)
@@ -81,18 +105,10 @@ private fun DrawScope.drawNaytiIcon(icon: NaytiIcon, color: Color) {
             drawCircle(color, s * 0.09f, Offset(s * 0.82f, s * 0.36f))
         }
         NaytiIcon.Settings -> {
-            val gear = Path().apply {
-                repeat(24) { point ->
-                    val angle = Math.toRadians((point * 15.0) - 90.0)
-                    val radius = if (point % 3 == 1) 0.33f else 0.43f
-                    val x = s * (0.5f + radius * kotlin.math.cos(angle).toFloat())
-                    val y = s * (0.5f + radius * kotlin.math.sin(angle).toFloat())
-                    if (point == 0) moveTo(x, y) else lineTo(x, y)
-                }
-                close()
-            }
-            drawPath(gear, color, style = stroke)
-            drawCircle(color, s * 0.15f, Offset(s * 0.5f, s * 0.5f), style = stroke)
+            line(0.16f, 0.32f, 0.84f, 0.32f)
+            line(0.16f, 0.68f, 0.84f, 0.68f)
+            drawCircle(color, s * 0.105f, Offset(s * 0.38f, s * 0.32f), style = stroke)
+            drawCircle(color, s * 0.105f, Offset(s * 0.64f, s * 0.68f), style = stroke)
         }
         NaytiIcon.ChevronRight -> {
             line(0.42f, 0.28f, 0.64f, 0.5f)
@@ -113,20 +129,12 @@ private fun DrawScope.drawNaytiIcon(icon: NaytiIcon, color: Color) {
             line(0.18f, 0.7f, 0.78f, 0.7f)
         }
         NaytiIcon.Meaning -> {
-            line(0.18f, 0.32f, 0.6f, 0.32f)
-            line(0.18f, 0.56f, 0.46f, 0.56f)
-            val star = Path().apply {
-                moveTo(s * 0.76f, s * 0.5f)
-                lineTo(s * 0.82f, s * 0.68f)
-                lineTo(s * 0.98f, s * 0.74f)
-                lineTo(s * 0.82f, s * 0.8f)
-                lineTo(s * 0.76f, s * 0.96f)
-                lineTo(s * 0.7f, s * 0.8f)
-                lineTo(s * 0.54f, s * 0.74f)
-                lineTo(s * 0.7f, s * 0.68f)
-                close()
-            }
-            drawPath(star, color)
+            // A relation between two phrases, without the sparkle shorthand used by AI products.
+            line(0.16f, 0.32f, 0.62f, 0.32f)
+            line(0.38f, 0.68f, 0.84f, 0.68f)
+            line(0.62f, 0.32f, 0.38f, 0.68f)
+            drawCircle(color, stroke.width * 0.8f, Offset(s * 0.16f, s * 0.32f))
+            drawCircle(color, stroke.width * 0.8f, Offset(s * 0.84f, s * 0.68f))
         }
         NaytiIcon.Scene -> {
             drawRoundRectOutline(color, stroke, 0.14f, 0.2f, 0.72f, 0.6f, s)

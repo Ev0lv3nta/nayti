@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setup_redesign_current_step">Next step</string>
+    <string name="setup_redesign_components_step">Search components</string>
+    <string name="setup_redesign_access_step">Photos</string>
+    <string name="setup_redesign_prepare_step">Quick start</string>
+    <string name="setup_redesign_access_counting">Access granted. Counting the photos Android allowed the app to open.</string>
+    <string name="viewer_previous_photo">Previous photo</string>
+    <string name="viewer_next_photo">Next photo</string>
+    <string name="viewer_text_action">Text</string>
+    <string name="viewer_match_details_title">Why it matched</string>
+    <string name="viewer_match_snippet_title">Matching fragment</string>
+    <string name="viewer_match_readiness_title">Readiness of this photo</string>
+    <string name="viewer_match_ready">Ready</string>
+    <string name="viewer_match_not_ready">Still preparing</string>
+    <string name="viewer_match_outside_period">Outside period</string>
+    <string name="viewer_match_channel_text">Text in photo</string>
+    <string name="viewer_match_channel_meaning">Meaning of text</string>
+    <string name="viewer_match_channel_visual">Photo content</string>
+    <string name="viewer_match_channel_duplicates">Copies and similar shots</string>
+</resources>

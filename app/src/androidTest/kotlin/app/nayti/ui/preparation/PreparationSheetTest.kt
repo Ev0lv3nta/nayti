@@ -62,7 +62,7 @@ class PreparationSheetTest {
             .performClick()
         composeRule.runOnIdle { assertTrue(paused) }
         composeRule
-            .onAllNodesWithText(context.getString(R.string.preparation_channel_counts, 74, 100))
+            .onAllNodesWithText("74")
             .assertCountEquals(4)
         composeRule
             .onNodeWithText(context.getString(R.string.ocr_readiness_counts, 74, 100, 0))
@@ -78,7 +78,10 @@ class PreparationSheetTest {
         )
 
         composeRule
-            .onNodeWithText(context.getString(R.string.preparation_period_change))
+            .onNodeWithText(context.getString(R.string.readiness_period_change))
+            .performClick()
+        composeRule
+            .onNodeWithText(context.getString(R.string.readiness_period_three_months))
             .performClick()
         composeRule.runOnIdle { assertTrue(periodChangeRequested) }
     }

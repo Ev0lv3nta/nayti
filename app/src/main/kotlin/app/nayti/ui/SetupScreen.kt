@@ -9,14 +9,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -40,8 +39,17 @@ import app.nayti.indexer.OcrIndexingStatus
 import app.nayti.platform.media.MediaAccessScope
 import app.nayti.ui.designsystem.icon.NaytiIcon
 import app.nayti.ui.designsystem.icon.NaytiIconMark
+import app.nayti.ui.designsystem.component.EdgeSurface
+import app.nayti.ui.designsystem.component.KromkaButton
 import app.nayti.ui.designsystem.theme.NaytiSpacing
 import app.nayti.ui.designsystem.theme.NaytiTheme
+
+private enum class SetupStage {
+    Components,
+    PhotoAccess,
+    Catalog,
+    Preparation,
+}
 
 @Composable
 internal fun SetupScreen(
@@ -74,6 +82,7 @@ internal fun SetupScreen(
                 indexingOutstanding = indexing.outstanding,
             ),
         )
+    val stage = action.setupStage()
 
     Column(
         modifier =
@@ -118,51 +127,54 @@ internal fun SetupScreen(
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Medium)) {
                     Text(
-                        text = stringResource(R.string.setup_steps_title),
+                        text = stringResource(R.string.setup_redesign_current_step),
                         style = NaytiTheme.type.titleL,
                         color = NaytiTheme.colors.ink,
                         modifier = Modifier.semantics { heading() },
                     )
-                    SetupStepRow(
-                        number = 1,
-                        icon = NaytiIcon.Models,
-                        title = stringResource(R.string.setup_pack_title),
-                        body = setupPackDescription(modelPack),
-                        complete = modelPack.installed != null,
-                        busy = modelBusy,
-                    )
-                    SetupStepRow(
-                        number = 2,
-                        icon = NaytiIcon.Photos,
-                        title = stringResource(R.string.setup_access_title),
-                        body =
-                            stringResource(
-                                if (accessGranted) {
-                                    R.string.setup_access_ready
-                                } else {
-                                    R.string.setup_access_pending
-                                },
-                            ),
-                        complete = accessGranted,
-                        busy = false,
-                    )
-                    SetupStepRow(
-                        number = 3,
-                        icon = NaytiIcon.Period,
-                        title = stringResource(R.string.setup_prepare_title),
-                        body = setupPreparationDescription(catalog, indexing, selectedPhotoCount),
-                        complete =
-                            accessGranted &&
-                                catalog.status != CatalogRuntimeStatus.Reconciling &&
-                                (selectedPhotoCount == 0L ||
-                                    (indexing.accessible > 0 && indexing.outstanding == 0L)),
-                        busy =
-                            catalog.status == CatalogRuntimeStatus.Reconciling ||
-                                indexing.status == OcrIndexingStatus.Running,
-                    )
+                    when (stage) {
+                        SetupStage.Components ->
+                            SetupStepRow(
+                                eyebrow = stringResource(R.string.setup_redesign_components_step),
+                                icon = NaytiIcon.Models,
+                                title = stringResource(R.string.setup_pack_title),
+                                body = setupPackDescription(modelPack),
+                                complete = false,
+                                busy = modelBusy,
+                            )
+                        SetupStage.PhotoAccess ->
+                            SetupStepRow(
+                                eyebrow = stringResource(R.string.setup_redesign_access_step),
+                                icon = NaytiIcon.Photos,
+                                title = stringResource(R.string.setup_access_title),
+                                body = stringResource(R.string.setup_access_pending),
+                                complete = false,
+                                busy = false,
+                            )
+                        SetupStage.Catalog ->
+                            SetupStepRow(
+                                eyebrow = stringResource(R.string.setup_redesign_access_step),
+                                icon = NaytiIcon.Photos,
+                                title = stringResource(R.string.setup_access_title),
+                                body = stringResource(R.string.setup_redesign_access_counting),
+                                complete = true,
+                                busy = true,
+                            )
+                        SetupStage.Preparation ->
+                            SetupStepRow(
+                                eyebrow = stringResource(R.string.setup_redesign_prepare_step),
+                                icon = NaytiIcon.Period,
+                                title = stringResource(R.string.setup_prepare_title),
+                                body = setupPreparationDescription(catalog, indexing, selectedPhotoCount),
+                                complete =
+                                    selectedPhotoCount == 0L ||
+                                        (indexing.accessible > 0 && indexing.outstanding == 0L),
+                                busy = indexing.status == OcrIndexingStatus.Running,
+                            )
+                    }
                 }
             }
-            if (accessGranted && catalog.status != CatalogRuntimeStatus.Reconciling) {
+            if (stage == SetupStage.Preparation) {
                 item {
                     IndexingScopeCard(
                         indexing = indexing,
@@ -234,11 +246,7 @@ private fun SetupActions(
                 SetupNextAction.WAIT_FOR_CATALOG,
                 SetupNextAction.WAIT_FOR_PREPARATION,
             )
-    Surface(
-        color = NaytiTheme.colors.surface,
-        contentColor = NaytiTheme.colors.ink,
-        shadowElevation = 8.dp,
-    ) {
+    EdgeSurface {
         Column(
             modifier =
                 Modifier
@@ -247,7 +255,7 @@ private fun SetupActions(
             verticalArrangement = Arrangement.spacedBy(NaytiSpacing.Small),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Button(
+            KromkaButton(
                 onClick = {
                     when (action) {
                         SetupNextAction.IMPORT_MODEL_PACK -> onImportModelPack()
@@ -261,7 +269,7 @@ private fun SetupActions(
                     }
                 },
                 enabled = !waiting,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
             ) {
                 if (waiting) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
@@ -278,9 +286,7 @@ private fun SetupActions(
 
 @Composable
 private fun PrivacyPromise() {
-    Surface(
-        color = NaytiTheme.colors.accentContainer,
-        contentColor = NaytiTheme.colors.onAccentContainer,
+    EdgeSurface(
         shape = NaytiTheme.shapes.card,
     ) {
         Row(
@@ -297,13 +303,24 @@ private fun PrivacyPromise() {
             ) {
                 NaytiIconMark(
                     icon = NaytiIcon.Shield,
-                    color = NaytiTheme.colors.onAccentContainer,
+                    color = NaytiTheme.colors.evidencePhoto,
                     size = 22.dp,
                 )
             }
-            Column(verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall)) {
-                Text(stringResource(R.string.setup_privacy_title), style = NaytiTheme.type.titleM)
-                Text(stringResource(R.string.setup_privacy_body), style = NaytiTheme.type.bodyM)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
+            ) {
+                Text(
+                    stringResource(R.string.setup_privacy_title),
+                    style = NaytiTheme.type.titleM,
+                    color = NaytiTheme.colors.ink,
+                )
+                Text(
+                    stringResource(R.string.setup_privacy_body),
+                    style = NaytiTheme.type.bodyM,
+                    color = NaytiTheme.colors.inkMuted,
+                )
             }
         }
     }
@@ -311,16 +328,14 @@ private fun PrivacyPromise() {
 
 @Composable
 private fun SetupStepRow(
-    number: Int,
+    eyebrow: String,
     icon: NaytiIcon,
     title: String,
     body: String,
     complete: Boolean,
     busy: Boolean,
 ) {
-    Surface(
-        color = NaytiTheme.colors.surface,
-        contentColor = NaytiTheme.colors.ink,
+    EdgeSurface(
         shape = NaytiTheme.shapes.card,
     ) {
         Column {
@@ -347,9 +362,9 @@ private fun SetupStepRow(
                     verticalArrangement = Arrangement.spacedBy(NaytiSpacing.XSmall),
                 ) {
                     Text(
-                        text = stringResource(R.string.setup_step_number, number),
+                        text = eyebrow,
                         style = NaytiTheme.type.labelS,
-                        color = NaytiTheme.colors.inkFaint,
+                        color = NaytiTheme.colors.inkMuted,
                     )
                     Text(title, style = NaytiTheme.type.titleM)
                     Text(body, style = NaytiTheme.type.bodyM, color = NaytiTheme.colors.inkMuted)
@@ -368,8 +383,14 @@ private fun setupPackDescription(state: ModelPackRuntimeState): String =
         ModelPackRuntimeStatus.Loading -> stringResource(R.string.setup_pack_loading)
         ModelPackRuntimeStatus.Missing -> stringResource(R.string.setup_pack_pending)
         ModelPackRuntimeStatus.Installing -> stringResource(R.string.setup_pack_installing)
-        ModelPackRuntimeStatus.Ready ->
-            stringResource(R.string.setup_pack_ready, state.installed?.packVersion.orEmpty())
+        ModelPackRuntimeStatus.Ready -> {
+            val installed = state.installed
+            if (installed == null) {
+                stringResource(R.string.setup_pack_pending)
+            } else {
+                stringResource(R.string.setup_pack_ready, installed.packVersion)
+            }
+        }
         ModelPackRuntimeStatus.Failed -> stringResource(R.string.setup_pack_failed)
     }
 
@@ -402,6 +423,19 @@ private fun setupPreparationDescription(
     }
 
 private fun Long.asResourceQuantity(): Int = coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
+
+private fun SetupNextAction.setupStage(): SetupStage =
+    when (this) {
+        SetupNextAction.WAIT_FOR_MODEL_PACK,
+        SetupNextAction.IMPORT_MODEL_PACK,
+        -> SetupStage.Components
+        SetupNextAction.REQUEST_PHOTO_ACCESS -> SetupStage.PhotoAccess
+        SetupNextAction.WAIT_FOR_CATALOG -> SetupStage.Catalog
+        SetupNextAction.START_PREPARATION,
+        SetupNextAction.WAIT_FOR_PREPARATION,
+        SetupNextAction.ENTER_APP,
+        -> SetupStage.Preparation
+    }
 
 @Composable
 private fun primaryActionLabel(action: SetupNextAction): String =

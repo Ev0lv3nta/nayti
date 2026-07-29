@@ -23,7 +23,7 @@ data class NaytiShapeScale(
 )
 
 internal val NaytiShapeScaleDefault = NaytiShapeScale(
-    photo = RoundedCornerShape(6.dp),
+    photo = RoundedCornerShape(4.dp),
     card = RoundedCornerShape(16.dp),
     sheet = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
     control = RoundedCornerShape(percent = 50),
@@ -31,7 +31,7 @@ internal val NaytiShapeScaleDefault = NaytiShapeScale(
 )
 
 internal fun NaytiShapeScale.toMaterialShapes(): Shapes = Shapes(
-    extraSmall = RoundedCornerShape(6.dp),
+    extraSmall = photo,
     small = badge,
     medium = card,
     large = card,

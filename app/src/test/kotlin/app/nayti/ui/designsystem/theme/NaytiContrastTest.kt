@@ -7,9 +7,9 @@ import org.junit.Test
  * Contrast gate of the visual system.
  *
  * Colour roles are verified as plain numbers so the check runs on the host without a device. Text
- * roles must clear 4.5:1 on every surface they are allowed to sit on, and chrome placed above
- * photographs must stay legible above both the brightest and the darkest possible frame — that is
- * what fixes the tint alpha floor.
+ * roles clear 4.5:1 on every real surface they are allowed to sit on. Evidence roles are included:
+ * even though their primary use is a thin edge plus a label, the label must never rely on colour
+ * alone. Optional blurred chrome is also tested over the brightest and darkest possible frame.
  */
 class NaytiContrastTest {
     @Test
@@ -18,12 +18,16 @@ class NaytiContrastTest {
             "background" to NaytiPalette.Paper050,
             "surface" to NaytiPalette.Paper000,
             "surfaceHigh" to NaytiPalette.Paper100,
+            "surfaceLow" to NaytiPalette.Paper150,
         )
         val textRoles = listOf(
             "ink" to NaytiPalette.Paper900,
             "inkMuted" to NaytiPalette.Paper700,
             "inkFaint" to NaytiPalette.Paper600,
             "accent" to NaytiPalette.AccentLight,
+            "evidenceText" to NaytiPalette.EvidenceTextLight,
+            "evidenceMeaning" to NaytiPalette.EvidenceMeaningLight,
+            "evidencePhoto" to NaytiPalette.EvidencePhotoLight,
             "ready" to NaytiPalette.ReadyLight,
             "attention" to NaytiPalette.AttentionLight,
             "error" to NaytiPalette.ErrorLight,
@@ -37,17 +41,39 @@ class NaytiContrastTest {
             "background" to NaytiPalette.Ink000,
             "surface" to NaytiPalette.Ink100,
             "surfaceHigh" to NaytiPalette.Ink150,
+            "surfaceLow" to NaytiPalette.Ink200,
         )
         val textRoles = listOf(
             "ink" to NaytiPalette.Ink900,
             "inkMuted" to NaytiPalette.Ink500,
-            "inkFaint" to NaytiPalette.Ink400,
-            "accent" to NaytiPalette.AccentDark,
+            "evidenceText" to NaytiPalette.EvidenceTextDark,
+            "evidenceMeaning" to NaytiPalette.EvidenceMeaningDark,
+            "evidencePhoto" to NaytiPalette.EvidencePhotoDark,
             "ready" to NaytiPalette.ReadyDark,
             "attention" to NaytiPalette.AttentionDark,
             "error" to NaytiPalette.ErrorDark,
         )
         assertAllPairs(textRoles, surfaces, TextMinimum)
+        assertAllPairs(
+            textRoles = listOf("accent" to NaytiPalette.AccentDark),
+            surfaces = surfaces.filterNot { (name, _) -> name == "surfaceLow" },
+            minimum = TextMinimum,
+        )
+    }
+
+    @Test
+    fun faintDarkDecorationRemainsVisibleOnEverySurface() {
+        val surfaces = listOf(
+            "background" to NaytiPalette.Ink000,
+            "surface" to NaytiPalette.Ink100,
+            "surfaceHigh" to NaytiPalette.Ink150,
+            "surfaceLow" to NaytiPalette.Ink200,
+        )
+        assertAllPairs(
+            textRoles = listOf("inkFaint" to NaytiPalette.Ink400),
+            surfaces = surfaces,
+            minimum = NonTextMinimum,
+        )
     }
 
     @Test
@@ -62,7 +88,7 @@ class NaytiContrastTest {
         )
         assertContrast(
             "onAccent",
-            NaytiPalette.AccentLightOnContainer,
+            NaytiPalette.Paper900,
             "accent",
             NaytiPalette.AccentDark,
             TextMinimum,
@@ -72,6 +98,24 @@ class NaytiContrastTest {
             NaytiPalette.AccentDarkOnContainer,
             "accentContainer",
             NaytiPalette.AccentDarkContainer,
+            TextMinimum,
+        )
+    }
+
+    @Test
+    fun errorColorsCarryTheirOwnText() {
+        assertContrast(
+            "onError",
+            NaytiPalette.Paper000,
+            "error",
+            NaytiPalette.ErrorLight,
+            TextMinimum,
+        )
+        assertContrast(
+            "onError",
+            NaytiPalette.Paper900,
+            "error",
+            NaytiPalette.ErrorDark,
             TextMinimum,
         )
     }
@@ -87,8 +131,10 @@ class NaytiContrastTest {
     fun outlinesThatIdentifyAControlAreDistinguishable() {
         assertContrast("outlineStrong", NaytiPalette.Paper350, "surface", NaytiPalette.Paper000, NonTextMinimum)
         assertContrast("outlineStrong", NaytiPalette.Paper350, "surfaceHigh", NaytiPalette.Paper100, NonTextMinimum)
+        assertContrast("outlineStrong", NaytiPalette.Paper350, "surfaceLow", NaytiPalette.Paper150, NonTextMinimum)
         assertContrast("outlineStrong", NaytiPalette.Ink350, "surface", NaytiPalette.Ink100, NonTextMinimum)
         assertContrast("outlineStrong", NaytiPalette.Ink350, "surfaceHigh", NaytiPalette.Ink150, NonTextMinimum)
+        assertContrast("outlineStrong", NaytiPalette.Ink350, "surfaceLow", NaytiPalette.Ink200, NonTextMinimum)
     }
 
     /**
@@ -124,6 +170,9 @@ class NaytiContrastTest {
                 "ink" to NaytiPalette.Ink900,
                 "inkMuted" to NaytiPalette.Ink500,
                 "accent" to NaytiPalette.AccentDark,
+                "evidenceText" to NaytiPalette.EvidenceTextDark,
+                "evidenceMeaning" to NaytiPalette.EvidenceMeaningDark,
+                "evidencePhoto" to NaytiPalette.EvidencePhotoDark,
                 "ready" to NaytiPalette.ReadyDark,
                 "attention" to NaytiPalette.AttentionDark,
                 "error" to NaytiPalette.ErrorDark,
@@ -136,7 +185,11 @@ class NaytiContrastTest {
             textRoles = listOf(
                 "ink" to NaytiPalette.Paper900,
                 "inkMuted" to NaytiPalette.Paper700,
+                "inkFaint" to NaytiPalette.Paper600,
                 "accent" to NaytiPalette.AccentLight,
+                "evidenceText" to NaytiPalette.EvidenceTextLight,
+                "evidenceMeaning" to NaytiPalette.EvidenceMeaningLight,
+                "evidencePhoto" to NaytiPalette.EvidencePhotoLight,
                 "ready" to NaytiPalette.ReadyLight,
                 "attention" to NaytiPalette.AttentionLight,
                 "error" to NaytiPalette.ErrorLight,
@@ -205,9 +258,9 @@ class NaytiContrastTest {
     }
 
     private object NaytiChromeAlpha {
-        const val GlassDark = 0.70
-        const val GlassLight = 0.80
-        const val Solid = 0.92
+        val GlassDark = NaytiChrome.GlassTintAlphaDarkTop.toDouble()
+        val GlassLight = NaytiChrome.GlassTintAlphaLightTop.toDouble()
+        const val Solid = 1.0
     }
 
     private companion object {

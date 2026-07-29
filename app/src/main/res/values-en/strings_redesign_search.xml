@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="search_redesign_mode_text">Text</string>
+    <string name="search_redesign_mode_meaning">Meaning</string>
+    <string name="search_redesign_mode_photo">Scene</string>
+    <string name="search_redesign_scope_all">All media</string>
+    <string name="search_redesign_hint_count">Search among %1$s photos</string>
+    <string name="search_redesign_filters">Filters</string>
+    <string name="search_redesign_submit">Run search</string>
+    <string name="search_redesign_clear">Clear query</string>
+</resources>

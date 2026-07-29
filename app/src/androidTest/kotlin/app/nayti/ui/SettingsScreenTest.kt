@@ -31,7 +31,7 @@ import app.nayti.storage.IndexingScopeSummary
 import app.nayti.storage.ModelPackEntity
 import app.nayti.storage.ModelPackStatus
 import app.nayti.ui.designsystem.theme.NaytiTheme
-import org.junit.Assert.assertEquals
+import app.nayti.ui.designsystem.theme.ThemeMode
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -69,52 +69,14 @@ class SettingsScreenTest {
             onRollback = { rollbackRequested = true },
         )
 
+        composeRule.onNodeWithText(context.getString(R.string.settings_advanced_show))
+            .performScrollTo()
+            .performClick()
         val action = context.getString(R.string.model_pack_rollback_action, "1.0")
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(action))
         composeRule.onNodeWithText(action).performClick()
 
         composeRule.runOnIdle { assertTrue(rollbackRequested) }
-    }
-
-    @Test
-    fun indexingPeriodCanBeSelectedFromAQuickPreset() {
-        var selectedMonths: Long? = null
-        setContent(onSelectIndexingMonths = { selectedMonths = it })
-
-        composeRule.onNodeWithText(context.getString(R.string.indexing_scope_months_short, 3L))
-            .performScrollTo()
-            .performClick()
-
-        composeRule.runOnIdle { assertEquals(3L, selectedMonths) }
-    }
-
-    @Test
-    fun unfinishedSelectedPeriodShowsDirectPreparationAction() {
-        var startRequested = false
-        setContent(
-            indexing = indexing(committed = 80, outstanding = 40),
-            onStartIndexing = { startRequested = true },
-        )
-
-        val action = context.getString(R.string.indexing_scope_action_start)
-        composeRule.onNodeWithText(action).performScrollTo().performClick()
-
-        composeRule.runOnIdle { assertTrue(startRequested) }
-    }
-
-    @Test
-    fun completedSelectedPeriodExplainsWhyRestartIsNotOffered() {
-        var detailsRequested = false
-        setContent(onOpenPreparation = { detailsRequested = true })
-
-        composeRule.onNodeWithText(context.getString(R.string.indexing_scope_action_ready))
-            .performScrollTo()
-            .assertIsDisplayed()
-        composeRule.onNodeWithText(context.getString(R.string.indexing_scope_action_details))
-            .performScrollTo()
-            .performClick()
-
-        composeRule.runOnIdle { assertTrue(detailsRequested) }
     }
 
     @Test
@@ -125,7 +87,7 @@ class SettingsScreenTest {
             onResetSearchData = { resetRequested = true },
         )
 
-        val action = context.getString(R.string.quarantine_reset_action)
+        val action = context.getString(R.string.reset_index_action)
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(action))
         composeRule.onNodeWithText(action).performClick()
         composeRule.runOnIdle { assertTrue(!resetRequested) }
@@ -141,11 +103,27 @@ class SettingsScreenTest {
     fun settingsUseProductLevelGroups() {
         setContent()
 
-        composeRule.onNodeWithText(context.getString(R.string.settings_library_section))
+        composeRule.onNodeWithText(context.getString(R.string.settings_appearance_section))
             .assertIsDisplayed()
-        val models = context.getString(R.string.settings_models_section)
-        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(models))
-        composeRule.onNodeWithText(models).assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.settings_media_section))
+            .assertIsDisplayed()
+        val data = context.getString(R.string.settings_storage_section)
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(data))
+        composeRule.onNodeWithText(data).assertIsDisplayed()
+    }
+
+    @Test
+    fun themeSheetOffersARealMidnightMode() {
+        var selectedMode: ThemeMode? = null
+        setContent(onThemeModeChange = { selectedMode = it })
+
+        composeRule.onNodeWithText(context.getString(R.string.settings_theme_title))
+            .performClick()
+        composeRule.onNodeWithText(context.getString(R.string.settings_theme_midnight))
+            .assertIsDisplayed()
+            .performClick()
+
+        composeRule.runOnIdle { assertTrue(selectedMode == ThemeMode.Midnight) }
     }
 
     @Test
@@ -187,10 +165,7 @@ class SettingsScreenTest {
         retainedQuarantine: Long = 0,
         onResetSearchData: () -> Unit = {},
         onRollback: () -> Unit = {},
-        onSelectIndexingMonths: (Long?) -> Unit = {},
-        indexing: OcrIndexingState = indexing(),
-        onStartIndexing: () -> Unit = {},
-        onOpenPreparation: () -> Unit = {},
+        onThemeModeChange: (ThemeMode) -> Unit = {},
     ) {
         composeRule.setContent {
             NaytiTheme {
@@ -201,16 +176,14 @@ class SettingsScreenTest {
                     diagnosticsExport = DiagnosticsExportState.Idle,
                     searchDataReset = SearchDataResetState.Idle,
                     modelPackRollback = rollback,
-                    indexing = indexing,
+                    indexing = indexing(),
                     onRequestAccess = {},
                     onImportModelPack = {},
                     onRefreshStorage = {},
                     onExportDiagnostics = {},
                     onResetSearchData = onResetSearchData,
                     onRollbackModelPack = onRollback,
-                    onSelectIndexingMonths = onSelectIndexingMonths,
-                    onStartIndexing = onStartIndexing,
-                    onOpenPreparation = onOpenPreparation,
+                    onThemeModeChange = onThemeModeChange,
                 )
             }
         }

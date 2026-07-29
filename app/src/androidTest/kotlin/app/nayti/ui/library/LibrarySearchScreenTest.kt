@@ -7,12 +7,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsOff
-import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasSetTextAction
-import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -91,19 +90,37 @@ class LibrarySearchScreenTest {
         val restoration = StateRestorationTester(composeRule)
         restoration.setContent { TestContent() }
 
-        composeRule.onNodeWithText(context.getString(R.string.search_surface_how)).performClick()
-        composeRule.onAllNodes(isToggleable())[0].performClick().assertIsOff()
-        composeRule.onAllNodes(isToggleable())[1].performClick().assertIsOff()
-        composeRule.onAllNodes(isToggleable())[2].performClick().assertIsOn()
-        composeRule.onAllNodes(isToggleable())[2].performClick().assertIsOn()
-        composeRule.onNodeWithText(context.getString(R.string.search_where_apply)).performClick()
+        composeRule.onNode(
+            hasText(context.getString(R.string.search_redesign_mode_text)) and hasClickAction(),
+        )
+            .performClick()
+            .assertIsNotSelected()
+        composeRule.onNode(
+            hasText(context.getString(R.string.search_redesign_mode_meaning)) and hasClickAction(),
+        )
+            .performClick()
+            .assertIsNotSelected()
+        composeRule.onNode(
+            hasText(context.getString(R.string.search_redesign_mode_photo)) and hasClickAction(),
+        )
+            .assertIsSelected()
+            .performClick()
+            .assertIsSelected()
 
         restoration.emulateSavedInstanceStateRestore()
 
-        composeRule.onNodeWithText(context.getString(R.string.search_surface_how) + " •").performClick()
-        composeRule.onAllNodes(isToggleable())[0].assertIsOff()
-        composeRule.onAllNodes(isToggleable())[1].assertIsOff()
-        composeRule.onAllNodes(isToggleable())[2].assertIsOn()
+        composeRule.onNode(
+            hasText(context.getString(R.string.search_redesign_mode_text)) and hasClickAction(),
+        )
+            .assertIsNotSelected()
+        composeRule.onNode(
+            hasText(context.getString(R.string.search_redesign_mode_meaning)) and hasClickAction(),
+        )
+            .assertIsNotSelected()
+        composeRule.onNode(
+            hasText(context.getString(R.string.search_redesign_mode_photo)) and hasClickAction(),
+        )
+            .assertIsSelected()
     }
 
     @Test
@@ -117,11 +134,13 @@ class LibrarySearchScreenTest {
             }
         }
 
-        composeRule.onNodeWithText(context.getString(R.string.search_surface_where))
+        composeRule.onNodeWithText(context.getString(R.string.search_redesign_filters))
             .assertIsDisplayed()
-        composeRule.onNodeWithText(context.getString(R.string.search_surface_how))
+        composeRule.onNodeWithText(context.getString(R.string.search_redesign_mode_text))
             .assertIsDisplayed()
-        composeRule.onNodeWithText(context.getString(R.string.search_surface_settings))
+        composeRule.onNodeWithText(context.getString(R.string.search_redesign_mode_meaning))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.search_redesign_mode_photo))
             .assertIsDisplayed()
     }
 
@@ -138,16 +157,14 @@ class LibrarySearchScreenTest {
         }
         assertEquals(1, firstRow.distinct().size)
         composeRule.onNode(
-            hasText(context.getString(R.string.search_surface_where)) and hasClickAction(),
+            hasText(context.getString(R.string.search_redesign_filters)) and hasClickAction(),
         )
             .assertTouchHeightIsAtLeast(48.dp)
-        composeRule.onNode(
-            hasText(context.getString(R.string.search_surface_how)) and hasClickAction(),
-        )
+        composeRule.onNodeWithText(context.getString(R.string.search_redesign_mode_text))
             .assertTouchHeightIsAtLeast(48.dp)
-        composeRule.onNode(
-            hasText(context.getString(R.string.search_surface_settings)) and hasClickAction(),
-        )
+        composeRule.onNodeWithText(context.getString(R.string.search_redesign_mode_meaning))
+            .assertTouchHeightIsAtLeast(48.dp)
+        composeRule.onNodeWithText(context.getString(R.string.search_redesign_mode_photo))
             .assertTouchHeightIsAtLeast(48.dp)
     }
 
@@ -176,7 +193,6 @@ class LibrarySearchScreenTest {
                 onSearch = onSearch,
                 onCancelSearch = onCancelSearch,
                 onOpenAsset = {},
-                onOpenSettings = {},
             )
         }
     }
@@ -205,7 +221,6 @@ class LibrarySearchScreenTest {
                     onSearch = onSearch,
                     onCancelSearch = onCancelSearch,
                     onOpenAsset = {},
-                    onOpenSettings = {},
                 )
             }
         }

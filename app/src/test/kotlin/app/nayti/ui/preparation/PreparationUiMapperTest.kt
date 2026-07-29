@@ -76,7 +76,7 @@ class PreparationUiMapperTest {
                             operationState = IndexOperationState.PAUSED_USER,
                         ),
                     message = ShellStatusMessage.PausedByUser,
-                    action = PreparationPrimaryAction.Start,
+                    action = PreparationPrimaryAction.Continue,
                 ),
                 constraint("thermal", "THERMAL_SEVERE", ShellStatusMessage.PausedThermal),
                 constraint("memory", "MEMORY_PRESSURE", ShellStatusMessage.PausedMemory),
@@ -93,7 +93,7 @@ class PreparationUiMapperTest {
                             operationState = IndexOperationState.WAITING_SYSTEM,
                         ),
                     message = ShellStatusMessage.PausedBySystem,
-                    action = PreparationPrimaryAction.Start,
+                    action = PreparationPrimaryAction.Continue,
                 ),
                 scenario(
                     "completed with gaps",
@@ -139,7 +139,7 @@ class PreparationUiMapperTest {
                             operationState = IndexOperationState.CANCELLED,
                         ),
                     message = ShellStatusMessage.PreparedPartially,
-                    action = PreparationPrimaryAction.Start,
+                    action = PreparationPrimaryAction.Continue,
                 ),
                 scenario(
                     "runtime failure",
@@ -151,7 +151,7 @@ class PreparationUiMapperTest {
                             operationState = IndexOperationState.REPAIR_REQUIRED,
                         ),
                     message = ShellStatusMessage.PreparationFailed,
-                    action = PreparationPrimaryAction.Start,
+                    action = PreparationPrimaryAction.CheckAndContinue,
                 ),
                 scenario(
                     "full counters without terminal state",
@@ -256,7 +256,7 @@ class PreparationUiMapperTest {
                 operationState = IndexOperationState.PAUSED_CONSTRAINT,
             ),
         message = message,
-        action = PreparationPrimaryAction.Start,
+        action = PreparationPrimaryAction.CheckAndContinue,
     )
 
     private fun scenario(

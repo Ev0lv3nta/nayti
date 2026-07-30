@@ -87,7 +87,6 @@ cp model-tools/manifests/model-pack-sbom.alpha2.cdx.json "$temporary_dir/nayti-m
 cp model-tools/manifests/model-pack-notices.alpha2.md "$temporary_dir/nayti-model-pack-notices.md"
 cp docs/device-alpha-runbook.md "$temporary_dir/device-alpha-runbook.md"
 cp docs/known-limitations-alpha.md "$temporary_dir/known-limitations-alpha.md"
-cp docs/PROVENANCE.md "$temporary_dir/PROVENANCE.md"
 cp LICENSE "$temporary_dir/LICENSE"
 
 dirty="no"
@@ -109,7 +108,6 @@ dirty="no"
   files=(
     BUILD-INFO.txt
     LICENSE
-    PROVENANCE.md
     device-alpha-runbook.md
     known-limitations-alpha.md
     nayti-alpha-local-signed.apk

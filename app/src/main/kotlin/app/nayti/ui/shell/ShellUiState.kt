@@ -114,8 +114,19 @@ object ShellStatusMapper {
         return mapPreparation(indexing)
     }
 
-    fun mapPreparation(indexing: OcrIndexingState): ShellStatusUi =
-        when (indexing.operationState) {
+    fun mapPreparation(indexing: OcrIndexingState): ShellStatusUi {
+        val activeConstraint = constraintMessageOrNull(indexing.errorCode)
+        if (
+            activeConstraint != null &&
+            indexing.operationState !in TerminalOperationStates
+        ) {
+            return ShellStatusUi(
+                activeConstraint,
+                ShellStatusTone.Attention,
+                actionable = true,
+            )
+        }
+        return when (indexing.operationState) {
             IndexOperationState.COMPLETED -> ShellStatusUi(
                 ShellStatusMessage.Completed,
                 ShellStatusTone.Ready,
@@ -153,6 +164,7 @@ object ShellStatusMapper {
             )
             else -> mapNonTerminal(indexing)
         }
+    }
 
     private fun mapNonTerminal(indexing: OcrIndexingState): ShellStatusUi {
         val hasPublishedWork =
@@ -200,6 +212,9 @@ object ShellStatusMapper {
     }
 
     private fun constraintMessage(errorCode: String?): ShellStatusMessage =
+        constraintMessageOrNull(errorCode) ?: ShellStatusMessage.PausedByConstraint
+
+    private fun constraintMessageOrNull(errorCode: String?): ShellStatusMessage? =
         when (errorCode) {
             "THERMAL_SEVERE" -> ShellStatusMessage.PausedThermal
             "MEMORY_PRESSURE" -> ShellStatusMessage.PausedMemory
@@ -207,6 +222,13 @@ object ShellStatusMapper {
             "BATTERY_SAVER" -> ShellStatusMessage.PausedBatterySaver
             "BATTERY_LOW" -> ShellStatusMessage.PausedBatteryLow
             "CHARGING_REQUIRED" -> ShellStatusMessage.PausedCharging
-            else -> ShellStatusMessage.PausedByConstraint
+            else -> null
         }
+
+    private val TerminalOperationStates =
+        setOf(
+            IndexOperationState.COMPLETED,
+            IndexOperationState.COMPLETED_WITH_GAPS,
+            IndexOperationState.CANCELLED,
+        )
 }

@@ -268,7 +268,13 @@ class OcrIndexingRuntime(
                 }
             }
             running.set(false)
-            publishCoverage(pack, lastSlicePublished = 0, operationId = operationId, hostType = null)
+            publishCoverage(
+                pack = pack,
+                lastSlicePublished = 0,
+                operationId = operationId,
+                hostType = null,
+                explicitErrorCode = constraintCode,
+            )
             if (constraintCode != null) {
                 mutableState.value = mutableState.value.copy(errorCode = constraintCode)
             }
@@ -620,6 +626,7 @@ class OcrIndexingRuntime(
         lastSlicePublished: Int,
         operationId: String? = currentOperationId.get(),
         hostType: String? = null,
+        explicitErrorCode: String? = null,
     ) {
         val scopeSummary = storage.catalogDao.indexingScopeSummary()
         if (pack == null) {
@@ -647,6 +654,16 @@ class OcrIndexingRuntime(
             operation?.let { current ->
                 storage.indexStateDao.operationActiveDurationMillis(current.operationId, System.currentTimeMillis())
             } ?: 0
+        val currentResourceDecision =
+            if (
+                explicitErrorCode == null &&
+                coverage.capabilities.any { capability -> capability.outstanding > 0 } &&
+                shouldRestoreResourceConstraint(operation?.state)
+            ) {
+                resourceGovernor.evaluate(IndexExecutionInitiator.Manual)
+            } else {
+                null
+            }
         mutableState.value =
             coverage.toState(
                 operation,
@@ -654,6 +671,11 @@ class OcrIndexingRuntime(
                 hostType,
                 scopeSummary,
                 activeDurationMillis,
+                resolveIndexingErrorCode(
+                    operationState = operation?.state,
+                    explicitErrorCode = explicitErrorCode,
+                    currentResourceDecision = currentResourceDecision,
+                ),
             )
     }
 
@@ -722,6 +744,7 @@ class OcrIndexingRuntime(
         hostType: String?,
         scopeSummary: IndexingScopeSummary,
         activeDurationMillis: Long,
+        errorCode: String?,
     ): OcrIndexingState =
         OcrIndexingState(
             status =
@@ -738,7 +761,7 @@ class OcrIndexingRuntime(
             permanentGaps = completion.permanentGaps,
             outstanding = completion.outstanding,
             lastSlicePublished = lastSlicePublished,
-            errorCode = null,
+            errorCode = errorCode,
             operationId = operation?.operationId,
             operationState = operation?.state,
             hostType = hostType,
@@ -811,6 +834,28 @@ class OcrIndexingRuntime(
             )
     }
 }
+
+internal fun resolveIndexingErrorCode(
+    operationState: String?,
+    explicitErrorCode: String?,
+    currentResourceDecision: IndexResourceDecision?,
+): String? {
+    if (explicitErrorCode != null) return explicitErrorCode
+    if (!shouldRestoreResourceConstraint(operationState)) return null
+    val decision = currentResourceDecision ?: return null
+    return if (decision.canContinue) null else decision.constraintCode ?: "RESOURCE_CONSTRAINT"
+}
+
+private fun shouldRestoreResourceConstraint(operationState: String?): Boolean =
+    operationState == null || operationState in ResourceConstraintRecoveryStates
+
+private val ResourceConstraintRecoveryStates =
+    setOf(
+        IndexOperationState.PLANNED,
+        IndexOperationState.RUNNING,
+        IndexOperationState.WAITING_SYSTEM,
+        IndexOperationState.PAUSED_CONSTRAINT,
+    )
 
 internal fun estimateAllMediaDuration(
     scope: IndexingScopeSummary,

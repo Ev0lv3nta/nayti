@@ -102,7 +102,7 @@ object PreparationUiMapper {
 
         return PreparationUiState(
             status = ShellStatusMapper.map(catalog, modelPack, indexing),
-            qualitativeStatus = qualitativeStatus(indexing),
+            qualitativeStatus = qualitativeStatus(indexing, issue),
             channels = channels(indexing),
             primaryAction = primaryAction,
             issue = issue,
@@ -128,7 +128,10 @@ object PreparationUiMapper {
         }
     }
 
-    private fun qualitativeStatus(indexing: OcrIndexingState): PreparationQualitativeStatus {
+    private fun qualitativeStatus(
+        indexing: OcrIndexingState,
+        issue: PreparationIssue?,
+    ): PreparationQualitativeStatus {
         val anyReady =
             indexing.committed > 0 ||
                 indexing.capabilities.any { coverage -> coverage.committed > 0 }
@@ -139,6 +142,7 @@ object PreparationUiMapper {
             indexing.outstanding > 0 ||
                 indexing.capabilities.any { coverage -> coverage.outstanding > 0 }
         return when {
+            issue != null -> PreparationQualitativeStatus.Paused
             indexing.status == OcrIndexingStatus.Running && anyReady ->
                 PreparationQualitativeStatus.SearchWorksWhilePreparing
             indexing.status == OcrIndexingStatus.Running ->

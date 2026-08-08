@@ -199,6 +199,26 @@ class PreparationUiMapperTest {
     }
 
     @Test
+    fun batterySaverReasonDominatesAPlannedTransitionProjection() {
+        val result =
+            PreparationUiMapper.map(
+                catalog(),
+                models(),
+                indexing(
+                    status = OcrIndexingStatus.Ready,
+                    committed = 20,
+                    errorCode = "BATTERY_SAVER",
+                    operationState = IndexOperationState.PLANNED,
+                ),
+            )
+
+        assertEquals(PreparationQualitativeStatus.Paused, result.qualitativeStatus)
+        assertEquals(PreparationIssue.BatterySaver, result.issue)
+        assertEquals(ShellStatusMessage.PausedBatterySaver, result.status.message)
+        assertEquals(PreparationPrimaryAction.CheckAndContinue, result.primaryAction)
+    }
+
+    @Test
     fun completionAndRetryAreNeverInferredFromCounters() {
         val countersOnly =
             PreparationUiMapper.map(

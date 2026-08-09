@@ -1,6 +1,6 @@
 # Security и privacy review перед device alpha
 
-Дата review: 19 июля 2026. Область: Android application, локальное хранилище и индекс, SAF/model-pack import, diagnostics, release dependency graph и unsigned release APK. Производительность, поведение прошивки Samsung и production signing остаются отдельными device/release gates.
+Дата исходного review: 19 июля 2026 года; актуализация перед personal alpha: 9 августа 2026 года. Область: Android application, локальное хранилище и индекс, SAF/model-pack import, diagnostics, release dependency graph, unsigned control APK и подписанный alpha APK.
 
 ## Сетевой и platform boundary
 
@@ -33,11 +33,11 @@ Merged debug и release manifests проверяются fail-closed allowlist-�
 - Release dependency report преобразуется в CycloneDX 1.6 SBOM. Любой новый Maven group без review ломает CI; текущий allowlist содержит только Apache-2.0, BSD-3-Clause и MIT.
 - Reduced ONNX Runtime распространяется отдельным prerelease asset, проверяется по точному имени, размеру и SHA-256, а затем повторно проверяется Gradle. Полный Maven ORT fallback отсутствует.
 - Apache-2.0, Protocol Buffers BSD-3-Clause и обе MIT-лицензии ORT включаются в APK assets; точный список resolved components публикуется рядом с unsigned release APK.
-- Private model-pack signing key и будущий production Android signing key не входят в Git, Gradle configuration или CI. В приложении находится только публичный Ed25519 verification key. Release APK на этом этапе намеренно unsigned.
+- Private model-pack signing key и Android alpha signing key не входят в Git, Gradle configuration или CI. Gradle принимает signing material только через полный набор переменных `NAYTI_RELEASE_*`; CI продолжает выпускать unsigned control APK. Публичный bundle проверяет сертификат через `apksigner` и запрещает Android Debug signer.
 - GitHub secret scanning и push protection включены; `.gitignore` исключает keys, model packs, APK/AAB/AAR и локальную диагностику.
 
 ## Результат и остаточные gates
 
 Device-independent review не обнаружил открытого сетевого data flow, экспортированного application component без необходимости, backup-утечки, известного vulnerable runtime dependency или пути возврата thumbnail после revoke. API 30 прошёл privacy regression, а R8-minified ARM64 release APK прошёл manifest и 16 KiB checks.
 
-Synthetic scale/resource rehearsal и полная emulator matrix API 30–37, включая реальный 16K process на API 37, завершены отдельно в [resource-rehearsal-alpha.md](resource-rehearsal-alpha.md). До personal alpha остаются финальные checksums/runbooks и проверка на Galaxy S23+. Production signing, Google Play policy и публичное распространение model pack в этот review не входят.
+Synthetic scale/resource rehearsal и полная emulator matrix API 30–37, включая реальный 16K process на API 37, завершены отдельно в [resource-rehearsal-alpha.md](resource-rehearsal-alpha.md). Device-приёмка на Galaxy S23+ выполняется без копирования пользовательского содержимого: в журнал и Git допускаются только агрегированные readiness, PSS и thermal state. Google Play и связанные с ним политики в этот review не входят.

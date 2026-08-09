@@ -1,8 +1,8 @@
 # Известные ограничения personal alpha
 
-- Alpha предназначена для локальной проверки на ARM64 Android 11+; это не публичный релиз и не обещание совместимости с произвольным устройством.
-- Installable APK подписан Android debug certificate. Он non-debuggable и minified, но этот certificate нельзя использовать для Google Play или публичного распространения.
-- Численные latency, PSS, throughput, battery и thermal показатели пока подтверждены только host/emulator regression. Galaxy S23+ acceptance остаётся обязательной.
+- Personal alpha предназначена для ручной установки на ARM64 Android 11+. Основное целевое устройство — Samsung Galaxy S23+; совместимость с произвольной прошивкой пока не гарантируется.
+- APK non-debuggable, minified и подписан отдельным alpha release certificate. Обновление через `adb install -r` возможно только для APK с тем же сертификатом.
+- UI, возобновление индексации, ресурсные паузы и основные сценарии поиска проверены на Galaxy S23+. Полное время индексации и качество выдачи зависят от конкретной медиатеки и не заявляются как универсальный SLA.
 - Signed model pack `0.1.0-alpha.2` занимает около 967 МиБ; импорт требует временного staging, а полный индекс личной галереи дополнительно расходует app-private storage.
 - Индексация выполняется на CPU и намеренно приостанавливается при memory, thermal, battery, storage и Android execution constraints. Первая обработка большой библиотеки может занять несколько charging sessions.
 - Для первичной проверки можно выбрать нижнюю границу периода вместо всей медиатеки. Предварительный прогноз полного прогона линейно масштабирует активное время завершённой выборки; различия старых фотографий и thermal throttling делают его ориентиром, а не гарантией.
@@ -12,3 +12,4 @@
 - Приложение не содержит `INTERNET`, telemetry или automatic crash upload. Диагностика экспортируется пользователем вручную и остаётся агрегированной.
 - Model-pack update/rollback реализованы, но alpha включает один распространяемый pack. Production key rotation и Play Asset Delivery не настроены.
 - Database migrations fail closed; destructive fallback запрещён. Перед переходом между экспериментальными сборками следует сохранять точный APK/pack identity и соблюдать runbook.
+- Сборка не публикуется в Google Play. Model pack импортируется вручную через системный выбор файла.

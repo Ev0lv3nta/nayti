@@ -135,6 +135,7 @@ class OcrIndexingRuntime(
     suspend fun runAppForeground(pack: ModelPackEntity): Boolean {
         if (!hasAutoResumableOperation(pack) || !executionMutex.tryLock()) return false
         return try {
+            recoverInterruptedExecution()
             if (!hasAutoResumableOperation(pack)) return false
             runWindowsLocked(
                 pack = pack,
@@ -152,6 +153,7 @@ class OcrIndexingRuntime(
     suspend fun runForeground(pack: ModelPackEntity): Boolean {
         requestAppForegroundStop()
         return executionMutex.withLock {
+            recoverInterruptedExecution()
             resumeForExplicitStart(pack)
             runWindowsLocked(
                 pack = pack,
@@ -615,6 +617,18 @@ class OcrIndexingRuntime(
         )
     }
 
+    private suspend fun recoverInterruptedExecution() {
+        IndexStartupRecovery(
+            vectorRootDirectory = vectorRoot,
+            indexState = storage.indexStateDao,
+            vectorIndex = storage.vectorIndexDao,
+        ).recover(
+            nowMillis = System.currentTimeMillis(),
+            orphanGraceMillis = RecoveryOrphanGraceMillis,
+            deepVerifySegments = false,
+        )
+    }
+
     private suspend fun transitionConstraintAfterFailure() {
         runCatching {
             transitionCurrent(IndexOperationState.PAUSED_CONSTRAINT, autoResume = true)
@@ -806,6 +820,7 @@ class OcrIndexingRuntime(
         private const val ForegroundExecutionBudgetMillis = 5L * 60 * 60 * 1_000
         private const val ProfileId = "balanced-v1"
         private const val ExecutionWindowMillis = 10L * 60 * 1_000
+        private const val RecoveryOrphanGraceMillis = 24L * 60 * 60 * 1_000
         private val EmptyReport = IndexExecutionReport(0, 0, 0, 0, 0)
         private val TerminalStates =
             setOf(

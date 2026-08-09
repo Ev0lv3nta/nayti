@@ -17,6 +17,22 @@ updates:
       androidx:
         patterns:
           - "androidx.*"
+    ignore:
+      # Toolchain migrations are reviewed separately from a release train.
+      # Patch updates remain eligible for Dependabot PRs.
+      - dependency-name: gradle-wrapper
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-major
+      - dependency-name: "org.jetbrains.kotlin.*"
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-major
+      # The Maven coordinate must stay aligned with the reviewed reduced AAR.
+      - dependency-name: com.microsoft.onnxruntime:onnxruntime-android
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /

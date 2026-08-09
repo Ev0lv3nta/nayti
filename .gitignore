@@ -38,6 +38,7 @@ artifacts/
 *.aar
 
 # Credentials and local configuration
+.secrets/
 .env
 .env.*
 *.jks

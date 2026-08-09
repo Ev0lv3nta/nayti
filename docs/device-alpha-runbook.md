@@ -1,6 +1,8 @@
-# Установка и приёмка device alpha
+# Установка и приёмка personal alpha
 
-Этот runbook предназначен для личной проверки Nayti на Samsung Galaxy S23+. Сборка не публикуется в Google Play, не использует production certificate и не должна передаваться как публичный релиз.
+Этот runbook предназначен для ручной установки и проверки Nayti на ARM64 Android 11+, прежде всего Samsung Galaxy S23+. Сборка распространяется через GitHub Releases и не публикуется в Google Play.
+
+Release-процесс не собирает пользовательское содержимое. Не прикладывать к issue, pull request или release фотографии, скриншоты личной медиатеки, запросы, OCR, имена файлов, URI, MediaStore IDs, embeddings или raw diagnostics. Для отчёта достаточно агрегированных процентов, counts, PSS, thermal state и результата сценария.
 
 ## Перед началом
 
@@ -29,14 +31,15 @@ adb shell df -h /data
 shasum -a 256 -c SHA256SUMS
 ```
 
-`nayti-alpha-local-signed.apk` — minified, non-debuggable ARM64 build, подписанный стандартным Android debug certificate только для локальной установки. `nayti-release-unsigned.apk` является контрольным release artifact и через ADB не устанавливается.
+`nayti-0.1.0-alpha.1-arm64.apk` — minified, non-debuggable ARM64 build, подписанный отдельным alpha release certificate. Unsigned control APK используется только внутри release gate и публично не устанавливается.
 
 Для чистого первого прогона:
 
 ```bash
-adb uninstall app.nayti 2>/dev/null || true
-adb install nayti-alpha-local-signed.apk
+adb install nayti-0.1.0-alpha.1-arm64.apk
 ```
+
+Если на устройстве уже установлена developer-сборка с Android Debug certificate, поверх неё public-alpha APK не установится. Удаление `app.nayti` сотрёт private database, model pack и индекс, поэтому выполнять `adb uninstall` можно только после явного решения потерять эти данные.
 
 Model pack можно скопировать в Downloads и выбрать в системном SAF picker:
 
@@ -73,6 +76,6 @@ adb shell dumpsys activity services app.nayti
 
 Остановить индексацию и дать устройству остыть, если Android сообщает severe/critical thermal status, интерфейс перестаёт отвечать, PSS устойчиво превышает 1,2 ГиБ, свободное место падает ниже безопасного staging budget или система начинает убивать процесс. Эти события фиксируются как device evidence; лимиты runtime не обходятся принудительно.
 
-## Обновление локальной сборки
+## Обновление personal alpha
 
-Повторный `adb install -r` работает только пока APK подписан тем же локальным debug certificate. Если certificate изменился, Android потребует uninstall, что удалит private database, pack и index. Production/Play key не создаётся и не используется на этом этапе.
+Повторный `adb install -r` работает только для APK, подписанных тем же alpha release certificate. Keystore и пароль не входят в репозиторий или release bundle; потеря ключа сделает обновление существующей установки невозможным.

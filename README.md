@@ -2,7 +2,7 @@
 
 Nayti — Android-приложение для полностью локального поиска по фотогалерее. Оно объединяет распознанный текст, смысл документа, визуальное описание и поиск похожих изображений, не отправляя фотографии и поисковые запросы в сеть.
 
-Проект разрабатывается с нуля как самостоятельная greenfield-кодовая база. Основной пользовательский путь уже реализован; сейчас идёт pre-device hardening перед первой проверкой на Galaxy S23+. Публичной alpha-сборки пока нет, а показатели производительности не считаются подтверждёнными до измерений на реальном устройстве.
+Проект разрабатывается с нуля как самостоятельная greenfield-кодовая база. Основной пользовательский путь реализован и проверен на Samsung Galaxy S23+; сейчас готовится первая распространяемая personal alpha для ручной установки из GitHub Releases.
 
 ## Цели первой alpha
 
@@ -28,7 +28,9 @@ Nayti — Android-приложение для полностью локальн�
 
 ## Статус
 
-Реализованы MediaStore catalog, Selected Photos Access, подписанные model packs, возобновляемая индексация, OCR/FTS/USER2/SigLIP2/pHash retrieval, гибридное ранжирование и продуктовый Compose UI. Security review, synthetic resource rehearsal и полная эмуляторная матрица API 30–37 завершены; до personal alpha остаются финальный release-like комплект и приёмка на Galaxy S23+.
+Реализованы MediaStore catalog, Selected Photos Access, подписанные model packs, возобновляемая индексация, OCR/FTS/USER2/SigLIP2/pHash retrieval, гибридное ранжирование и продуктовый Compose UI. Security review, synthetic resource rehearsal, эмуляторная матрица API 30–37 и device-проверки на Galaxy S23+ завершены. Personal alpha готовится как отдельные APK и model pack с checksums, SBOM и notices.
+
+Ни фотографии, ни поисковые запросы, ни OCR, ни имена файлов не входят в репозиторий, CI-артефакты или release bundle. Device-приёмка фиксирует только агрегированные показатели и системные состояния.
 
 ## Локальная сборка
 
@@ -43,14 +45,20 @@ NAYTI_ORT_AAR="$runtime" ./scripts/check.sh
 
 Результаты масштабного прогона и способ воспроизвести API-матрицу описаны в [docs/resource-rehearsal-alpha.md](docs/resource-rehearsal-alpha.md).
 
-После зелёного check локальный device-alpha bundle собирается отдельно; signed model pack остаётся вне Git:
+После зелёного check public-alpha bundle собирается отдельно; signing key и signed model pack остаются вне Git:
 
 ```bash
+export NAYTI_RELEASE_KEYSTORE=/path/to/nayti-personal-alpha.p12
+export NAYTI_RELEASE_KEY_ALIAS=nayti-personal-alpha
+export NAYTI_RELEASE_STORE_PASSWORD='read-from-your-secret-store'
+export NAYTI_RELEASE_KEY_PASSWORD="$NAYTI_RELEASE_STORE_PASSWORD"
 NAYTI_MODEL_PACK=/path/to/nayti-offline-search-0.1.0-alpha.2.naytipack \
   ./scripts/assemble_alpha_bundle.sh
 ```
 
-Bundle содержит installable local-signed APK, контрольный unsigned APK, pack, checksums, SBOM/notices и [инструкцию приёмки](docs/device-alpha-runbook.md).
+Bundle содержит подписанный ARM64 APK, pack, checksums, SBOM/notices, release notes и [инструкцию установки и приёмки](docs/device-alpha-runbook.md). Для сборки требуются все переменные `NAYTI_RELEASE_*`; неполная signing-конфигурация завершает Gradle с ошибкой, а debug certificate запрещён release-скриптом.
+
+Правила хранения и резервного копирования ключа описаны в [docs/release-signing.md](docs/release-signing.md).
 
 ## Участие и безопасность
 

@@ -5,6 +5,23 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+val releaseKeystorePath = providers.environmentVariable("NAYTI_RELEASE_KEYSTORE").orNull
+val releaseKeyAlias = providers.environmentVariable("NAYTI_RELEASE_KEY_ALIAS").orNull
+val releaseStorePassword = providers.environmentVariable("NAYTI_RELEASE_STORE_PASSWORD").orNull
+val releaseKeyPassword = providers.environmentVariable("NAYTI_RELEASE_KEY_PASSWORD").orNull
+val releaseSigningValues =
+    listOf(
+        releaseKeystorePath,
+        releaseKeyAlias,
+        releaseStorePassword,
+        releaseKeyPassword,
+    )
+val releaseSigningConfigured = releaseSigningValues.all { value -> !value.isNullOrBlank() }
+
+if (releaseSigningValues.any { value -> !value.isNullOrBlank() } && !releaseSigningConfigured) {
+    throw GradleException("Release signing requires all NAYTI_RELEASE_* environment variables.")
+}
+
 android {
     namespace = "app.nayti"
     compileSdk { version = release(37) }
@@ -15,7 +32,7 @@ android {
         minSdk = 30
         targetSdk = 37
         versionCode = 1
-        versionName = "0.1.0-dev"
+        versionName = "0.1.0-alpha.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -31,6 +48,21 @@ android {
         buildConfig = true
     }
 
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            create("publicAlpha") {
+                storeFile = file(checkNotNull(releaseKeystorePath))
+                storePassword = checkNotNull(releaseStorePassword)
+                keyAlias = checkNotNull(releaseKeyAlias)
+                keyPassword = checkNotNull(releaseKeyPassword)
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
@@ -41,6 +73,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             ndk.abiFilters.add("arm64-v8a")
+            signingConfig = signingConfigs.findByName("publicAlpha")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

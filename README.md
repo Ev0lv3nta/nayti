@@ -2,7 +2,7 @@
 
 Nayti — Android-приложение для полностью локального поиска по фотогалерее. Оно объединяет распознанный текст, смысл документа, визуальное описание и поиск похожих изображений, не отправляя фотографии и поисковые запросы в сеть.
 
-Проект разрабатывается с нуля как самостоятельная greenfield-кодовая база. Основной пользовательский путь реализован и проверен на Samsung Galaxy S23+; сейчас готовится первая распространяемая personal alpha для ручной установки из GitHub Releases.
+Проект разрабатывается с нуля как самостоятельная greenfield-кодовая база. Основной пользовательский путь реализован и проверен на Samsung Galaxy S23+. Кандидат `0.1.0-alpha.1` собран как подписанные APK и model pack для ручной установки из GitHub Releases.
 
 ## Цели первой alpha
 
@@ -28,7 +28,7 @@ Nayti — Android-приложение для полностью локальн�
 
 ## Статус
 
-Реализованы MediaStore catalog, Selected Photos Access, подписанные model packs, возобновляемая индексация, OCR/FTS/USER2/SigLIP2/pHash retrieval, гибридное ранжирование и продуктовый Compose UI. Security review, synthetic resource rehearsal, эмуляторная матрица API 30–37 и device-проверки на Galaxy S23+ завершены. Personal alpha готовится как отдельные APK и model pack с checksums, SBOM и notices.
+Реализованы MediaStore catalog, Selected Photos Access, подписанные model packs, возобновляемая индексация, OCR/FTS/USER2/SigLIP2/pHash retrieval, гибридное ранжирование и продуктовый Compose UI. Security review, synthetic resource rehearsal, эмуляторная матрица API 30–37 и device-проверки на Galaxy S23+ завершены. Release candidate включает отдельные APK и model pack с checksums, SBOM и notices. Точный release-signed APK прошёл clean-install smoke на API 30; публикация alpha ожидает последнего clean-install smoke на физическом ARM64-устройстве.
 
 Ни фотографии, ни поисковые запросы, ни OCR, ни имена файлов не входят в репозиторий, CI-артефакты или release bundle. Device-приёмка фиксирует только агрегированные показатели и системные состояния.
 

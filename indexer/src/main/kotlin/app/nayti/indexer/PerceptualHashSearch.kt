@@ -9,6 +9,11 @@ import app.nayti.storage.CatalogDao
 import app.nayti.storage.IndexChannel
 import app.nayti.storage.VectorIndexDao
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 
 enum class PerceptualHashSearchStatus {
     READY,
@@ -37,6 +42,14 @@ class PerceptualHashSearch(
         sourceAssetId: Long,
         maximumDistance: Int = PerceptualHashV1.DefaultNearDuplicateDistance,
         limit: Int = PerceptualHashRanker.DefaultLimit,
+    ): PerceptualHashSearchResult = withContext(Dispatchers.Default) {
+        nearDuplicatesOnWorker(sourceAssetId, maximumDistance, limit)
+    }
+
+    private suspend fun nearDuplicatesOnWorker(
+        sourceAssetId: Long,
+        maximumDistance: Int,
+        limit: Int,
     ): PerceptualHashSearchResult {
         require(sourceAssetId > 0)
         if (catalog?.isAssetOutsideIndexingScope(sourceAssetId) == true) {
@@ -92,6 +105,7 @@ class PerceptualHashSearch(
                     emptyList(),
                 )
             } else {
+                currentCoroutineContext().ensureActive()
                 val records = scopedRows.map { PerceptualHashRecord(it.assetId, it.hashBits, it.publicationEpoch) }
                 PerceptualHashSearchResult(
                     status = PerceptualHashSearchStatus.READY,
@@ -106,11 +120,11 @@ class PerceptualHashSearch(
                             records = records,
                             maximumDistance = maximumDistance,
                             limit = limit,
-                        ),
+                        ).also { currentCoroutineContext().ensureActive() },
                 )
             }
         } finally {
-            vectors.releaseQueryLease(lease.leaseToken)
+            withContext(NonCancellable) { vectors.releaseQueryLease(lease.leaseToken) }
         }
     }
 

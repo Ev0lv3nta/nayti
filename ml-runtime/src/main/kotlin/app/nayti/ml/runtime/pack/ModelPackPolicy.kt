@@ -1,5 +1,7 @@
 package app.nayti.ml.runtime.pack
 
+import java.security.MessageDigest
+
 data class ModelPackPolicy(
     val appVersionCode: Long,
     val engineApi: Long,
@@ -10,12 +12,22 @@ data class ModelPackPolicy(
     val expectedRuntimeVersion: String = "1.27.0",
     val expectedExtensionsVersion: String = "0.15.0+fe4e13f",
 ) {
-    internal fun validate(manifest: ModelPackManifest) {
+    /** Same policy at signed import and when restoring an already verified private installation. */
+    fun validateManifest(raw: ByteArray) {
+        val manifest = ModelPackManifestParser.parse(raw)
+        val hash = MessageDigest.getInstance("SHA-256").digest(raw)
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        validate(manifest, hash)
+    }
+
+    internal fun validate(manifest: ModelPackManifest, manifestSha256: String? = null) {
         if (manifest.packId != expectedPackId) throw ModelPackException("Unexpected model pack ID")
         val compatibility = manifest.compatibility
         val minApp = compatibility.integer("minAppVersionCode")
         val maxApp = compatibility.integer("maxAppVersionCode")
-        if (appVersionCode !in minApp..maxApp) throw ModelPackException("Model pack is incompatible with this app")
+        if (appVersionCode !in minApp..maxApp &&
+            !ReviewedPackCompatibility.accepts(appVersionCode, manifestSha256)
+        ) throw ModelPackException("Model pack is incompatible with this app")
         if (compatibility.integer("engineApi") != engineApi) throw ModelPackException("Model pack engine API mismatch")
         if (androidApi < compatibility.integer("minAndroidApi")) throw ModelPackException("Android API is too old")
         val abis = compatibility.stringSet("abis")
@@ -102,6 +114,14 @@ data class ModelPackPolicy(
                 "eslav-recognizer" to "models/eslav_recognizer.ort",
             )
     }
+}
+
+/** Release-specific compatibility, never an open-ended engine-version fallback. */
+internal object ReviewedPackCompatibility {
+    const val Alpha2ManifestSha256 = "1f87cfe37659bee690441e464ae66415c1623e8ae751320a9483adc6aff79d83"
+
+    fun accepts(appVersionCode: Long, manifestSha256: String?): Boolean =
+        appVersionCode == 2L && manifestSha256 == Alpha2ManifestSha256
 }
 
 internal fun JsonValue.requireObject(description: String): JsonValue.ObjectValue =

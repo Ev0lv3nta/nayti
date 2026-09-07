@@ -127,7 +127,7 @@ class ModelPackInstaller(
             val manifest = ModelPackManifestParser.parse(manifestBytes)
             val trustedKey = trustedKeys[manifest.keyId] ?: throw ModelPackException("Model pack key is not trusted")
             ModelPackSignature.verify(trustedKey, manifestBytes, signature)
-            policy.validate(manifest)
+            policy.validateManifest(manifestBytes)
             val requiredFree = Math.addExact(manifest.totalPayloadBytes, minimumFreeBytesAfterInstall)
             if (storageBudget.allocatableBytes(staging) < requiredFree) {
                 throw ModelPackException("Insufficient private storage for model pack")

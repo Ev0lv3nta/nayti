@@ -138,6 +138,7 @@ object CatalogRuntimeModule {
         InstalledOcrPackResolver(
             storage.modelPackDao,
             context.noBackupFilesDir.toPath().resolve(StorageContract.ModelPackDirectory),
+            AndroidModelPackPolicy.current(BuildConfig.VERSION_CODE.toLong())::validateManifest,
         )
 
     @Provides

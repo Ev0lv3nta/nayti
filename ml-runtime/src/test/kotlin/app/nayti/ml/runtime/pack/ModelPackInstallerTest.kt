@@ -148,6 +148,23 @@ class ModelPackInstallerTest {
         assertEquals("1f87cfe37659bee690441e464ae66415c1623e8ae751320a9483adc6aff79d83", installed.manifestSha256)
         assertEquals(1_013_966_012L, installed.payloadBytes)
         assertTrue(Files.isRegularFile(installed.directory.resolve("payload/models/siglip2_image.ort")))
+        val upgraded = ModelPackInstaller(
+            root(), AlphaModelPackTrust.keys, policy().copy(appVersionCode = 2),
+            ModelPackStorageBudget { Long.MAX_VALUE }, ModelPackPayloadValidator {},
+            minimumFreeBytesAfterInstall = 0,
+        ).install(FileModelPackSource(java.nio.file.Path.of(rawPath)))
+        assertEquals("APK upgrade must reuse the exact immutable installation", installed, upgraded)
+        val manifest = Files.readAllBytes(installed.directory.resolve("manifest.json"))
+        policy().copy(appVersionCode = 2).validateManifest(manifest)
+        for (rejected in listOf(
+            policy().copy(appVersionCode = 3),
+            policy().copy(appVersionCode = 2, engineApi = 2),
+            policy().copy(appVersionCode = 2, supportedAbis = setOf("x86_64")),
+            policy().copy(appVersionCode = 2, pageSize = 65536),
+            policy().copy(appVersionCode = 2, expectedRuntimeVersion = "0.0.0"),
+        )) {
+            assertTrue(runCatching { rejected.validateManifest(manifest) }.exceptionOrNull() is ModelPackException)
+        }
     }
 
     private suspend fun assertInstallFails(installer: ModelPackInstaller, bytes: ByteArray, message: String) {

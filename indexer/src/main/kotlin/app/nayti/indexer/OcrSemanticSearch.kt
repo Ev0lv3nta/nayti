@@ -19,6 +19,9 @@ import java.util.PriorityQueue
 import java.util.UUID
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 enum class OcrSemanticSearchStatus {
@@ -82,7 +85,7 @@ class InstalledUser2QuerySessionFactory(
         check(actualEmbeddingSpace == contract.embeddingSpaceHash)
         val permit = neuralLane.acquire(NeuralExecutionPriority.INTERACTIVE_QUERY)
         return try {
-            val runtime = withContext(Dispatchers.Default) { User2OrtRuntime.open(pack.payloadDirectory) }
+            val runtime = transferResource(Dispatchers.Default) { User2OrtRuntime.open(pack.payloadDirectory) }
             User2QuerySession(runtime, actualEmbeddingSpace, permit)
         } catch (failure: Throwable) {
             permit.close()
@@ -147,7 +150,7 @@ class OcrSemanticSearch(
                 searchLeased(normalizedQuery, limit, lease, filter)
             }
         } finally {
-            vectors.releaseQueryLease(lease.leaseToken)
+            withContext(NonCancellable) { vectors.releaseQueryLease(lease.leaseToken) }
         }
     }
 
@@ -215,8 +218,10 @@ class OcrSemanticSearch(
                     session.dimension == generation.dimension,
             )
             val queryVector = session.encodeQuery(query)
+            currentCoroutineContext().ensureActive()
             check(queryVector.size == generation.dimension)
             artifacts.forEachIndexed { manifestOrdinal, artifact ->
+                currentCoroutineContext().ensureActive()
                 val now = clock()
                 if (now >= leaseExpiresAt - LeaseRenewalMarginMillis) {
                     leaseExpiresAt = Math.addExact(now, LeaseDurationMillis)

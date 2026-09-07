@@ -106,6 +106,8 @@ android {
         checkDependencies = true
         disable += setOf("AndroidGradlePluginVersion", "NewerVersionAvailable")
         warningsAsErrors = true
+        // New releases are reviewed through Dependabot; their publication must not break frozen builds.
+        informational += "GradleDependency"
     }
 }
 

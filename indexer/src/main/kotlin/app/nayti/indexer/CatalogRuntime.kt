@@ -184,19 +184,21 @@ class CatalogRuntime private constructor(
         }
 
     suspend fun decode(assetId: Long, accessPin: AccessRevision): DecodedMediaImage =
-        withContext(Dispatchers.IO) {
+        transferResource(Dispatchers.IO) {
             check(accessGate.isCurrent(accessPin)) { "Access revision is stale" }
             val asset = checkNotNull(storage.catalogDao.asset(assetId))
             check(asset.availability == CatalogAvailability.AVAILABLE) {
                 "Asset is not currently available"
             }
             val decoded = decoder.decode(MediaKey(asset.volumeName, asset.mediaStoreId))
-            val after = accessGate.refresh()
-            if (after != accessPin) {
+            try {
+                val after = accessGate.refresh()
+                check(after == accessPin) { "Access changed while decoding" }
+                decoded
+            } catch (failure: Throwable) {
                 decoded.close()
-                error("Access changed while decoding")
+                throw failure
             }
-            decoded
         }
 
     override fun close() {

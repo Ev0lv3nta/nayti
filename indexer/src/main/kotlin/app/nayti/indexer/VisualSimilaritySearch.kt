@@ -19,6 +19,9 @@ import java.util.PriorityQueue
 import java.util.UUID
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 enum class VisualSimilaritySearchStatus {
@@ -94,7 +97,7 @@ class VisualSimilaritySearch(
                 searchLeased(sourceAssetId, limit, lease, filter)
             }
         } finally {
-            vectors.releaseQueryLease(lease.leaseToken)
+            withContext(NonCancellable) { vectors.releaseQueryLease(lease.leaseToken) }
         }
     }
 
@@ -123,7 +126,7 @@ class VisualSimilaritySearch(
                 searchEncodedLeased(limit, lease, effectiveFilter, encoder)
             }
         } finally {
-            vectors.releaseQueryLease(lease.leaseToken)
+            withContext(NonCancellable) { vectors.releaseQueryLease(lease.leaseToken) }
         }
     }
 
@@ -261,6 +264,7 @@ class VisualSimilaritySearch(
         var leaseExpiresAt = initialLeaseExpiresAt
         val candidates = PriorityQueue(MaximumNativeCandidates, CandidateOrder.reversed())
         index.artifacts.forEachIndexed { manifestOrdinal, artifact ->
+            currentCoroutineContext().ensureActive()
             leaseExpiresAt = renewIfNeeded(lease, leaseExpiresAt)
             val eligible =
                 vectors.currentEligibleVisualRecordIds(

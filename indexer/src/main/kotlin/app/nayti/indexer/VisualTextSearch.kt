@@ -5,6 +5,8 @@ import app.nayti.ml.runtime.visual.Siglip2EmbeddingSpaceIdentity
 import app.nayti.ml.runtime.visual.Siglip2TextOrtRuntime
 import app.nayti.storage.QuerySnapshotLeaseEntity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 enum class VisualTextSearchStatus {
@@ -47,7 +49,7 @@ class InstalledSiglip2TextQuerySessionFactory(
         val permit = neuralLane.acquire(NeuralExecutionPriority.INTERACTIVE_QUERY)
         return try {
             val runtime =
-                withContext(Dispatchers.Default) {
+                transferResource(Dispatchers.Default) {
                     Siglip2TextOrtRuntime.open(pack.payloadDirectory)
                 }
             Siglip2TextQuerySession(runtime, actualEmbeddingSpace, permit)
@@ -96,6 +98,7 @@ class VisualTextSearch(
                             session.dimension == contract.dimension,
                     )
                     session.encodeQuery(normalizedQuery).also { vector ->
+                        currentCoroutineContext().ensureActive()
                         check(vector.size == contract.dimension)
                     }
                 }
@@ -119,6 +122,7 @@ class VisualTextSearch(
                             session.dimension == contract.dimension,
                     )
                     session.encodeQuery(normalizedQuery).also { vector ->
+                        currentCoroutineContext().ensureActive()
                         check(vector.size == contract.dimension)
                     }
                 }

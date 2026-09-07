@@ -277,6 +277,9 @@ class CatalogViewModel @Inject constructor(
     private val similarGeneration = AtomicLong(0)
     private val duplicateGeneration = AtomicLong(0)
     private var searchJob: Job? = null
+    private var viewerJob: Job? = null
+    private var similarJob: Job? = null
+    private var duplicateJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -530,6 +533,9 @@ class CatalogViewModel @Inject constructor(
     }
 
     private fun clearDerivedUiState() {
+        viewerJob?.cancel()
+        similarJob?.cancel()
+        duplicateJob?.cancel()
         searchJob?.cancel()
         searchJob = null
         searchGeneration.incrementAndGet()
@@ -543,10 +549,11 @@ class CatalogViewModel @Inject constructor(
     }
 
     fun openViewer(assetId: Long) {
+        viewerJob?.cancel()
         val accessPin = catalog.value.access
         val generation = viewerGeneration.incrementAndGet()
         replaceViewerState(ViewerUiState.Loading(assetId))
-        viewModelScope.launch {
+        viewerJob = viewModelScope.launch {
             val result =
                 try {
                     val evidence = libraryFeed.photoEvidence(assetId)
@@ -565,6 +572,8 @@ class CatalogViewModel @Inject constructor(
                                 ?.hit?.matchedRegionOrdinals.orEmpty().toSet()
                         ViewerUiState.Ready(evidence, image, matched)
                     }
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
                 } catch (_: MediaDecodeAccessException) {
                     ViewerUiState.Unavailable(assetId, ViewerUnavailableReason.AccessChanged)
                 } catch (_: MediaDecodeContentException) {
@@ -584,6 +593,7 @@ class CatalogViewModel @Inject constructor(
 
     fun closeViewer(assetId: Long) {
         if (mutableViewer.value.assetId == assetId) {
+            viewerJob?.cancel()
             viewerGeneration.incrementAndGet()
             replaceViewerState(ViewerUiState.Idle)
         }
@@ -602,11 +612,9 @@ class CatalogViewModel @Inject constructor(
     }
 
     private fun replaceViewerState(next: ViewerUiState) {
-        val previous = mutableViewer.value
         mutableViewer.value = next
-        if (previous !== next) {
-            (previous as? ViewerUiState.Ready)?.image?.close()
-        }
+        // Published bitmaps can still be referenced by Compose's previous frame.
+        // Let GC release them after the renderer drops its reference; only unpublished images recycle.
     }
 
     fun importModelPack(uri: Uri) {
@@ -695,9 +703,10 @@ class CatalogViewModel @Inject constructor(
     }
 
     fun findSimilar(sourceAssetId: Long) {
+        similarJob?.cancel()
         val generation = similarGeneration.incrementAndGet()
         mutableSimilar.value = SimilarUiState.Searching(sourceAssetId)
-        viewModelScope.launch {
+        similarJob = viewModelScope.launch {
             val result =
                 try {
                     val searchResult = visualSimilarity.searchSimilar(sourceAssetId)
@@ -705,6 +714,8 @@ class CatalogViewModel @Inject constructor(
                         libraryFeed.item(hit.assetId)?.let { asset -> SimilarResultItem(asset, hit) }
                     }
                     SimilarUiState.Ready(sourceAssetId, searchResult.status, hydrated)
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
                 } catch (failure: Exception) {
                     SimilarUiState.Failed(sourceAssetId, failure::class.java.simpleName.uppercase())
                 }
@@ -713,9 +724,10 @@ class CatalogViewModel @Inject constructor(
     }
 
     fun findDuplicates(sourceAssetId: Long) {
+        duplicateJob?.cancel()
         val generation = duplicateGeneration.incrementAndGet()
         mutableDuplicates.value = DuplicateUiState.Searching(sourceAssetId)
-        viewModelScope.launch {
+        duplicateJob = viewModelScope.launch {
             val result =
                 try {
                     val searchResult = perceptualHashes.nearDuplicates(sourceAssetId)
@@ -723,6 +735,8 @@ class CatalogViewModel @Inject constructor(
                         libraryFeed.item(match.assetId)?.let { asset -> DuplicateResultItem(asset, match) }
                     }
                     DuplicateUiState.Ready(sourceAssetId, searchResult.status, hydrated)
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
                 } catch (failure: Exception) {
                     DuplicateUiState.Failed(sourceAssetId, failure::class.java.simpleName.uppercase())
                 }

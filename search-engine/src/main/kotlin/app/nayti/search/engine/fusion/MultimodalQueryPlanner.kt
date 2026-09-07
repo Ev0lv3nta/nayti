@@ -14,10 +14,9 @@ enum class MultimodalQueryIntent {
 
 data class MultimodalQueryPlan(
     val intent: MultimodalQueryIntent,
-    val usesVisualRetriever: Boolean,
 )
 
-/** Conservative deterministic routing; uncertain ordinary language searches both semantic spaces. */
+/** Deterministic ranking intent. Retriever selection is resolved at the unified search boundary. */
 class MultimodalQueryPlanner(
     private val lexical: LexicalQueryPlanner = LexicalQueryPlanner(),
 ) {
@@ -31,15 +30,7 @@ class MultimodalQueryPlanner(
                 LexicalIntent.PERSON_NAME -> classifyNameCandidate(lexicalPlan.canonicalTerms)
                 LexicalIntent.ORDINARY_TEXT -> classifyOrdinary(lexicalPlan.canonicalTerms)
             }
-        return MultimodalQueryPlan(
-            intent = intent,
-            usesVisualRetriever =
-                intent in setOf(
-                    MultimodalQueryIntent.TEXT_CONCEPT,
-                    MultimodalQueryIntent.VISUAL_SCENE,
-                    MultimodalQueryIntent.BROAD_HYBRID,
-                ),
-        )
+        return MultimodalQueryPlan(intent)
     }
 
     private fun classifyOrdinary(terms: List<String>): MultimodalQueryIntent {

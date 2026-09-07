@@ -87,6 +87,7 @@ class UnifiedSearch(
     ): UnifiedSearchResult {
         require(limit in 1..MaximumResultLimit)
         val plan = planner.plan(query)
+        val effectiveChannels = resolveUnifiedSearchChannels(plan.intent, channels)
         var consistencyFailure: QueryConsistencyChangedException? = null
         repeat(MaximumConsistencyAttempts) {
             currentCoroutineContext().ensureActive()
@@ -107,10 +108,9 @@ class UnifiedSearch(
                         fallbackComponentHash,
                         limit,
                         plan.intent,
-                        plan.usesVisualRetriever,
                         effectiveFilter,
                         scope?.revision,
-                        channels,
+                        effectiveChannels,
                     )
                 } catch (failure: QueryConsistencyChangedException) {
                     consistencyFailure = failure
@@ -123,11 +123,10 @@ class UnifiedSearch(
                     pipelineVersion,
                     limit,
                     plan.intent,
-                    plan.usesVisualRetriever,
                     lease,
                     effectiveFilter,
                     scope?.revision,
-                    channels,
+                    effectiveChannels,
                 )
             } catch (failure: QueryConsistencyChangedException) {
                 consistencyFailure = failure
@@ -143,14 +142,13 @@ class UnifiedSearch(
         pipelineVersion: String,
         limit: Int,
         intent: MultimodalQueryIntent,
-        usesVisualRetriever: Boolean,
         lease: QuerySnapshotLeaseEntity,
         filter: SearchFilter,
         scopeRevision: Long?,
-        channels: SearchChannelSelection?,
+        channels: SearchChannelSelection,
     ): UnifiedSearchResult {
         val textResult =
-            if (channels?.usesText != false) {
+            if (channels.usesText) {
                 text.searchLeased(
                     query = query,
                     pipelineVersion = pipelineVersion,
@@ -164,7 +162,7 @@ class UnifiedSearch(
             }
         currentCoroutineContext().ensureActive()
         val visualResult =
-            if (channels?.visual ?: usesVisualRetriever) {
+            if (channels.visual) {
                 visual.searchLeased(query, MaximumRetrieverCandidates, lease, filter)
             } else {
                 null
@@ -179,20 +177,19 @@ class UnifiedSearch(
         if (scopeRevision != null && catalog?.currentIndexingScope()?.revision != scopeRevision) {
             throw QueryConsistencyChangedException()
         }
-        val effectiveChannels = channels ?: automaticChannels(textResult, visualResult)
 
         return fuse(
             intent = intent,
             snapshotId = lease.snapshotId,
             accessRevision = lease.accessRevision,
             semanticGenerationId =
-                if (effectiveChannels.ocrSemantic) {
+                if (channels.ocrSemantic) {
                     vectors.snapshotChannel(lease.snapshotId, IndexChannel.OCR_SEMANTIC)?.generationId
                 } else {
                     null
                 },
             visualGenerationId =
-                if (effectiveChannels.visual) {
+                if (channels.visual) {
                     vectors.snapshotChannel(lease.snapshotId, IndexChannel.VISUAL)?.generationId
                 } else {
                     null
@@ -200,7 +197,7 @@ class UnifiedSearch(
             textResult = textResult,
             visualResult = visualResult,
             limit = limit,
-            channels = effectiveChannels,
+            channels = channels,
         )
     }
 
@@ -210,14 +207,13 @@ class UnifiedSearch(
         fallbackComponentHash: String,
         limit: Int,
         intent: MultimodalQueryIntent,
-        usesVisualRetriever: Boolean,
         filter: SearchFilter,
         scopeRevision: Long?,
-        channels: SearchChannelSelection?,
+        channels: SearchChannelSelection,
     ): UnifiedSearchResult {
         val before = captureState(scopeRevision)
         val textResult =
-            if (channels?.usesText != false) {
+            if (channels.usesText) {
                 text.search(
                     query,
                     pipelineVersion,
@@ -230,14 +226,13 @@ class UnifiedSearch(
                 null
             }
         val visualResult =
-            if (channels?.visual ?: usesVisualRetriever) {
+            if (channels.visual) {
                 visual.search(query, MaximumRetrieverCandidates, filter)
             } else {
                 null
             }
         val after = captureState(scopeRevision)
         if (before != after) throw QueryConsistencyChangedException()
-        val effectiveChannels = channels ?: automaticChannels(textResult, visualResult)
         return fuse(
             intent,
             before.snapshotId,
@@ -247,7 +242,7 @@ class UnifiedSearch(
             textResult,
             visualResult,
             limit,
-            effectiveChannels,
+            channels,
         )
     }
 
@@ -325,19 +320,6 @@ class UnifiedSearch(
             scopeRevision = actualScopeRevision,
         )
     }
-
-    private fun automaticChannels(
-        textResult: OcrHybridSearchResult?,
-        visualResult: VisualTextSearchResult?,
-    ): SearchChannelSelection =
-        SearchChannelSelection(
-            ocrLiteral = textResult != null,
-            ocrSemantic =
-                textResult?.semanticStatus?.let { status ->
-                    status != OcrSemanticSearchStatus.NOT_REQUESTED
-                } ?: false,
-            visual = visualResult != null,
-        )
 
     private fun TextFusionReason.toUnifiedReason(): UnifiedSearchReason =
         UnifiedSearchReason.valueOf(name)

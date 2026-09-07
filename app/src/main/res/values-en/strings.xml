@@ -210,6 +210,7 @@
     <string name="search_surface_empty_title">Nothing found among the photos prepared so far</string>
     <string name="search_surface_empty_body">This does not mean the photo is absent from the whole library; coverage for each method is shown above.</string>
     <string name="search_surface_coverage">Searched: %1$s</string>
+    <string name="search_exact_routing_note">Identifiers and quoted phrases use exact text matching. Meaning and scene search are not used for this query.</string>
     <plurals name="search_surface_coverage_channel">
         <item quantity="one">%1$s — %2$d photo</item>
         <item quantity="other">%1$s — %2$d photos</item>

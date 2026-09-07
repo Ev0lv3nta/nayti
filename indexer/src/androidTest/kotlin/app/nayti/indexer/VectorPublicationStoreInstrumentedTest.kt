@@ -1380,6 +1380,19 @@ class VectorPublicationStoreInstrumentedTest {
         assertTrue(identifier.hits.isEmpty())
         assertEquals(1, visualSessionsOpened)
 
+        // The UI sends All; it must have the same exact-query contract as an omitted selection.
+        val uiIdentifier = unified.search(
+            query = "№ АБ-123/45",
+            pipelineVersion = "visual-v1",
+            fallbackComponentHash = ComponentHash,
+            channels = SearchChannelSelection.All,
+        )
+        assertEquals(identifier.hits, uiIdentifier.hits)
+        assertEquals(identifier.channels, uiIdentifier.channels)
+        assertEquals(OcrSemanticSearchStatus.NOT_REQUESTED, uiIdentifier.semanticStatus)
+        assertNull(uiIdentifier.visualStatus)
+        assertEquals(1, visualSessionsOpened)
+
         val explicitVisual =
             unified.search(
                 query = "№ АБ-123/45",

@@ -139,6 +139,7 @@ sealed interface SearchUiState {
         val channels: SearchChannelSelection,
         val semanticStatus: OcrSemanticSearchStatus,
         val visualStatus: VisualTextSearchStatus?,
+        val executedChannels: SearchChannelSelection = channels,
     ) : SearchUiState
 
     data class Failed(val code: String) : SearchUiState
@@ -282,8 +283,9 @@ class CatalogViewModel @Inject constructor(
             }
             check(catalog.value.access == accessPin) { "Search access changed during hydration" }
             SearchUiState.Ready(
-                request.query, request.filter, hydrated, result.channels,
+                request.query, request.filter, hydrated, request.channels,
                 result.semanticStatus, result.visualStatus,
+                executedChannels = result.channels,
             )
         }
     }

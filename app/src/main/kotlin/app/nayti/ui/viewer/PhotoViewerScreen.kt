@@ -35,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,6 +49,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -87,8 +91,11 @@ import app.nayti.ui.designsystem.theme.NaytiTheme
 import java.text.DateFormat
 import java.util.Date
 import kotlin.math.max
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 private enum class ViewerSheet {
+    Actions,
     Similar,
     Duplicates,
     MatchDetails,
@@ -116,6 +123,8 @@ fun PhotoViewerScreen(
     var sheet by rememberSaveable { mutableStateOf<ViewerSheet?>(null) }
     var chromeVisible by rememberSaveable(assetId) { mutableStateOf(true) }
     var showText by rememberSaveable(assetId) { mutableStateOf(false) }
+    val context = LocalContext.current
+    val actionScope = rememberCoroutineScope()
 
     LaunchedEffect(assetId, accessRevision) {
         sheet = null
@@ -171,6 +180,7 @@ fun PhotoViewerScreen(
                             onOpenAsset = onOpenAsset,
                             onToggleText = { showText = !showText },
                             onShowDetails = { sheet = ViewerSheet.MatchDetails },
+                            onShowActions = { sheet = ViewerSheet.Actions },
                             onShowSimilar = {
                                 sheet = ViewerSheet.Similar
                                 onFindSimilar()
@@ -201,6 +211,40 @@ fun PhotoViewerScreen(
     }
 
     when (sheet) {
+        ViewerSheet.Actions -> ModalBottomSheet(
+            onDismissRequest = { sheet = null },
+            containerColor = Color.Transparent,
+            dragHandle = null,
+        ) {
+            KromkaSheetSurface {
+                Column(Modifier.fillMaxWidth().padding(NaytiSpacing.Screen)) {
+                    Text(stringResource(R.string.viewer_original_actions), style = NaytiTheme.type.titleM)
+                    for (share in listOf(true, false)) {
+                        androidx.compose.material3.TextButton(
+                            onClick = {
+                                val item = (visibleState as? ViewerUiState.Ready)?.evidence?.item
+                                sheet = null
+                                if (item != null) actionScope.launch {
+                                    try {
+                                        openOriginalPhoto(context, item, share)
+                                    } catch (cancellation: CancellationException) {
+                                        throw cancellation
+                                    } catch (_: Exception) {
+                                        android.widget.Toast.makeText(
+                                            context, R.string.viewer_original_unavailable,
+                                            android.widget.Toast.LENGTH_LONG,
+                                        ).show()
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        ) {
+                            Text(stringResource(if (share) R.string.viewer_share_original else R.string.viewer_open_original))
+                        }
+                    }
+                }
+            }
+        }
         ViewerSheet.Similar ->
             ModalBottomSheet(
                 onDismissRequest = { sheet = null },
@@ -278,26 +322,44 @@ private fun ViewerPhoto(
     var offsetX by remember(state.evidence.item.assetId) { mutableFloatStateOf(0f) }
     var offsetY by remember(state.evidence.item.assetId) { mutableFloatStateOf(0f) }
     var swipeDistance by remember(state.evidence.item.assetId) { mutableFloatStateOf(0f) }
+    var viewport by remember { mutableStateOf(IntSize.Zero) }
+    fun applyPan(x: Float, y: Float, zoom: Float) {
+        val bounded = boundedViewerPan(
+            x, y, zoom, viewport.width, viewport.height,
+            state.image.decodedWidth, state.image.decodedHeight,
+        )
+        offsetX = bounded.x
+        offsetY = bounded.y
+        scale = zoom
+    }
     val density = LocalDensity.current
     val swipeThreshold = with(density) { 72.dp.toPx() }
     val transformState =
         rememberTransformableState { _, zoomChange, panChange, _ ->
             val nextScale = (scale * zoomChange).coerceIn(1f, 5f)
-            if (nextScale == 1f) {
-                offsetX = 0f
-                offsetY = 0f
-            } else {
-                offsetX += panChange.x
-                offsetY += panChange.y
-            }
-            scale = nextScale
+            applyPan(offsetX + panChange.x, offsetY + panChange.y, nextScale)
         }
 
     Box(
         modifier = modifier
             .clipToBounds()
+            .onSizeChanged { viewport = it; applyPan(offsetX, offsetY, scale) }
             .pointerInput(state.evidence.item.assetId) {
-                detectTapGestures(onTap = { onToggleChrome() })
+                detectTapGestures(
+                    onTap = { onToggleChrome() },
+                    onDoubleTap = { position ->
+                        if (scale > 1f) {
+                            applyPan(0f, 0f, 1f)
+                        } else {
+                            val zoom = 2.5f
+                            applyPan(
+                                (viewport.width / 2f - position.x) * (zoom - 1f),
+                                (viewport.height / 2f - position.y) * (zoom - 1f),
+                                zoom,
+                            )
+                        }
+                    },
+                )
             }
             .pointerInput(scale, previousAssetId, nextAssetId) {
                 if (scale <= 1.01f) {
@@ -362,6 +424,7 @@ private fun ViewerChrome(
     onOpenAsset: (Long) -> Unit,
     onToggleText: () -> Unit,
     onShowDetails: () -> Unit,
+    onShowActions: () -> Unit,
     onShowSimilar: () -> Unit,
     onShowDuplicates: () -> Unit,
 ) {
@@ -396,6 +459,11 @@ private fun ViewerChrome(
                 }
             }
             Spacer(Modifier.weight(1f))
+            ViewerChromeButton(
+                icon = NaytiIcon.Export,
+                label = stringResource(R.string.viewer_original_actions),
+                onClick = onShowActions,
+            )
             ViewerChromeButton(
                 icon = NaytiIcon.Text,
                 label =

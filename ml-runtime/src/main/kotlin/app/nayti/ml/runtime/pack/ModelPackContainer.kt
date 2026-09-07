@@ -10,6 +10,8 @@ import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 fun interface ModelPackSource {
@@ -38,6 +40,8 @@ class ModelPackInstaller(
 ) : ModelPackCandidateInstaller {
     override suspend fun install(source: ModelPackSource): VerifiedModelPack =
         withContext(Dispatchers.IO) {
+            val coroutineContext = currentCoroutineContext()
+            val checkpoint = { coroutineContext.ensureActive() }
             Files.createDirectories(root)
             if (Files.isSymbolicLink(root) || !Files.isDirectory(root)) {
                 throw ModelPackException("Model pack root is not a private directory")
@@ -47,11 +51,13 @@ class ModelPackInstaller(
             val incoming = root.resolve(".incoming-$token.naytipack")
             val staging = root.resolve(".staging-$token")
             try {
-                copyBounded(source, incoming)
-                val staged = verifyAndExtract(incoming, staging)
+                copyBounded(source, incoming, checkpoint)
+                val staged = verifyAndExtract(incoming, staging, checkpoint)
+                checkpoint()
                 payloadValidator.validate(staged.validationCandidate(staging))
-                verifyPayload(staging.resolve("payload"), staged.manifest)
-                publish(staged, staging)
+                checkpoint()
+                verifyPayload(staging.resolve("payload"), staged.manifest, checkpoint)
+                publish(staged, staging, checkpoint)
             } finally {
                 Files.deleteIfExists(incoming)
                 if (Files.exists(staging)) deleteTree(staging)
@@ -71,7 +77,7 @@ class ModelPackInstaller(
             }
         }
 
-    private fun copyBounded(source: ModelPackSource, destination: Path) {
+    private fun copyBounded(source: ModelPackSource, destination: Path, checkpoint: () -> Unit) {
         val maximumContainerBytes =
             ModelPackManifestParser.MaxTotalPayloadBytes +
                 ModelPackManifestParser.MaxManifestBytes +
@@ -81,6 +87,10 @@ class ModelPackInstaller(
             FileOutputStream(destination.toFile()).use { output ->
                 val buffer = ByteArray(CopyBufferBytes)
                 while (true) {
+                    checkpoint()
+                    if (copied % (64L * 1024 * 1024) < CopyBufferBytes &&
+                        storageBudget.allocatableBytes(destination.parent) < minimumFreeBytesAfterInstall
+                    ) throw ModelPackException("Insufficient private storage for model pack")
                     val count = input.read(buffer)
                     if (count == -1) break
                     if (count == 0) continue
@@ -93,7 +103,7 @@ class ModelPackInstaller(
         }
     }
 
-    private fun verifyAndExtract(container: Path, staging: Path): StagedPack {
+    private fun verifyAndExtract(container: Path, staging: Path, checkpoint: () -> Unit): StagedPack {
         if (Files.isSymbolicLink(container) || !Files.isRegularFile(container)) {
             throw ModelPackException("Model pack container is not a regular file")
         }
@@ -123,7 +133,7 @@ class ModelPackInstaller(
                 throw ModelPackException("Insufficient private storage for model pack")
             }
 
-            manifest.files.forEach { descriptor -> extractFile(input, payloadRoot, descriptor) }
+            manifest.files.forEach { descriptor -> extractFile(input, payloadRoot, descriptor, checkpoint) }
             if (input.read() != -1) throw ModelPackException("Model pack contains trailing payload")
             writeSynced(staging.resolve("manifest.json"), manifestBytes)
             writeSynced(staging.resolve("signature.ed25519"), signature)
@@ -132,7 +142,7 @@ class ModelPackInstaller(
         }
     }
 
-    private fun extractFile(input: DataInputStream, payloadRoot: Path, descriptor: ModelPackFile) {
+    private fun extractFile(input: DataInputStream, payloadRoot: Path, descriptor: ModelPackFile, checkpoint: () -> Unit) {
         val destination = payloadRoot.resolve(descriptor.path).normalize()
         if (!destination.startsWith(payloadRoot)) throw ModelPackException("Payload path escapes staging")
         Files.createDirectories(destination.parent)
@@ -142,6 +152,7 @@ class ModelPackInstaller(
         FileOutputStream(destination.toFile()).use { output ->
             val buffer = ByteArray(CopyBufferBytes)
             while (remaining > 0) {
+                checkpoint()
                 val count = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
                 if (count < 0) throw ModelPackException("Truncated payload: ${descriptor.path}")
                 if (count == 0) continue
@@ -156,7 +167,8 @@ class ModelPackInstaller(
         }
     }
 
-    private fun publish(staged: StagedPack, staging: Path): VerifiedModelPack {
+    private fun publish(staged: StagedPack, staging: Path, checkpoint: () -> Unit): VerifiedModelPack {
+        checkpoint()
         val directoryName = "${staged.manifest.packVersion}-${staged.manifestSha256.take(16)}"
         val packRoot = root.resolve(staged.manifest.packId)
         Files.createDirectories(packRoot)
@@ -166,7 +178,7 @@ class ModelPackInstaller(
             if (!Files.isRegularFile(existingManifest) || sha256(existingManifest) != staged.manifestSha256) {
                 throw ModelPackException("Installed candidate path collision")
             }
-            verifyPayload(destination.resolve("payload"), staged.manifest)
+            verifyPayload(destination.resolve("payload"), staged.manifest, checkpoint)
             deleteTree(staging)
         } else {
             try {
@@ -185,13 +197,14 @@ class ModelPackInstaller(
         )
     }
 
-    private fun verifyPayload(payloadRoot: Path, manifest: ModelPackManifest) {
+    private fun verifyPayload(payloadRoot: Path, manifest: ModelPackManifest, checkpoint: () -> Unit) {
         manifest.files.forEach { descriptor ->
+            checkpoint()
             val file = payloadRoot.resolve(descriptor.path).normalize()
             if (!file.startsWith(payloadRoot) || Files.isSymbolicLink(file) || !Files.isRegularFile(file)) {
                 throw ModelPackException("Installed candidate payload is missing: ${descriptor.path}")
             }
-            if (Files.size(file) != descriptor.length || sha256(file) != descriptor.sha256) {
+            if (Files.size(file) != descriptor.length || sha256(file, checkpoint) != descriptor.sha256) {
                 throw ModelPackException("Installed candidate payload is corrupt: ${descriptor.path}")
             }
         }
@@ -234,11 +247,12 @@ private fun writeSynced(path: Path, bytes: ByteArray) {
     }
 }
 
-private fun sha256(path: Path): String {
+private fun sha256(path: Path, checkpoint: () -> Unit = {}): String {
     val digest = MessageDigest.getInstance("SHA-256")
     Files.newInputStream(path).use { input ->
         val buffer = ByteArray(1024 * 1024)
         while (true) {
+            checkpoint()
             val count = input.read(buffer)
             if (count == -1) break
             if (count > 0) digest.update(buffer, 0, count)

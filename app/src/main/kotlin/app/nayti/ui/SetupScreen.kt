@@ -191,6 +191,15 @@ internal fun SetupScreen(
                 )
             }
         }
+        if (modelPack.status == ModelPackRuntimeStatus.Installing) {
+            androidx.compose.material3.TextButton(
+                onClick = onImportModelPack,
+                enabled = !modelPack.cancelRequested,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(if (modelPack.cancelRequested) R.string.pack_import_cancelling else R.string.pack_import_cancel))
+            }
+        }
         SetupActions(
             action = action,
             onImportModelPack = onImportModelPack,

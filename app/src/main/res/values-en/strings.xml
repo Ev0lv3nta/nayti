@@ -1,4 +1,6 @@
 <resources>
+    <string name="pack_import_cancel">Cancel model installation</string>
+    <string name="pack_import_cancelling">Cancelling installation…</string>
     <string name="viewer_original_actions">Original photo actions</string>
     <string name="viewer_share_original">Share photo</string>
     <string name="viewer_open_original">Open in another app</string>

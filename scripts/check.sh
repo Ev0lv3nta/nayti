@@ -17,6 +17,9 @@ fi
   :app:assembleBenchmark \
   :app:assembleRelease \
   :benchmark:assemble \
+  :app:assembleDebugAndroidTest \
+  :indexer:assembleDebugAndroidTest \
+  :platform-media:assembleDebugAndroidTest \
   :ml-runtime:assembleDebugAndroidTest \
   :search-engine:assembleDebugAndroidTest \
   :storage:assembleDebugAndroidTest \

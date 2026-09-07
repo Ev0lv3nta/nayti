@@ -101,6 +101,7 @@ for avd in "${avds[@]}"; do
     :app:connectedDebugAndroidTest \
     :indexer:connectedDebugAndroidTest \
     :ml-runtime:connectedDebugAndroidTest \
+    :platform-media:connectedDebugAndroidTest \
     :search-engine:connectedDebugAndroidTest \
     :storage:connectedDebugAndroidTest \
     --no-daemon \

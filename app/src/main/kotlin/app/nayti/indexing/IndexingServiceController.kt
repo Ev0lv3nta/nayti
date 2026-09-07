@@ -12,6 +12,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+enum class IndexingStartResult {
+    Started, PhotoAccessRequired, ModelPackRequired, CatalogBusy, AppNotVisible, SystemRejected,
+}
+
 @Singleton
 class IndexingServiceController @Inject constructor(
     @param:ApplicationContext private val context: Context,
@@ -25,13 +29,15 @@ class IndexingServiceController @Inject constructor(
     val startAllowed: Boolean
         get() = appIsVisible
 
-    fun start(): Boolean {
-        if (!startAllowed) return false
+    fun start(): IndexingStartResult {
+        if (!startAllowed) return IndexingStartResult.AppNotVisible
         return try {
             dispatch(IndexingForegroundService.ActionStart)
-            true
+            IndexingStartResult.Started
         } catch (_: IllegalStateException) {
-            false
+            IndexingStartResult.SystemRejected
+        } catch (_: SecurityException) {
+            IndexingStartResult.SystemRejected
         }
     }
 

@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.nayti.indexing.IndexingServiceController
+import app.nayti.indexing.IndexingStartResult
 import app.nayti.BuildConfig
 import app.nayti.indexer.CatalogRuntime
 import app.nayti.indexer.CatalogRuntimeState
@@ -644,8 +645,12 @@ class CatalogViewModel @Inject constructor(
         modelPacks.install(SafModelPackSource(context.contentResolver, uri))
     }
 
-    fun startIndexing(): Boolean {
-        if (!indexingService.notificationsGranted) return false
+    fun startIndexing(): IndexingStartResult {
+        if (catalog.value.access.permission.scope == app.nayti.platform.media.MediaAccessScope.None) {
+            return IndexingStartResult.PhotoAccessRequired
+        }
+        if (modelPack.value.installed == null) return IndexingStartResult.ModelPackRequired
+        if (catalog.value.status != CatalogRuntimeStatus.Ready) return IndexingStartResult.CatalogBusy
         return indexingService.start()
     }
 

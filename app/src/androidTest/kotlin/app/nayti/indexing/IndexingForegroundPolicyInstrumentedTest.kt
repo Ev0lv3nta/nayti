@@ -119,7 +119,7 @@ class IndexingForegroundPolicyInstrumentedTest {
                 "process did not leave its user-visible state",
                 awaitCondition(ProcessBackgroundDeadlineMillis) { !controller.startAllowed },
             )
-            assertFalse(controller.start())
+            org.junit.Assert.assertEquals(IndexingStartResult.AppNotVisible, controller.start())
             assertTrue(
                 notifications.activeNotifications.none { status ->
                     status.notification.channelId == NotificationChannelId

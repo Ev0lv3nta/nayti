@@ -202,6 +202,23 @@ class OcrIndexingRuntime(
         transitionAndPublish(IndexOperationState.WAITING_SYSTEM, autoResume = true)
     }
 
+    /** The service timeout callback must never wait for the DB or in-flight native work. */
+    fun requestSystemStop() {
+        requestStop()
+        val operationId = currentOperationId.get() ?: mutableState.value.operationId ?: return
+        scope.launch {
+            executionMutex.withLock {
+                val operation = storage.indexStateDao.operation(operationId) ?: return@withLock
+                if (operation.state in setOf(IndexOperationState.RUNNING, IndexOperationState.PLANNED)) {
+                    storage.indexStateDao.transitionOperation(
+                        operationId, IndexOperationState.WAITING_SYSTEM,
+                        autoResume = true, nowMillis = System.currentTimeMillis(),
+                    )
+                }
+            }
+        }
+    }
+
     fun requestAppForegroundStop() {
         if (activeHostType.get() == OcrExecutionHost.AppForeground) requestStop()
     }

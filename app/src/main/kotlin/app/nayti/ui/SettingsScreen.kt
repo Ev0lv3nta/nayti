@@ -828,22 +828,14 @@ private fun searchComponentsDescription(state: ModelPackRuntimeState): String =
         ModelPackRuntimeStatus.Missing ->
             stringResource(R.string.settings_search_components_missing)
         ModelPackRuntimeStatus.Installing ->
-            stringResource(R.string.settings_search_components_installing)
+            modelPackImportMessage(state)
         ModelPackRuntimeStatus.Ready ->
             stringResource(
                 R.string.settings_search_components_ready,
                 state.installed?.packVersion.orEmpty(),
                 (state.installed?.payloadBytes ?: 0) / (1024 * 1024),
             )
-        ModelPackRuntimeStatus.Failed ->
-            if (state.installed == null) {
-                stringResource(R.string.settings_search_components_failed)
-            } else {
-                stringResource(
-                    R.string.settings_search_components_failed_previous,
-                    state.installed?.packVersion.orEmpty(),
-                )
-            }
+        ModelPackRuntimeStatus.Failed -> modelPackFailureMessage(state)
     }
 
 @Composable

@@ -27,23 +27,23 @@ data class ModelPackPolicy(
         val maxApp = compatibility.integer("maxAppVersionCode")
         if (appVersionCode !in minApp..maxApp &&
             !ReviewedPackCompatibility.accepts(appVersionCode, manifestSha256)
-        ) throw ModelPackException("Model pack is incompatible with this app")
-        if (compatibility.integer("engineApi") != engineApi) throw ModelPackException("Model pack engine API mismatch")
-        if (androidApi < compatibility.integer("minAndroidApi")) throw ModelPackException("Android API is too old")
+        ) incompatible("Model pack is incompatible with this app")
+        if (compatibility.integer("engineApi") != engineApi) incompatible("Model pack engine API mismatch")
+        if (androidApi < compatibility.integer("minAndroidApi")) incompatible("Android API is too old")
         val abis = compatibility.stringSet("abis")
-        if (supportedAbis.intersect(abis).isEmpty()) throw ModelPackException("Model pack ABI mismatch")
+        if (supportedAbis.intersect(abis).isEmpty()) incompatible("Model pack ABI mismatch")
         val pageSizes = compatibility.integerSet("pageSizes")
-        if (pageSize !in pageSizes) throw ModelPackException("Model pack page-size mismatch")
+        if (pageSize !in pageSizes) incompatible("Model pack page-size mismatch")
 
         val runtime = manifest.runtime
         if (runtime.string("format") != "ORT" || runtime.string("executionProvider") != "CPU") {
-            throw ModelPackException("Unsupported model runtime")
+            incompatible("Unsupported model runtime")
         }
         if (runtime.string("onnxRuntime") != expectedRuntimeVersion) {
-            throw ModelPackException("ONNX Runtime version mismatch")
+            incompatible("ONNX Runtime version mismatch")
         }
         if (runtime.string("onnxRuntimeExtensions") != expectedExtensionsVersion) {
-            throw ModelPackException("ONNX Runtime Extensions version mismatch")
+            incompatible("ONNX Runtime Extensions version mismatch")
         }
         if (runtime.string("targetPlatform") != "arm") throw ModelPackException("Unexpected model target platform")
         if (runtime.string("operatorConfigPath") != RequiredOperatorConfig) {
@@ -98,6 +98,9 @@ data class ModelPackPolicy(
         val containsUserData = manifest.provenance.entries["containsUserData"] as? JsonValue.BooleanValue
         if (containsUserData?.value != false) throw ModelPackException("Pack provenance does not exclude user data")
     }
+
+    private fun incompatible(message: String): Nothing =
+        throw ModelPackException(message, reason = ModelPackFailureReason.Incompatible)
 
     private companion object {
         const val RequiredOperatorConfig = "operators/required-operators.config"

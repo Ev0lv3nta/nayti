@@ -89,10 +89,7 @@
     <string name="settings_search_components_title">Search components</string>
     <string name="settings_search_components_missing">Search components are not installed.</string>
     <string name="settings_search_components_loading">Checking local search components…</string>
-    <string name="settings_search_components_installing">Checking compatibility. The working version remains available.</string>
     <string name="settings_search_components_ready">Version %1$s · %2$d MB</string>
-    <string name="settings_search_components_failed">The new file did not pass verification. Working data is unchanged.</string>
-    <string name="settings_search_components_failed_previous">The new file did not pass verification. Version %1$s remains in use.</string>
     <string name="settings_search_components_choose">Choose file</string>
     <string name="settings_search_components_replace">Choose another version</string>
     <string name="settings_previous_version_title">Previous component version</string>

@@ -49,10 +49,15 @@ class ModelPackInstallerTest {
     fun verifiedPackPublishesImmutableCandidateAndIsIdempotent() = runTest {
         val fixture = fixture()
         val installer = installer(fixture)
+        val stages = mutableListOf<ModelPackImportStage>()
 
-        val first = installer.install(ModelPackSource { ByteArrayInputStream(fixture.container) })
+        val first = installer.install(object : ModelPackSource {
+            override fun openStream() = ByteArrayInputStream(fixture.container)
+            override fun reportStage(stage: ModelPackImportStage) { stages += stage }
+        })
         val second = installer.install(ModelPackSource { ByteArrayInputStream(fixture.container) })
 
+        assertEquals(ModelPackImportStage.entries, stages)
         assertEquals(first, second)
         assertEquals("nayti-offline-search", first.packId)
         assertEquals("0.1.0-alpha.2", first.packVersion)
@@ -94,7 +99,7 @@ class ModelPackInstallerTest {
         val rejection =
             installer(fixture, ModelPackPayloadValidator { throw ModelPackException("runtime KAT failed") })
 
-        assertInstallFails(rejection, fixture.container, "runtime KAT")
+        assertInstallFails(rejection, fixture.container, "runtime validation")
         assertFalse(Files.exists(root().resolve("nayti-offline-search")))
         assertNoTemporaryFiles()
 

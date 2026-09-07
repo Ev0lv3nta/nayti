@@ -1,4 +1,16 @@
 <resources>
+    <string name="pack_stage_reading">Reading the file. Import needs space for the file, extracted models, and a 512 MiB reserve.</string>
+    <string name="pack_stage_verifying">Verifying the signature and payload integrity.</string>
+    <string name="pack_stage_testing">Testing the models against known examples. This can take a few minutes.</string>
+    <string name="pack_stage_publishing">Finishing safe model storage.</string>
+    <string name="pack_stage_cancelling">Cancelling the import and removing temporary files. Working models are kept.</string>
+    <string name="pack_error_signature">The signature could not be verified. Choose an official Nayti pack; this file was not installed.</string>
+    <string name="pack_error_incompatible">The pack is incompatible with this app version or device. Choose a compatible pack from the release bundle.</string>
+    <string name="pack_error_storage">Not enough free space for temporary files and models. Free up storage and retry the import.</string>
+    <string name="pack_error_io">Could not read or save the file. Check that it is available and storage has free space, then select it again.</string>
+    <string name="pack_error_runtime">Could not load the model runtime. A compatible build for this device is required.</string>
+    <string name="pack_error_validation">The models failed their known-answer test. Choose a pack from a compatible release instead.</string>
+    <string name="pack_previous_available">Your previous models and prepared data are preserved.</string>
     <string name="pack_import_cancel">Cancel model installation</string>
     <string name="pack_import_cancelling">Cancelling installation…</string>
     <string name="viewer_original_actions">Original photo actions</string>
@@ -42,7 +54,6 @@
     <string name="setup_pack_title">Verified models</string>
     <string name="setup_pack_loading">Checking saved models.</string>
     <string name="setup_pack_pending">Choose a model file for local search.</string>
-    <string name="setup_pack_installing">Checking the file signature and compatibility.</string>
     <string name="setup_pack_ready">Version %1$s is verified and ready.</string>
     <string name="setup_pack_failed">The file did not pass verification. Working data is unchanged; you can choose another.</string>
     <string name="setup_access_title">Photo access</string>

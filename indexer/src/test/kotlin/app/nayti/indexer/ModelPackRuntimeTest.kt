@@ -1,6 +1,9 @@
 package app.nayti.indexer
 
 import app.nayti.ml.runtime.pack.ModelPackSource
+import app.nayti.ml.runtime.pack.ModelPackException
+import app.nayti.ml.runtime.pack.ModelPackFailureReason
+import app.nayti.ml.runtime.pack.ModelPackImportStage
 import app.nayti.storage.ModelPackDao
 import app.nayti.storage.ModelPackEntity
 import app.nayti.storage.ModelPackStatus
@@ -18,6 +21,27 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ModelPackRuntimeTest {
+    @Test
+    fun publishesActualStageAndTypedFailureWhileKeepingPreviousPack() = runTest {
+        val previous = pack("0.1.0-alpha.2", 1)
+        lateinit var runtime: ModelPackRuntime
+        runtime = ModelPackRuntime(
+            installer = RegisteredModelPackInstaller { source ->
+                source.reportStage(ModelPackImportStage.TestingModels)
+                assertEquals(ModelPackImportStage.TestingModels, runtime.state.value.importStage)
+                throw ModelPackException("space", reason = ModelPackFailureReason.Storage)
+            },
+            registry = FakeRegistry(mutableListOf(previous)), scope = backgroundScope,
+        )
+        runtime.start()
+        runCurrent()
+        runtime.install(ModelPackSource { ByteArrayInputStream(byteArrayOf()) })
+        runCurrent()
+        assertEquals(ModelPackFailureReason.Storage, runtime.state.value.failureReason)
+        assertEquals(previous, runtime.state.value.installed)
+        assertEquals(null, runtime.state.value.importStage)
+    }
+
     @Test
     fun cancellingBeforeCoroutineStartsDoesNotLeaveInstallingLatch() = runTest {
         val previous = pack("0.1.0-alpha.1", 1)

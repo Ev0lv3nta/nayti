@@ -391,7 +391,7 @@ private fun setupPackDescription(state: ModelPackRuntimeState): String =
     when (state.status) {
         ModelPackRuntimeStatus.Loading -> stringResource(R.string.setup_pack_loading)
         ModelPackRuntimeStatus.Missing -> stringResource(R.string.setup_pack_pending)
-        ModelPackRuntimeStatus.Installing -> stringResource(R.string.setup_pack_installing)
+        ModelPackRuntimeStatus.Installing -> modelPackImportMessage(state)
         ModelPackRuntimeStatus.Ready -> {
             val installed = state.installed
             if (installed == null) {
@@ -400,7 +400,7 @@ private fun setupPackDescription(state: ModelPackRuntimeState): String =
                 stringResource(R.string.setup_pack_ready, installed.packVersion)
             }
         }
-        ModelPackRuntimeStatus.Failed -> stringResource(R.string.setup_pack_failed)
+        ModelPackRuntimeStatus.Failed -> modelPackFailureMessage(state)
     }
 
 @Composable

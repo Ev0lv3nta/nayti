@@ -2,7 +2,14 @@ package app.nayti.ml.runtime.pack
 
 import java.nio.file.Path
 
-class ModelPackException(message: String, cause: Throwable? = null) : Exception(message, cause)
+enum class ModelPackFailureReason { InvalidFile, Signature, Incompatible, Storage, Io, Runtime, ModelValidation }
+enum class ModelPackImportStage { Reading, Verifying, TestingModels, Publishing }
+
+class ModelPackException(
+    message: String,
+    cause: Throwable? = null,
+    val reason: ModelPackFailureReason = ModelPackFailureReason.InvalidFile,
+) : Exception(message, cause)
 
 internal data class ModelPackFile(
     val path: String,

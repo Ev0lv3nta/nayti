@@ -82,7 +82,7 @@ class PhotoViewerScreenTest {
                 lexicalRank = 1,
                 semanticRank = null,
                 visualRank = null,
-                visualSimilarityMicros = null,
+                visualScaledDotMicros = null,
             )
         setContent(
             assetId = 7,

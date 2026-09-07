@@ -17,7 +17,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.util.PriorityQueue
 import java.util.UUID
-import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -35,7 +34,7 @@ data class OcrSemanticHit(
     val assetId: Long,
     val rank: Int,
     val rawScore: Int,
-    val similarityMicros: Int,
+    val scaledDotMicros: Int,
     val displaySnippet: String,
     val semanticChunkId: String,
     val matchedLineOrdinals: List<Int>,
@@ -329,7 +328,7 @@ class OcrSemanticSearch(
                 assetId = row.assetId,
                 rank = index + 1,
                 rawScore = selectedHit.candidate.hit.score,
-                similarityMicros = similarityMicros(selectedHit.candidate.hit.score, generation.dimension),
+                scaledDotMicros = QuantizedDotScore.scaledMicros(selectedHit.candidate.hit.score, generation.dimension),
                 displaySnippet = row.displayText.take(MaximumSnippetCharacters),
                 semanticChunkId = row.chunkId,
                 matchedLineOrdinals = lineOrdinals,
@@ -390,12 +389,6 @@ class OcrSemanticSearch(
         return ByteArray(32) { index -> substring(index * 2, index * 2 + 2).toInt(16).toByte() }
     }
 
-    private fun similarityMicros(score: Int, dimension: Int): Int {
-        val maximumDot = dimension.toDouble() * QuantizedMaximum * QuantizedMaximum
-        return (score.toDouble() * SimilarityScale / maximumDot).roundToInt()
-            .coerceIn(-SimilarityScale, SimilarityScale)
-    }
-
     private data class NativeCandidate(
         val segmentSha256: String,
         val manifestOrdinal: Int,
@@ -417,8 +410,6 @@ class OcrSemanticSearch(
         private const val MaximumSnippetCharacters = 240
         private const val LeaseDurationMillis = 5 * 60 * 1_000L
         private const val LeaseRenewalMarginMillis = 60_000L
-        private const val QuantizedMaximum = 127.0
-        private const val SimilarityScale = 1_000_000
         private val Sha256 = Regex("[0-9a-f]{64}")
         private val CandidateOrder =
             compareByDescending<NativeCandidate> { it.hit.score }

@@ -17,7 +17,6 @@ import java.io.File
 import java.nio.file.Files
 import java.util.PriorityQueue
 import java.util.UUID
-import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -36,7 +35,7 @@ data class VisualSimilarityHit(
     val assetId: Long,
     val rank: Int,
     val rawScore: Int,
-    val similarityMicros: Int,
+    val scaledDotMicros: Int,
     val sourceFingerprint: String,
 )
 
@@ -332,7 +331,7 @@ class VisualSimilaritySearch(
                 assetId = selectedHit.evidence.assetId,
                 rank = rank + 1,
                 rawScore = selectedHit.candidate.hit.score,
-                similarityMicros = similarityMicros(selectedHit.candidate.hit.score, index.generation.dimension),
+                scaledDotMicros = QuantizedDotScore.scaledMicros(selectedHit.candidate.hit.score, index.generation.dimension),
                 sourceFingerprint = selectedHit.evidence.sourceFingerprint,
             )
         }
@@ -394,12 +393,6 @@ class VisualSimilaritySearch(
         return ByteArray(32) { index -> substring(index * 2, index * 2 + 2).toInt(16).toByte() }
     }
 
-    private fun similarityMicros(score: Int, dimension: Int): Int {
-        val maximumDot = dimension.toDouble() * QuantizedMaximum * QuantizedMaximum
-        return (score.toDouble() * SimilarityScale / maximumDot).roundToInt()
-            .coerceIn(-SimilarityScale, SimilarityScale)
-    }
-
     private fun ready(
         sourceAssetId: Long,
         snapshotId: String,
@@ -455,8 +448,6 @@ class VisualSimilaritySearch(
         private const val MaximumNativeCandidates = 512
         private const val LeaseDurationMillis = 5 * 60 * 1_000L
         private const val LeaseRenewalMarginMillis = 60_000L
-        private const val QuantizedMaximum = 127.0
-        private const val SimilarityScale = 1_000_000
         private val Sha256 = Regex("[0-9a-f]{64}")
         private val CandidateOrder =
             compareByDescending<NativeCandidate> { it.hit.score }

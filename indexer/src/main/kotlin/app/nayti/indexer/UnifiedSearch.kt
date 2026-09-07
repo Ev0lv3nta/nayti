@@ -39,7 +39,7 @@ data class UnifiedSearchHit(
     val lexicalRank: Int?,
     val semanticRank: Int?,
     val visualRank: Int?,
-    val visualSimilarityMicros: Int?,
+    val visualScaledDotMicros: Int?,
 )
 
 data class UnifiedSearchResult(
@@ -306,7 +306,7 @@ class UnifiedSearch(
                         lexicalRank = textHit?.lexicalRank,
                         semanticRank = textHit?.semanticRank,
                         visualRank = visualHit?.rank,
-                        visualSimilarityMicros = visualHit?.similarityMicros,
+                        visualScaledDotMicros = visualHit?.scaledDotMicros,
                     )
                 },
         )

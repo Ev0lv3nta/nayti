@@ -645,6 +645,8 @@ class CatalogViewModel @Inject constructor(
         modelPacks.install(SafModelPackSource(context.contentResolver, uri))
     }
 
+    fun cancelModelPackImport() = modelPacks.cancelInstall()
+
     fun startIndexing(): IndexingStartResult {
         if (catalog.value.access.permission.scope == app.nayti.platform.media.MediaAccessScope.None) {
             return IndexingStartResult.PhotoAccessRequired

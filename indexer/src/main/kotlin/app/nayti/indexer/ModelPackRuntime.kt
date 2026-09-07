@@ -7,6 +7,7 @@ import app.nayti.storage.ModelPackStatus
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +26,7 @@ data class ModelPackRuntimeState(
     val installed: ModelPackEntity?,
     val candidate: ModelPackEntity?,
     val errorCode: String?,
+    val cancelRequested: Boolean = false,
 )
 
 class ModelPackRuntime(
@@ -34,6 +36,7 @@ class ModelPackRuntime(
     private val activePack: suspend () -> ModelPackEntity? = { null },
 ) {
     private val installing = AtomicBoolean(false)
+    private var installationJob: Job? = null
     private val mutableState =
         MutableStateFlow(ModelPackRuntimeState(ModelPackRuntimeStatus.Loading, null, null, null))
 
@@ -50,8 +53,12 @@ class ModelPackRuntime(
     fun install(source: ModelPackSource) {
         if (!installing.compareAndSet(false, true)) return
         val previous = mutableState.value
-        mutableState.value = mutableState.value.copy(status = ModelPackRuntimeStatus.Installing, errorCode = null)
-        scope.launch {
+        mutableState.value = mutableState.value.copy(
+            status = ModelPackRuntimeStatus.Installing, errorCode = null, cancelRequested = false,
+        )
+        val entered = AtomicBoolean(false)
+        installationJob = scope.launch {
+            entered.set(true)
             try {
                 val installed = installer.install(source)
                 val active = activePack()
@@ -85,6 +92,20 @@ class ModelPackRuntime(
                 installing.set(false)
             }
         }
+        installationJob?.invokeOnCompletion { failure ->
+            // A job cancelled before its first instruction never enters try/finally.
+            if (!entered.get() && failure is CancellationException) {
+                mutableState.value = previous
+                installing.set(false)
+            }
+            if (failure is CancellationException) refresh()
+        }
+    }
+
+    fun cancelInstall() {
+        if (!installing.get()) return
+        mutableState.value = mutableState.value.copy(cancelRequested = true)
+        installationJob?.cancel()
     }
 
     private suspend fun refreshState() {

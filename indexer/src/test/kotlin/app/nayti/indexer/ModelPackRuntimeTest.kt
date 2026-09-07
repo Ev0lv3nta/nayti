@@ -19,6 +19,27 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class ModelPackRuntimeTest {
     @Test
+    fun cancellingBeforeCoroutineStartsDoesNotLeaveInstallingLatch() = runTest {
+        val previous = pack("0.1.0-alpha.1", 1)
+        val runtime = ModelPackRuntime(
+            installer = RegisteredModelPackInstaller { previous },
+            registry = FakeRegistry(mutableListOf(previous)),
+            scope = backgroundScope,
+        )
+        runtime.start()
+        runCurrent()
+        runtime.install(ModelPackSource { ByteArrayInputStream(byteArrayOf()) })
+        runtime.cancelInstall()
+        runCurrent()
+        assertEquals(ModelPackRuntimeStatus.Ready, runtime.state.value.status)
+        assertEquals(previous, runtime.state.value.installed)
+        runtime.install(ModelPackSource { ByteArrayInputStream(byteArrayOf()) })
+        runCurrent()
+        assertEquals(ModelPackRuntimeStatus.Ready, runtime.state.value.status)
+        assertEquals(false, runtime.state.value.cancelRequested)
+    }
+
+    @Test
     fun cancelledImportRestoresPreviousStateWithoutUserError() = runTest {
         val previous = pack("0.1.0-alpha.1", 1)
         val runtime = ModelPackRuntime(

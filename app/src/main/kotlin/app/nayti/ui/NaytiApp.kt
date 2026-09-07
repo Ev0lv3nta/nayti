@@ -129,6 +129,13 @@ fun NaytiApp(
     val startIndexing = {
         startFailure = viewModel.startIndexing().takeUnless { it == IndexingStartResult.Started }
     }
+    val importModelPack = {
+        if (modelPack.status == ModelPackRuntimeStatus.Installing) {
+            viewModel.cancelModelPackImport()
+        } else {
+            modelPackLauncher.launch(arrayOf("*/*"))
+        }
+    }
     startFailure?.let { failure ->
         val message = when (failure) {
             IndexingStartResult.PhotoAccessRequired -> R.string.index_start_photos_required
@@ -151,7 +158,7 @@ fun NaytiApp(
             catalog = catalog,
             modelPack = modelPack,
             indexing = indexing,
-            onImportModelPack = { modelPackLauncher.launch(arrayOf("application/octet-stream")) },
+            onImportModelPack = importModelPack,
             onRequestAccess = requestAccess,
             onStartIndexing = startIndexing,
             onSelectIndexingMonths = viewModel::setIndexingScopeMonths,
@@ -174,7 +181,7 @@ fun NaytiApp(
             searchDataReset = searchDataReset,
             modelPackRollback = modelPackRollback,
             onRequestAccess = requestAccess,
-            onImportModelPack = { modelPackLauncher.launch(arrayOf("application/octet-stream")) },
+            onImportModelPack = importModelPack,
             onSearch = viewModel::search,
             onCancelSearch = viewModel::cancelSearch,
             onLoadMoreLibrary = viewModel::loadMoreLibrary,

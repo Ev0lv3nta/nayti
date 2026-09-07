@@ -237,14 +237,16 @@ internal fun SettingsScreen(
                                 ?.let { stringResource(R.string.model_pack_candidate, it.packVersion) },
                         actionLabel =
                             stringResource(
-                                if (modelPack.installed == null) {
+                                if (modelPack.status == ModelPackRuntimeStatus.Installing) {
+                                    if (modelPack.cancelRequested) R.string.pack_import_cancelling else R.string.pack_import_cancel
+                                } else if (modelPack.installed == null) {
                                     R.string.settings_search_components_choose
                                 } else {
                                     R.string.settings_search_components_replace
                                 },
                             ),
                         onAction = onImportModelPack,
-                        actionEnabled = modelPack.status != ModelPackRuntimeStatus.Installing,
+                        actionEnabled = !modelPack.cancelRequested,
                     )
                     if (modelPackRollback.isVisible) {
                         HorizontalDivider(color = NaytiTheme.colors.hairline)

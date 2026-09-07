@@ -9,6 +9,8 @@ import java.security.KeyPairGenerator
 import java.security.MessageDigest
 import java.security.Signature
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -19,6 +21,29 @@ import org.junit.rules.TemporaryFolder
 
 class ModelPackInstallerTest {
     @get:Rule val temporary = TemporaryFolder()
+
+    @Test
+    fun cancellationDuringCopyClosesStreamAndRemovesStaging() = runTest {
+        val fixture = fixture()
+        var closed = false
+        lateinit var request: Job
+        request = launch {
+            installer(fixture).install(ModelPackSource {
+                object : ByteArrayInputStream(fixture.container) {
+                    override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                        request.cancel()
+                        return super.read(buffer, offset, length)
+                    }
+                    override fun close() { closed = true; super.close() }
+                }
+            })
+        }
+        request.join()
+        assertTrue(request.isCancelled)
+        assertTrue(closed)
+        assertNoTemporaryFiles()
+        assertFalse(Files.exists(root().resolve("nayti-offline-search")))
+    }
 
     @Test
     fun verifiedPackPublishesImmutableCandidateAndIsIdempotent() = runTest {

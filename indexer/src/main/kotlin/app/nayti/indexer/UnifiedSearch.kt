@@ -12,6 +12,12 @@ import app.nayti.storage.IndexChannel
 import app.nayti.storage.CatalogDao
 import app.nayti.storage.VectorIndexDao
 import java.util.UUID
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 
 enum class UnifiedSearchReason {
     EXACT_IDENTIFIER,
@@ -57,6 +63,7 @@ class UnifiedSearch(
     private val clock: () -> Long = System::currentTimeMillis,
     private val leaseTokens: () -> String = { "unified-query-${UUID.randomUUID()}" },
     private val catalog: CatalogDao? = null,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     suspend fun search(
         query: String,
@@ -65,11 +72,24 @@ class UnifiedSearch(
         limit: Int = DefaultLimit,
         filter: SearchFilter = SearchFilter.None,
         channels: SearchChannelSelection? = null,
+    ): UnifiedSearchResult = withContext(dispatcher) {
+        searchOnWorker(query, pipelineVersion, fallbackComponentHash, limit, filter, channels)
+    }
+
+    // Leased retrievers inherit this worker context, including synchronous native inference.
+    private suspend fun searchOnWorker(
+        query: String,
+        pipelineVersion: String,
+        fallbackComponentHash: String,
+        limit: Int,
+        filter: SearchFilter,
+        channels: SearchChannelSelection?,
     ): UnifiedSearchResult {
         require(limit in 1..MaximumResultLimit)
         val plan = planner.plan(query)
         var consistencyFailure: QueryConsistencyChangedException? = null
         repeat(MaximumConsistencyAttempts) {
+            currentCoroutineContext().ensureActive()
             val scope = catalog?.currentIndexingScope()
             val effectiveFilter = filter.constrainedFrom(scope?.takenFromMillis)
             val acquiredAt = clock()
@@ -112,7 +132,7 @@ class UnifiedSearch(
             } catch (failure: QueryConsistencyChangedException) {
                 consistencyFailure = failure
             } finally {
-                vectors.releaseQueryLease(lease.leaseToken)
+                withContext(NonCancellable) { vectors.releaseQueryLease(lease.leaseToken) }
             }
         }
         throw checkNotNull(consistencyFailure)
@@ -142,6 +162,7 @@ class UnifiedSearch(
             } else {
                 null
             }
+        currentCoroutineContext().ensureActive()
         val visualResult =
             if (channels?.visual ?: usesVisualRetriever) {
                 visual.searchLeased(query, MaximumRetrieverCandidates, lease, filter)

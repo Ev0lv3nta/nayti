@@ -1303,7 +1303,10 @@ class VectorPublicationStoreInstrumentedTest {
                     object : VisualTextQuerySession {
                         override val embeddingSpaceHash = contract.embeddingSpaceHash
                         override val dimension = contract.dimension
-                        override fun encodeQuery(text: String) = ByteArray(contract.dimension) { 100.toByte() }
+                        override fun encodeQuery(text: String): ByteArray {
+                            assertTrue(android.os.Looper.myLooper() != android.os.Looper.getMainLooper())
+                            return ByteArray(contract.dimension) { 100.toByte() }
+                        }
                         override fun close() = Unit
                     }
                 },
@@ -1327,11 +1330,13 @@ class VectorPublicationStoreInstrumentedTest {
             )
 
         val scene =
-            unified.search(
-                query = "red car on a road",
-                pipelineVersion = "visual-v1",
-                fallbackComponentHash = ComponentHash,
-            )
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                unified.search(
+                    query = "red car on a road",
+                    pipelineVersion = "visual-v1",
+                    fallbackComponentHash = ComponentHash,
+                )
+            }
 
         assertEquals(MultimodalQueryIntent.VISUAL_SCENE, scene.intent)
         assertEquals(listOf(firstAsset, secondAsset), scene.hits.map { it.assetId })

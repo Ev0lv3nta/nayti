@@ -6,16 +6,38 @@ import app.nayti.storage.ModelPackEntity
 import app.nayti.storage.ModelPackStatus
 import java.io.ByteArrayInputStream
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ModelPackRuntimeTest {
+    @Test
+    fun cancelledImportRestoresPreviousStateWithoutUserError() = runTest {
+        val previous = pack("0.1.0-alpha.1", 1)
+        val runtime = ModelPackRuntime(
+            installer = RegisteredModelPackInstaller { throw CancellationException("cancelled") },
+            registry = FakeRegistry(mutableListOf(previous)),
+            scope = backgroundScope,
+        )
+        runtime.start()
+        runCurrent()
+        val before = runtime.state.value
+        runtime.install(ModelPackSource { ByteArrayInputStream(byteArrayOf()) })
+        runCurrent()
+        assertEquals(before, runtime.state.value)
+        runtime.install(ModelPackSource { ByteArrayInputStream(byteArrayOf()) })
+        assertEquals(ModelPackRuntimeStatus.Installing, runtime.state.value.status)
+        runCurrent()
+        assertEquals(before, runtime.state.value)
+    }
+
     @Test
     fun restoresNewestInstalledPackAndPublishesSuccessfulImport() = runTest {
         val registry = FakeRegistry(mutableListOf(pack("0.1.0-alpha.1", 1)))

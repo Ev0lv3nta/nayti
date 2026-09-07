@@ -58,4 +58,19 @@ class NeuralExecutionLaneTest {
         assertTrue(nextIndexing.isCompleted)
         nextIndexing.await().close()
     }
+
+    @Test
+    fun cancellationAfterGrantHandsPermitToNextWaiter() = runTest {
+        val lane = NeuralExecutionLane()
+        val owner = lane.acquire()
+        val cancelled = async { lane.acquire(NeuralExecutionPriority.INTERACTIVE_QUERY) }
+        val next = async { lane.acquire() }
+        runCurrent()
+        owner.close()
+        cancelled.cancel()
+        runCurrent()
+        assertTrue(next.isCompleted)
+        next.await().close()
+        lane.acquire().close()
+    }
 }

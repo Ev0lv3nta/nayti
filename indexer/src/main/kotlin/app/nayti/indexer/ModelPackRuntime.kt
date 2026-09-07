@@ -6,6 +6,7 @@ import app.nayti.storage.ModelPackEntity
 import app.nayti.storage.ModelPackStatus
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,6 +49,7 @@ class ModelPackRuntime(
 
     fun install(source: ModelPackSource) {
         if (!installing.compareAndSet(false, true)) return
+        val previous = mutableState.value
         mutableState.value = mutableState.value.copy(status = ModelPackRuntimeStatus.Installing, errorCode = null)
         scope.launch {
             try {
@@ -60,6 +62,9 @@ class ModelPackRuntime(
                         candidate = installed.takeIf { active != null && it != active },
                         errorCode = null,
                     )
+            } catch (cancellation: CancellationException) {
+                mutableState.value = previous
+                throw cancellation
             } catch (failure: Exception) {
                 mutableState.value =
                     ModelPackRuntimeState(
@@ -83,9 +88,11 @@ class ModelPackRuntime(
     }
 
     private suspend fun refreshState() {
+        if (installing.get()) return
         val active = activePack()
         val newest = newestInstalled()
         val installed = active ?: newest
+        if (installing.get()) return
         mutableState.value =
             ModelPackRuntimeState(
                 status = if (installed == null) ModelPackRuntimeStatus.Missing else ModelPackRuntimeStatus.Ready,

@@ -143,7 +143,7 @@ class OcrExecutionSession private constructor(
         ): OcrExecutionSession {
             val pack = resolver.resolve(packId, packVersion)
             val engine =
-                withContext(Dispatchers.Default) {
+                transferResource(Dispatchers.Default) {
                     OrtOcrInferenceEngine(OcrOrtRuntime.open(pack.payloadDirectory))
                 }
             return OcrExecutionSession(
@@ -212,7 +212,7 @@ class OcrSemanticExecutionSession private constructor(
             ) { "Installed USER2 generation does not match its execution contract" }
 
             val runtime =
-                withContext(Dispatchers.Default) {
+                transferResource(Dispatchers.Default) {
                     User2OrtRuntime.open(pack.payloadDirectory)
                 }
             return OcrSemanticExecutionSession(
@@ -309,7 +309,7 @@ class VisualExecutionSession private constructor(
             ) { "Installed SigLIP2 generation does not match its execution contract" }
 
             val runtime =
-                withContext(Dispatchers.Default) {
+                transferResource(Dispatchers.Default) {
                     Siglip2ImageOrtRuntime.open(pack.payloadDirectory)
                 }
             return VisualExecutionSession(

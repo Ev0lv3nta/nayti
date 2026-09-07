@@ -11,6 +11,9 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -56,23 +59,37 @@ class ThumbnailLoader internal constructor(
     suspend fun load(key: MediaKey, accessRevision: Long): Bitmap? {
         val catalogRevision = currentCatalogRevision ?: return null
         val cacheKey = CacheKey(key.volumeName, key.mediaStoreId, accessRevision, catalogRevision)
-        cache.get(cacheKey)?.let { return it }
+        synchronized(this) {
+            if (currentAccessRevision != accessRevision || currentCatalogRevision != catalogRevision) return null
+            cache.get(cacheKey)?.let { return it }
+        }
         return decodePermits.withPermit {
-            cache.get(cacheKey)?.let { return@withPermit it }
-            val decoded =
-                withContext(Dispatchers.IO) {
-                    try {
-                        decodeThumbnail(MediaKey(cacheKey.volumeName, cacheKey.mediaStoreId))
-                    } catch (_: Exception) {
+            withContext(Dispatchers.IO) {
+                val decoded = try {
+                    decodeThumbnail(MediaKey(cacheKey.volumeName, cacheKey.mediaStoreId))
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (_: Exception) {
+                    null
+                } ?: return@withContext null
+                try {
+                    currentCoroutineContext().ensureActive()
+                } catch (cancellation: CancellationException) {
+                    decoded.recycle()
+                    throw cancellation
+                }
+                synchronized(this@ThumbnailLoader) {
+                    if (currentAccessRevision != accessRevision || currentCatalogRevision != catalogRevision) {
+                        decoded.recycle()
                         null
+                    } else {
+                        // Publish before returning across the dispatcher boundary. The bounded cache
+                        // owns the bitmap even if cancellation prevents delivery to the UI.
+                        cache.put(cacheKey, decoded)
+                        decoded
                     }
-                } ?: return@withPermit null
-            if (currentAccessRevision != accessRevision || currentCatalogRevision != catalogRevision) {
-                decoded.recycle()
-                return@withPermit null
+                }
             }
-            cache.put(cacheKey, decoded)
-            decoded
         }
     }
 

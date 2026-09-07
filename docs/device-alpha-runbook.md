@@ -1,6 +1,6 @@
 # Установка и приёмка personal alpha
 
-Этот runbook предназначен для ручной установки и проверки Nayti на ARM64 Android 11+, прежде всего Samsung Galaxy S23+. Сборка распространяется через GitHub Releases и не публикуется в Google Play.
+Этот runbook предназначен для ручной установки и проверки Nayti на ARM64 Android 11+, прежде всего Samsung Galaxy S23+. Канал планируемой публикации — GitHub Releases, не Google Play. Сейчас `0.1.0-alpha.2` является кандидатом: новый физический signed smoke ещё не выполнен.
 
 Release-процесс не собирает пользовательское содержимое. Не прикладывать к issue, pull request или release фотографии, скриншоты личной медиатеки, запросы, OCR, имена файлов, URI, MediaStore IDs, embeddings или raw diagnostics. Для отчёта достаточно агрегированных процентов, counts, PSS, thermal state и результата сценария.
 
@@ -9,7 +9,7 @@ Release-процесс не собирает пользовательское с
 - зарядить телефон минимум до 70% и на время первой индексации подключить питание;
 - оставить не менее 10 ГиБ свободного места: signed model pack занимает около 967 МиБ, импорт временно требует примерно три его размера, затем нужны database и vector artifacts;
 - включить Developer options и USB debugging, подтвердить RSA fingerprint этого Mac;
-- решить, используется ли вся личная галерея или отдельный private evaluation subset;
+- для воспроизводимой приёмки использовать изолированный безопасный корпус; личная галерея не является публичным benchmark;
 - не копировать фотографии, OCR, запросы или raw diagnostics из телефона в GitHub artifacts.
 
 Проверить, что ADB видит ровно одно ожидаемое устройство:
@@ -31,15 +31,17 @@ adb shell df -h /data
 shasum -a 256 -c SHA256SUMS
 ```
 
-`nayti-0.1.0-alpha.1-arm64.apk` — minified, non-debuggable ARM64 build, подписанный отдельным alpha release certificate. Unsigned control APK используется только внутри release gate и публично не устанавливается.
+`nayti-0.1.0-alpha.2-arm64.apk` — minified, non-debuggable ARM64 build, подписанный прежним alpha release certificate. Unsigned control APK используется только внутри release gate и публично не устанавливается. Укажите ожидаемый serial через `ANDROID_SERIAL`, если ADB содержит несколько целей; не выбирайте устройство автоматически.
 
 Для чистого первого прогона:
 
 ```bash
-adb install nayti-0.1.0-alpha.1-arm64.apk
+adb install nayti-0.1.0-alpha.2-arm64.apk
 ```
 
-Если на устройстве уже установлена developer-сборка с Android Debug certificate, поверх неё public-alpha APK не установится. Удаление `app.nayti` сотрёт private database, model pack и индекс, поэтому выполнять `adb uninstall` можно только после явного решения потерять эти данные.
+Для обновления с прежней signed alpha.1 используйте `adb install -r nayti-0.1.0-alpha.2-arm64.apk`: code 2 и прежний сертификат сохраняют app-private данные. Старый pack alpha.2 принимается по точному manifest hash как при restore, так и при новом импорте; APK upgrade не меняет embedding identities. Зафиксируйте поканальную готовность до/после и убедитесь, что подготовка не началась с нуля. Этот сценарий пока требует физической проверки.
+
+Если на устройстве уже установлена developer-сборка с Android Debug certificate под тем же `app.nayti`, поверх неё signed APK не установится. Удаление сотрёт private database, model pack и индекс: **не удалять личную установку ради теста**. Нужен отдельный согласованный профиль/устройство. Современные debug/benchmark используют отдельные IDs и не заменяют release, но у прежних экспериментальных сборок ID мог совпадать.
 
 Model pack можно скопировать в Downloads и выбрать в системном SAF picker:
 

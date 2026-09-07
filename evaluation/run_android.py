@@ -53,7 +53,7 @@ def run(adb: str, serial: str, corpus: Path, pack: Path, output: Path) -> None:
     subprocess.run(command + ["shell", "run-as", "app.nayti.debug", "mkdir", "-p", "files/evaluation"], check=True)
     staging_log = output / "staging.log"
     with staging_log.open("wb") as log:
-        process = subprocess.Popen(command + ["exec-in", "run-as", "app.nayti.debug", "tar", "-xf", "-", "-C", "files/evaluation"], stdin=subprocess.PIPE, stdout=log, stderr=log)
+        process = subprocess.Popen(command + ["shell", "-T", "run-as", "app.nayti.debug", "tar", "-xf", "-", "-C", "files/evaluation"], stdin=subprocess.PIPE, stdout=log, stderr=log)
         try:
             with tarfile.open(fileobj=process.stdin, mode="w|") as archive:
                 archive.add(manifest_path, arcname="input/manifest.json", recursive=False)

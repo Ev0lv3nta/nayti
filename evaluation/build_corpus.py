@@ -56,8 +56,13 @@ def fetch(url: str, path: Path, limit: int = 12 * 1024 * 1024) -> None:
 
 
 def build(annotations: Path, output: Path, font: Path) -> dict:
+    import PIL
     from PIL import Image, ImageDraw, ImageFont
 
+    if output.resolve().is_relative_to(Path(__file__).resolve().parents[1]):
+        raise ValueError("Keep images outside the Git repository")
+    if PIL.__version__ != "12.3.0":
+        raise ValueError("Pinned corpus rendering requires Pillow 12.3.0")
     if digest(annotations) != ANNOTATIONS_SHA256:
         raise ValueError("COCO annotation archive identity mismatch")
     output.mkdir(parents=True, exist_ok=True)

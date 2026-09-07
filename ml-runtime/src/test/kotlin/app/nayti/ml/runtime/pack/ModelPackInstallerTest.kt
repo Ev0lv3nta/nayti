@@ -23,6 +23,26 @@ class ModelPackInstallerTest {
     @get:Rule val temporary = TemporaryFolder()
 
     @Test
+    fun knownSizeRejectsInsufficientSpaceBeforeReadingPayload() = runTest {
+        val fixture = fixture()
+        var opened = false
+        var required: Long? = null
+        val installer = ModelPackInstaller(root(), fixture.trustedKeys, policy(), ModelPackStorageBudget { 10 },
+            ModelPackPayloadValidator {}, minimumFreeBytesAfterInstall = 0)
+        val failure = runCatching {
+            installer.install(object : ModelPackSource {
+                override fun declaredLengthBytes() = 1_000L
+                override fun openStream(): java.io.InputStream { opened = true; return ByteArrayInputStream(fixture.container) }
+                override fun reportRequiredStorage(bytes: Long?) { required = bytes }
+            })
+        }.exceptionOrNull()
+        assertFalse(opened)
+        assertEquals(2_000L, required)
+        assertEquals(ModelPackFailureReason.Storage, (failure as ModelPackException).reason)
+        assertNoTemporaryFiles()
+    }
+
+    @Test
     fun cancellationDuringCopyClosesStreamAndRemovesStaging() = runTest {
         val fixture = fixture()
         var closed = false

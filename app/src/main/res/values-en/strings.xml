@@ -1,5 +1,6 @@
 <resources>
     <string name="pack_stage_reading">Reading the file. Import needs space for the file, extracted models, and a 512 MiB reserve.</string>
+    <string name="pack_stage_reading_sized">Reading the file. Import needs approximately %1$s GiB of free space, including temporary data and a reserve.</string>
     <string name="pack_stage_verifying">Verifying the signature and payload integrity.</string>
     <string name="pack_stage_testing">Testing the models against known examples. This can take a few minutes.</string>
     <string name="pack_stage_publishing">Finishing safe model storage.</string>
@@ -7,6 +8,7 @@
     <string name="pack_error_signature">The signature could not be verified. Choose an official Nayti pack; this file was not installed.</string>
     <string name="pack_error_incompatible">The pack is incompatible with this app version or device. Choose a compatible pack from the release bundle.</string>
     <string name="pack_error_storage">Not enough free space for temporary files and models. Free up storage and retry the import.</string>
+    <string name="pack_error_storage_sized">Import needs approximately %1$s GiB of free space, including temporary data. Free up storage and select the file again.</string>
     <string name="pack_error_io">Could not read or save the file. Check that it is available and storage has free space, then select it again.</string>
     <string name="pack_error_runtime">Could not load the model runtime. A compatible build for this device is required.</string>
     <string name="pack_error_validation">The models failed their known-answer test. Choose a pack from a compatible release instead.</string>

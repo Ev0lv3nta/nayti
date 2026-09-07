@@ -28,6 +28,7 @@ class ModelPackRuntimeTest {
         runtime = ModelPackRuntime(
             installer = RegisteredModelPackInstaller { source ->
                 source.reportStage(ModelPackImportStage.TestingModels)
+                source.reportRequiredStorage(12_000)
                 assertEquals(ModelPackImportStage.TestingModels, runtime.state.value.importStage)
                 throw ModelPackException("space", reason = ModelPackFailureReason.Storage)
             },
@@ -38,6 +39,7 @@ class ModelPackRuntimeTest {
         runtime.install(ModelPackSource { ByteArrayInputStream(byteArrayOf()) })
         runCurrent()
         assertEquals(ModelPackFailureReason.Storage, runtime.state.value.failureReason)
+        assertEquals(12_000L, runtime.state.value.estimatedStorageBytes)
         assertEquals(previous, runtime.state.value.installed)
         assertEquals(null, runtime.state.value.importStage)
     }

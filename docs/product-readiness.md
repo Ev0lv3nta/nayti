@@ -9,6 +9,7 @@
 - Typed причины невозможного старта индексации; остановка FGS на timeout без ожидания базы/ORT.
 - Original share/open, bounded zoom/pan и double tap.
 - Отмена импорта без потери старого пакета; стадии и понятные причины ошибки; KAT использует общую очередь нейровычислений.
+- При известном размере пакета свободное место проверяется до чтения и показывается оценка в ГиБ; для неизвестного размера остаются потоковые лимиты.
 - Hash-specific совместимость пакета с app code 2, одинаковая policy на import и restore. Embedding identities не меняются из-за номера APK.
 - Все AndroidTest в fast gate, platform-media в emulator matrix, отдельный реальный startup benchmark.
 - Безопасный corpus/evaluator: 180 изображений, 118 запросов, 38 holdout; production Android path при фактическом запуске.

@@ -17,7 +17,9 @@ import kotlinx.coroutines.withContext
 
 fun interface ModelPackSource {
     fun openStream(): InputStream
+    fun declaredLengthBytes(): Long? = null
     fun reportStage(stage: ModelPackImportStage) = Unit
+    fun reportRequiredStorage(bytes: Long?) = Unit
 }
 
 fun interface ModelPackStorageBudget {
@@ -26,6 +28,7 @@ fun interface ModelPackStorageBudget {
 
 class FileModelPackSource(private val path: Path) : ModelPackSource {
     override fun openStream(): InputStream = Files.newInputStream(path)
+    override fun declaredLengthBytes(): Long = Files.size(path)
 }
 
 fun interface ModelPackCandidateInstaller {
@@ -54,6 +57,16 @@ class ModelPackInstaller(
             val staging = root.resolve(".staging-$token")
             try {
                 source.reportStage(ModelPackImportStage.Reading)
+                val declaredLength = source.declaredLengthBytes()?.takeIf { it >= 0 }
+                val maximumLength = ModelPackManifestParser.MaxTotalPayloadBytes + ModelPackManifestParser.MaxManifestBytes + ContainerOverheadBytes
+                if (declaredLength != null && declaredLength > maximumLength) {
+                    throw ModelPackException("Model pack exceeds container size cap")
+                }
+                val requiredBytes = declaredLength?.let { Math.addExact(Math.multiplyExact(it, 2), minimumFreeBytesAfterInstall) }
+                source.reportRequiredStorage(requiredBytes)
+                if (requiredBytes != null && storageBudget.allocatableBytes(root) < requiredBytes) {
+                    throw ModelPackException("Insufficient private storage for model pack", reason = ModelPackFailureReason.Storage)
+                }
                 copyBounded(source, incoming, checkpoint)
                 source.reportStage(ModelPackImportStage.Verifying)
                 val staged = verifyAndExtract(incoming, staging, checkpoint)

@@ -33,6 +33,7 @@ data class ModelPackRuntimeState(
     val cancelRequested: Boolean = false,
     val importStage: ModelPackImportStage? = null,
     val failureReason: ModelPackFailureReason? = null,
+    val estimatedStorageBytes: Long? = null,
 )
 
 class ModelPackRuntime(
@@ -61,7 +62,7 @@ class ModelPackRuntime(
         val previous = mutableState.value
         mutableState.value = mutableState.value.copy(
             status = ModelPackRuntimeStatus.Installing, errorCode = null, cancelRequested = false,
-            importStage = ModelPackImportStage.Reading, failureReason = null,
+            importStage = ModelPackImportStage.Reading, failureReason = null, estimatedStorageBytes = null,
         )
         val entered = AtomicBoolean(false)
         installationJob = scope.launch {
@@ -69,8 +70,12 @@ class ModelPackRuntime(
             try {
                 val installed = installer.install(object : ModelPackSource {
                     override fun openStream() = source.openStream()
+                    override fun declaredLengthBytes() = source.declaredLengthBytes()
                     override fun reportStage(stage: ModelPackImportStage) {
                         mutableState.update { it.copy(importStage = stage) }
+                    }
+                    override fun reportRequiredStorage(bytes: Long?) {
+                        mutableState.update { it.copy(estimatedStorageBytes = bytes) }
                     }
                 })
                 val active = activePack()
@@ -96,6 +101,7 @@ class ModelPackRuntime(
                             is java.io.IOException, is SecurityException -> ModelPackFailureReason.Io
                             else -> ModelPackFailureReason.InvalidFile
                         },
+                        estimatedStorageBytes = mutableState.value.estimatedStorageBytes,
                     )
             } catch (_: LinkageError) {
                 mutableState.value =

@@ -1,4 +1,9 @@
 <resources>
+    <string name="index_start_photos_required">Allow access to photos in Nayti settings first.</string>
+    <string name="index_start_models_required">Select and install the model file first.</string>
+    <string name="index_start_catalog_busy">The photo list is not ready yet. Wait for it to refresh, then try again.</string>
+    <string name="index_start_app_not_visible">Open Nayti and start preparation again.</string>
+    <string name="index_start_system_rejected">Android did not allow preparation to start. Reopen the app and try again. Your prepared index is preserved.</string>
     <string name="search_pending_changes">Changes are not applied yet. Current search: “%1$s”. Submit to update the results.</string>
     <string name="search_query_too_long">Character limit: %1$d. Shorten the query.</string>
     <string name="app_name">Nayti</string>

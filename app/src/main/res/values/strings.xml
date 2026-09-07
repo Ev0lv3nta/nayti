@@ -1,4 +1,9 @@
 <resources>
+    <string name="index_start_photos_required">Сначала разрешите доступ к фотографиям в настройках Nayti.</string>
+    <string name="index_start_models_required">Сначала выберите и установите файл с моделями.</string>
+    <string name="index_start_catalog_busy">Список фотографий пока не готов. Дождитесь его обновления и повторите запуск.</string>
+    <string name="index_start_app_not_visible">Откройте Nayti и повторите запуск подготовки.</string>
+    <string name="index_start_system_rejected">Android не разрешил запустить подготовку. Откройте приложение снова и повторите попытку. Готовый индекс сохранён.</string>
     <string name="search_pending_changes">Изменения ещё не применены. Текущий поиск: «%1$s». Нажмите поиск, чтобы обновить выдачу.</string>
     <string name="search_query_too_long">Лимит символов: %1$d. Сократите запрос.</string>
     <string name="app_name">Nayti</string>

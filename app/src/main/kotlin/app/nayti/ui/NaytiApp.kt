@@ -1,6 +1,8 @@
 package app.nayti.ui
 
-import android.Manifest
+import app.nayti.indexing.IndexingStartResult
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import android.graphics.Bitmap
 import android.os.Build
 import androidx.annotation.StringRes
@@ -118,19 +120,31 @@ fun NaytiApp(
         rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
             if (uri != null) viewModel.exportDiagnostics(uri)
         }
-    val notificationPermissionLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) viewModel.startIndexing()
-        }
+    var startFailure by remember { mutableStateOf<IndexingStartResult?>(null) }
     val requestAccess = {
         permissionLauncher.launch(
             MediaPermissionEvaluator.requestPermissions(Build.VERSION.SDK_INT),
         )
     }
     val startIndexing = {
-        if (!viewModel.startIndexing() && Build.VERSION.SDK_INT >= 33) {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        startFailure = viewModel.startIndexing().takeUnless { it == IndexingStartResult.Started }
+    }
+    startFailure?.let { failure ->
+        val message = when (failure) {
+            IndexingStartResult.PhotoAccessRequired -> R.string.index_start_photos_required
+            IndexingStartResult.ModelPackRequired -> R.string.index_start_models_required
+            IndexingStartResult.CatalogBusy -> R.string.index_start_catalog_busy
+            IndexingStartResult.AppNotVisible -> R.string.index_start_app_not_visible
+            IndexingStartResult.SystemRejected -> R.string.index_start_system_rejected
+            IndexingStartResult.Started -> error("Started is not a failure")
         }
+        AlertDialog(
+            onDismissRequest = { startFailure = null },
+            text = { Text(stringResource(message)) },
+            confirmButton = {
+                TextButton(onClick = { startFailure = null }) { Text(stringResource(android.R.string.ok)) }
+            },
+        )
     }
     if (!onboardingCompleted) {
         SetupScreen(

@@ -1,4 +1,6 @@
 <resources>
+    <string name="search_pending_changes">Изменения ещё не применены. Текущий поиск: «%1$s». Нажмите поиск, чтобы обновить выдачу.</string>
+    <string name="search_query_too_long">Лимит символов: %1$d. Сократите запрос.</string>
     <string name="app_name">Nayti</string>
     <string name="nav_search">Поиск</string>
     <string name="nav_index">Индекс</string>

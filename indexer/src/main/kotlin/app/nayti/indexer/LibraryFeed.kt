@@ -94,7 +94,9 @@ class LibraryFeed(private val storage: CatalogStorage) {
     }
 
     suspend fun item(assetId: Long): CatalogItem? =
-        storage.catalogDao.asset(assetId)?.toCatalogItem()
+        storage.catalogDao.asset(assetId)
+            ?.takeIf { it.availability == CatalogAvailability.AVAILABLE }
+            ?.toCatalogItem()
 
     suspend fun photoEvidence(assetId: Long): PhotoEvidence? {
         require(assetId > 0)

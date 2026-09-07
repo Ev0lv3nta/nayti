@@ -551,8 +551,7 @@ private fun RootNavHost(
                     accessRevision = catalog.access.value,
                     modelReady =
                         catalog.access.permission.scope != MediaAccessScope.None &&
-                            modelPack.installed != null &&
-                            modelPack.status != ModelPackRuntimeStatus.Installing,
+                            modelPack.installed != null,
                     onLoadThumbnail = onLoadThumbnail,
                     onLoadMore = onLoadMoreLibrary,
                     onRetryLibrary = onRetryLibrary,

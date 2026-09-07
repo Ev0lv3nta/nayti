@@ -63,6 +63,19 @@ class LibrarySearchScreenTest {
     }
 
     @Test
+    fun editedRequestCanReplaceRunningSearchWithExplicitSubmission() {
+        val requests = mutableListOf<String>()
+        setContent(
+            search = { SearchUiState.Searching("old", SearchFilter.None, SearchChannelSelection.All) },
+            onSearch = { query, _, _ -> requests += query },
+        )
+        composeRule.onNode(hasSetTextAction()).performTextInput("new")
+        composeRule.onNodeWithTag("search-pending-changes").assertIsDisplayed()
+        composeRule.onNodeWithTag("search-submit").performClick()
+        composeRule.runOnIdle { assertEquals(listOf("new"), requests) }
+    }
+
+    @Test
     fun cancelAppearsOnlyAfterLongSearchAndCallsTheRealCancellationAction() {
         var searchState by mutableStateOf<SearchUiState>(
             SearchUiState.Searching("собака", SearchFilter.None, SearchChannelSelection.All),

@@ -263,20 +263,40 @@ class CatalogViewModel @Inject constructor(
 
     private val mutableViewer = MutableStateFlow<ViewerUiState>(ViewerUiState.Idle)
     val viewer: StateFlow<ViewerUiState> = mutableViewer.asStateFlow()
-    private val mutableSearch = MutableStateFlow<SearchUiState>(SearchUiState.Idle)
-    val search: StateFlow<SearchUiState> = mutableSearch.asStateFlow()
+    private val searchSession = SearchSession(viewModelScope) { request ->
+        val pack = modelPack.value.installed
+        if (pack == null) {
+            SearchUiState.Failed("MODEL_PACK_REQUIRED")
+        } else {
+            val accessPin = catalog.value.access
+            val result = unifiedSearch.search(
+                query = request.query,
+                pipelineVersion = OcrIndexingRuntime.PipelineVersion,
+                fallbackComponentHash = pack.manifestSha256,
+                filter = request.filter,
+                channels = request.channels,
+            )
+            val hydrated = result.hits.mapNotNull { hit ->
+                libraryFeed.item(hit.assetId)?.let { asset -> SearchResultItem(asset, hit) }
+            }
+            check(catalog.value.access == accessPin) { "Search access changed during hydration" }
+            SearchUiState.Ready(
+                request.query, request.filter, hydrated, result.channels,
+                result.semanticStatus, result.visualStatus,
+            )
+        }
+    }
+    val search: StateFlow<SearchUiState> = searchSession.state
     private val mutableLibrary = MutableStateFlow(LibraryUiState(initialLoading = true))
     val library: StateFlow<LibraryUiState> = mutableLibrary.asStateFlow()
     private val mutableSimilar = MutableStateFlow<SimilarUiState>(SimilarUiState.Idle)
     val similar: StateFlow<SimilarUiState> = mutableSimilar.asStateFlow()
     private val mutableDuplicates = MutableStateFlow<DuplicateUiState>(DuplicateUiState.Idle)
     val duplicates: StateFlow<DuplicateUiState> = mutableDuplicates.asStateFlow()
-    private val searchGeneration = AtomicLong(0)
     private val libraryGeneration = AtomicLong(0)
     private val viewerGeneration = AtomicLong(0)
     private val similarGeneration = AtomicLong(0)
     private val duplicateGeneration = AtomicLong(0)
-    private var searchJob: Job? = null
     private var viewerJob: Job? = null
     private var similarJob: Job? = null
     private var duplicateJob: Job? = null
@@ -291,12 +311,14 @@ class CatalogViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            var previousAccess: Long? = null
             catalog
                 .map { state -> state.access.value to state.catalogRevision }
                 .distinctUntilChanged()
                 .collect { (accessRevision, catalogRevision) ->
                     thumbnailLoader.onCatalogState(accessRevision, catalogRevision)
-                    clearDerivedUiState()
+                    clearDerivedUiState(refreshRequests = previousAccess == accessRevision)
+                    previousAccess = accessRevision
                 }
         }
         viewModelScope.launch {
@@ -532,20 +554,21 @@ class CatalogViewModel @Inject constructor(
         }
     }
 
-    private fun clearDerivedUiState() {
+    private fun clearDerivedUiState(refreshRequests: Boolean = false) {
+        val request = if (refreshRequests) search.value.submittedRequest() else null
+        val viewedAsset = if (refreshRequests) viewer.value.assetId else null
         viewerJob?.cancel()
         similarJob?.cancel()
         duplicateJob?.cancel()
-        searchJob?.cancel()
-        searchJob = null
-        searchGeneration.incrementAndGet()
+        searchSession.clear()
         similarGeneration.incrementAndGet()
         duplicateGeneration.incrementAndGet()
         viewerGeneration.incrementAndGet()
-        mutableSearch.value = SearchUiState.Idle
         mutableSimilar.value = SimilarUiState.Idle
         mutableDuplicates.value = DuplicateUiState.Idle
         replaceViewerState(ViewerUiState.Idle)
+        if (request != null) search(request.query, request.filter, request.channels)
+        if (viewedAsset != null) openViewer(viewedAsset)
     }
 
     fun openViewer(assetId: Long) {
@@ -642,65 +665,9 @@ class CatalogViewModel @Inject constructor(
         query: String,
         filter: SearchFilter = SearchFilter.None,
         channels: SearchChannelSelection = SearchChannelSelection.All,
-    ) {
-        val normalizedQuery = query.trim()
-        searchJob?.cancel()
-        searchJob = null
-        if (normalizedQuery.isEmpty()) {
-            searchGeneration.incrementAndGet()
-            mutableSearch.value = SearchUiState.Idle
-            return
-        }
-        val generation = searchGeneration.incrementAndGet()
-        val pack = modelPack.value.installed
-        if (modelPack.value.status == ModelPackRuntimeStatus.Installing || pack == null) {
-            mutableSearch.value = SearchUiState.Failed("MODEL_PACK_REQUIRED")
-            return
-        }
-        mutableSearch.value = SearchUiState.Searching(normalizedQuery, filter, channels)
-        searchJob = viewModelScope.launch {
-            val result =
-                try {
-                    val searchResult =
-                        unifiedSearch.search(
-                            query = normalizedQuery,
-                            pipelineVersion = OcrIndexingRuntime.PipelineVersion,
-                            fallbackComponentHash = pack.manifestSha256,
-                            filter = filter,
-                            channels = channels,
-                        )
-                    val hydrated = searchResult.hits.mapNotNull { hit ->
-                        libraryFeed.item(hit.assetId)?.let { asset -> SearchResultItem(asset, hit) }
-                    }
-                    SearchUiState.Ready(
-                        normalizedQuery,
-                        filter,
-                        hydrated,
-                        searchResult.channels,
-                        searchResult.semanticStatus,
-                        searchResult.visualStatus,
-                    )
-                } catch (cancellation: CancellationException) {
-                    throw cancellation
-                } catch (failure: Exception) {
-                    SearchUiState.Failed(failure::class.java.simpleName.uppercase())
-                }
-            if (searchGeneration.get() == generation) mutableSearch.value = result
-        }
-    }
+    ) = searchSession.submit(query, filter, channels)
 
-    fun cancelSearch() {
-        val query = when (val state = mutableSearch.value) {
-            is SearchUiState.Searching -> state.query
-            is SearchUiState.Ready -> state.query
-            is SearchUiState.Cancelled -> state.query
-            else -> ""
-        }
-        searchGeneration.incrementAndGet()
-        searchJob?.cancel()
-        searchJob = null
-        mutableSearch.value = if (query.isBlank()) SearchUiState.Idle else SearchUiState.Cancelled(query)
-    }
+    fun cancelSearch() = searchSession.cancel()
 
     fun findSimilar(sourceAssetId: Long) {
         similarJob?.cancel()

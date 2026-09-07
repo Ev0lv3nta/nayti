@@ -1,5 +1,9 @@
 package app.nayti.ui.library
 
+import app.nayti.ui.SearchRequest
+import app.nayti.ui.SearchSession
+import app.nayti.ui.submittedRequest
+
 import android.app.DatePickerDialog
 import android.content.Context
 import androidx.compose.foundation.background
@@ -157,6 +161,16 @@ fun LibrarySearchScreen(
         mutableStateOf(SearchChannelSelection.All)
     }
     var showWhere by rememberSaveable { mutableStateOf(false) }
+    val filterAnchorMillis by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
+    val draftFilter = remember(dateScope, customFrom, customBefore, bucketId, mimeType, filterAnchorMillis) {
+        buildSearchFilter(dateScope, customFrom, customBefore, bucketId, mimeType, filterAnchorMillis)
+    }
+    val submitted = search.submittedRequest()
+    val draft = SearchRequest(query.trim(), draftFilter, channels)
+    val pendingChanges = submitted != null && submitted != draft
+    val queryTooLong = query.trim().length > SearchSession.MaximumQueryCharacters
+    val canSubmit = query.isNotBlank() && !queryTooLong && modelReady &&
+        (search !is SearchUiState.Searching || pendingChanges)
     var longSearch by remember { mutableStateOf(false) }
     var compactChromeHeightPx by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
@@ -171,7 +185,8 @@ fun LibrarySearchScreen(
         with(density) { compactChromeHeightPx.toDp() } + NaytiSpacing.Medium
     }
 
-    LaunchedEffect(library.facets) {
+    LaunchedEffect(library.facets, library.initialLoading, library.errorCode) {
+        if (library.initialLoading || library.errorCode != null) return@LaunchedEffect
         if (bucketId != null && library.facets.albums.none { it.bucketId == bucketId }) bucketId = null
         if (mimeType != null && library.facets.mimeTypes.none { it.mimeType == mimeType }) mimeType = null
     }
@@ -184,12 +199,12 @@ fun LibrarySearchScreen(
     }
 
     val submit = {
-        if (query.isNotBlank() && modelReady && search !is SearchUiState.Searching) {
+        if (canSubmit) {
             keyboardController?.hide()
             focusManager.clearFocus()
             onSearch(
                 query,
-                buildSearchFilter(dateScope, customFrom, customBefore, bucketId, mimeType),
+                draftFilter,
                 channels,
             )
         }
@@ -236,7 +251,9 @@ fun LibrarySearchScreen(
                 onOpenWhere = { showWhere = true },
                 channels = channels,
                 onChannelsChange = { channels = it },
-                canSubmit = query.isNotBlank() && modelReady && search !is SearchUiState.Searching,
+                canSubmit = canSubmit,
+                pendingQuery = submitted?.query?.takeIf { pendingChanges },
+                queryTooLong = queryTooLong,
                 searching = search is SearchUiState.Searching,
                 longSearch = longSearch,
                 imeVisible = imeVisible,
@@ -288,6 +305,7 @@ fun LibrarySearchScreen(
                 mimeType = null
             },
             onDismiss = { showWhere = false },
+            onApply = { showWhere = false; submit() },
         )
     }
 }
@@ -326,8 +344,13 @@ private fun LibraryOrResultsGrid(
     }
     val libraryGridState = rememberLazyGridState()
     val resultsGridState = rememberLazyGridState()
+    var lastShownRequest by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(search) {
-        if (search is SearchUiState.Ready) resultsGridState.scrollToItem(0)
+        if (search is SearchUiState.Ready) {
+            val key = search.submittedRequest().toString()
+            if (key != lastShownRequest) resultsGridState.scrollToItem(0)
+            lastShownRequest = key
+        }
     }
     LazyVerticalGrid(
         columns = GridCells.Fixed(columns),
@@ -448,6 +471,8 @@ private fun SearchChrome(
     channels: SearchChannelSelection,
     onChannelsChange: (SearchChannelSelection) -> Unit,
     canSubmit: Boolean,
+    pendingQuery: String?,
+    queryTooLong: Boolean,
     searching: Boolean,
     longSearch: Boolean,
     imeVisible: Boolean,
@@ -513,7 +538,7 @@ private fun SearchChrome(
                                     .heightIn(min = fieldMinHeight)
                                     .padding(
                                         start = 14.dp,
-                                        end = if (query.isNotEmpty() && !searching) 4.dp else 14.dp,
+                                        end = if (query.isNotEmpty()) 4.dp else 14.dp,
                                     ),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
@@ -546,7 +571,7 @@ private fun SearchChrome(
                                     }
                                     innerTextField()
                                 }
-                                if (query.isNotEmpty() && !searching) {
+                                if (query.isNotEmpty()) {
                                     IconButton(
                                         onClick = onClear,
                                         modifier = Modifier
@@ -575,7 +600,7 @@ private fun SearchChrome(
                             },
                         shape = RoundedCornerShape(16.dp),
                     ) {
-                        if (searching) {
+                        if (searching && !canSubmit) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(21.dp),
                                 color = NaytiTheme.colors.onAccent,
@@ -589,10 +614,25 @@ private fun SearchChrome(
             }
             SearchModeSelector(
                 selection = channels,
-                enabled = !searching,
+                enabled = true,
                 onSelection = onChannelsChange,
                 modifier = Modifier.padding(top = 9.dp),
             )
+            if (queryTooLong) {
+                Text(
+                    stringResource(R.string.search_query_too_long, SearchSession.MaximumQueryCharacters),
+                    color = NaytiTheme.colors.attention,
+                    style = NaytiTheme.type.labelS,
+                    modifier = Modifier.padding(8.dp),
+                )
+            } else if (pendingQuery != null) {
+                Text(
+                    stringResource(R.string.search_pending_changes, pendingQuery),
+                    color = NaytiTheme.colors.inkMuted,
+                    style = NaytiTheme.type.labelS,
+                    modifier = Modifier.padding(8.dp).testTag("search-pending-changes"),
+                )
+            }
             if (!modelReady) {
                 Text(
                     text = stringResource(R.string.search_surface_model_required),
@@ -969,6 +1009,7 @@ private fun WhereToSearchSheet(
     onMimeType: (String?) -> Unit,
     onReset: () -> Unit,
     onDismiss: () -> Unit,
+    onApply: () -> Unit,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -1032,7 +1073,7 @@ private fun WhereToSearchSheet(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onReset) { Text(stringResource(R.string.search_where_reset)) }
                     KromkaButton(
-                        onClick = onDismiss,
+                        onClick = onApply,
                         modifier = Modifier.height(44.dp),
                     ) {
                         Text(stringResource(R.string.search_where_apply))
@@ -1144,8 +1185,8 @@ private fun buildSearchFilter(
     customBefore: Long?,
     bucketId: Long?,
     mimeType: String?,
+    now: Long,
 ): SearchFilter {
-    val now = System.currentTimeMillis()
     return SearchFilter(
         takenFromMillis = when (dateScope) {
             SearchDateScope.Any -> null

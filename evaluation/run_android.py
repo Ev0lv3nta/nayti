@@ -30,6 +30,9 @@ def run(adb: str, serial: str, corpus: Path, pack: Path, output: Path) -> None:
         if not path.is_relative_to(corpus.resolve()) or digest(path) != asset["sha256"]:
             raise ValueError("Corpus file identity mismatch")
     command = [adb, "-s", serial]
+    current_user = subprocess.check_output(command + ["shell", "am", "get-current-user"], text=True).strip()
+    if current_user != "0":
+        raise ValueError("This runner supports only user 0 on an isolated test device/emulator; it does not switch users")
     if subprocess.check_output(command + ["shell", "getprop", "ro.product.cpu.abi"], text=True).strip() != "arm64-v8a":
         raise ValueError("ARM64 target required")
     output.mkdir(parents=True, exist_ok=False)

@@ -41,7 +41,7 @@ adb install nayti-0.1.0-alpha.2-arm64.apk
 
 Для обновления с прежней signed alpha.1 используйте `adb install -r nayti-0.1.0-alpha.2-arm64.apk`: code 2 и прежний сертификат сохраняют app-private данные. Старый pack alpha.2 принимается по точному manifest hash как при restore, так и при новом импорте; APK upgrade не меняет embedding identities. Зафиксируйте поканальную готовность до/после и убедитесь, что подготовка не началась с нуля. Этот сценарий пока требует физической проверки.
 
-Если на устройстве уже установлена developer-сборка с Android Debug certificate под тем же `app.nayti`, поверх неё signed APK не установится. Удаление сотрёт private database, model pack и индекс: **не удалять личную установку ради теста**. Нужен отдельный согласованный профиль/устройство. Современные debug/benchmark используют отдельные IDs и не заменяют release, но у прежних экспериментальных сборок ID мог совпадать.
+Если на устройстве уже установлена developer-сборка с Android Debug certificate под тем же `app.nayti`, поверх неё signed APK не установится. Удаление сотрёт private database, model pack и индекс: **не удалять личную установку ради теста**. Нужен другой физический ARM64-телефон либо отдельное согласованное решение о переходе. Обычный secondary/work profile не является обходом конфликта подписей: данные пользователей раздельны, но управление установленным пакетом влияет на других пользователей ([AOSP](https://source.android.com/docs/devices/admin/multi-user)). Современные debug/benchmark имеют другие IDs, но проверка такого APK не заменяет проверку точного release artifact.
 
 Model pack можно скопировать в Downloads и выбрать в системном SAF picker:
 

@@ -52,6 +52,7 @@ python3 scripts/generate_release_sbom.py \
   --notices build/reports/nayti-app-release-notices.md
 
 python3 -m unittest discover -s scripts/tests
+python3 -m unittest discover -s evaluation
 PYTHONPATH=model-tools/src python3 -m unittest discover -s model-tools/tests
 
 apks=(

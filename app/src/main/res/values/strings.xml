@@ -1,4 +1,8 @@
 <resources>
+    <string name="viewer_original_actions">Действия с оригиналом</string>
+    <string name="viewer_share_original">Поделиться фотографией</string>
+    <string name="viewer_open_original">Открыть в другом приложении</string>
+    <string name="viewer_original_unavailable">Не удалось открыть оригинал. Проверьте доступ к фотографии и наличие подходящего приложения.</string>
     <string name="index_start_photos_required">Сначала разрешите доступ к фотографиям в настройках Nayti.</string>
     <string name="index_start_models_required">Сначала выберите и установите файл с моделями.</string>
     <string name="index_start_catalog_busy">Список фотографий пока не готов. Дождитесь его обновления и повторите запуск.</string>

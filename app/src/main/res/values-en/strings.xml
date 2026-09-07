@@ -1,4 +1,8 @@
 <resources>
+    <string name="viewer_original_actions">Original photo actions</string>
+    <string name="viewer_share_original">Share photo</string>
+    <string name="viewer_open_original">Open in another app</string>
+    <string name="viewer_original_unavailable">Could not open the original. Check photo access and whether a compatible app is installed.</string>
     <string name="index_start_photos_required">Allow access to photos in Nayti settings first.</string>
     <string name="index_start_models_required">Select and install the model file first.</string>
     <string name="index_start_catalog_busy">The photo list is not ready yet. Wait for it to refresh, then try again.</string>

@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "app.nayti.benchmark"
+    namespace = "app.nayti.macrobenchmark"
     compileSdk { version = release(37) }
     targetProjectPath = ":app"
 
@@ -19,6 +19,17 @@ android {
     }
 
     experimentalProperties["android.experimental.self-instrumenting"] = true
+    buildTypes {
+        create("benchmark") {
+            isDebuggable = true
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
+    }
+}
+
+androidComponents {
+    beforeVariants(selector().withBuildType("debug")) { it.enable = false }
 }
 
 dependencies {

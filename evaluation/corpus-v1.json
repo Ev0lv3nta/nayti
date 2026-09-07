@@ -3028,28 +3028,6 @@
     {
       "id": "q002",
       "category": "visual",
-      "query": "На фотографии собака",
-      "split": "development",
-      "relevant": [
-        "coco-000000078823",
-        "coco-000000190140",
-        "coco-000000253386",
-        "coco-000000262938",
-        "coco-000000283412",
-        "coco-000000309938",
-        "coco-000000331075",
-        "coco-000000389933",
-        "coco-000000392818",
-        "coco-000000427034",
-        "coco-000000498286"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q003",
-      "category": "visual",
       "query": "кошка",
       "split": "development",
       "relevant": [
@@ -3069,7 +3047,7 @@
       ]
     },
     {
-      "id": "q004",
+      "id": "q003",
       "category": "visual",
       "query": "cat",
       "split": "development",
@@ -3090,28 +3068,7 @@
       ]
     },
     {
-      "id": "q005",
-      "category": "visual",
-      "query": "На фотографии кошка",
-      "split": "development",
-      "relevant": [
-        "coco-000000046378",
-        "coco-000000058111",
-        "coco-000000080949",
-        "coco-000000166277",
-        "coco-000000269314",
-        "coco-000000284623",
-        "coco-000000290843",
-        "coco-000000343076",
-        "coco-000000475732",
-        "coco-000000520531"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q006",
+      "id": "q004",
       "category": "visual",
       "query": "лошадь",
       "split": "development",
@@ -3128,7 +3085,7 @@
       ]
     },
     {
-      "id": "q007",
+      "id": "q005",
       "category": "visual",
       "query": "horse",
       "split": "development",
@@ -3145,24 +3102,7 @@
       ]
     },
     {
-      "id": "q008",
-      "category": "visual",
-      "query": "На фотографии лошадь",
-      "split": "development",
-      "relevant": [
-        "coco-000000045070",
-        "coco-000000118209",
-        "coco-000000191288",
-        "coco-000000227686",
-        "coco-000000367818",
-        "coco-000000380203"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q009",
+      "id": "q006",
       "category": "visual",
       "query": "птица",
       "split": "development",
@@ -3181,7 +3121,7 @@
       ]
     },
     {
-      "id": "q010",
+      "id": "q007",
       "category": "visual",
       "query": "bird",
       "split": "development",
@@ -3200,26 +3140,7 @@
       ]
     },
     {
-      "id": "q011",
-      "category": "visual",
-      "query": "На фотографии птица",
-      "split": "development",
-      "relevant": [
-        "coco-000000046378",
-        "coco-000000056545",
-        "coco-000000147498",
-        "coco-000000167902",
-        "coco-000000182441",
-        "coco-000000186938",
-        "coco-000000270705",
-        "coco-000000542625"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q012",
+      "id": "q008",
       "category": "visual",
       "query": "велосипед",
       "split": "development",
@@ -3236,7 +3157,7 @@
       ]
     },
     {
-      "id": "q013",
+      "id": "q009",
       "category": "visual",
       "query": "bicycle",
       "split": "development",
@@ -3253,24 +3174,7 @@
       ]
     },
     {
-      "id": "q014",
-      "category": "visual",
-      "query": "На фотографии велосипед",
-      "split": "development",
-      "relevant": [
-        "coco-000000011149",
-        "coco-000000076547",
-        "coco-000000135670",
-        "coco-000000242287",
-        "coco-000000274687",
-        "coco-000000472623"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q015",
+      "id": "q010",
       "category": "visual",
       "query": "машина",
       "split": "development",
@@ -3290,7 +3194,7 @@
       ]
     },
     {
-      "id": "q016",
+      "id": "q011",
       "category": "visual",
       "query": "car",
       "split": "development",
@@ -3310,27 +3214,7 @@
       ]
     },
     {
-      "id": "q017",
-      "category": "visual",
-      "query": "На фотографии машина",
-      "split": "development",
-      "relevant": [
-        "coco-000000078823",
-        "coco-000000138979",
-        "coco-000000183246",
-        "coco-000000269632",
-        "coco-000000442456",
-        "coco-000000461751",
-        "coco-000000498286",
-        "coco-000000534639",
-        "coco-000000542625"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q018",
+      "id": "q012",
       "category": "visual",
       "query": "автобус",
       "split": "development",
@@ -3348,7 +3232,7 @@
       ]
     },
     {
-      "id": "q019",
+      "id": "q013",
       "category": "visual",
       "query": "bus",
       "split": "development",
@@ -3366,25 +3250,7 @@
       ]
     },
     {
-      "id": "q020",
-      "category": "visual",
-      "query": "На фотографии автобус",
-      "split": "development",
-      "relevant": [
-        "coco-000000138979",
-        "coco-000000269632",
-        "coco-000000362682",
-        "coco-000000423519",
-        "coco-000000455085",
-        "coco-000000534673",
-        "coco-000000542856"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q021",
+      "id": "q014",
       "category": "visual",
       "query": "поезд",
       "split": "development",
@@ -3402,7 +3268,7 @@
       ]
     },
     {
-      "id": "q022",
+      "id": "q015",
       "category": "visual",
       "query": "train",
       "split": "development",
@@ -3420,25 +3286,7 @@
       ]
     },
     {
-      "id": "q023",
-      "category": "visual",
-      "query": "На фотографии поезд",
-      "split": "development",
-      "relevant": [
-        "coco-000000076547",
-        "coco-000000078170",
-        "coco-000000186624",
-        "coco-000000249643",
-        "coco-000000458109",
-        "coco-000000508482",
-        "coco-000000534639"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q024",
+      "id": "q016",
       "category": "visual",
       "query": "лодка",
       "split": "development",
@@ -3456,7 +3304,7 @@
       ]
     },
     {
-      "id": "q025",
+      "id": "q017",
       "category": "visual",
       "query": "boat",
       "split": "development",
@@ -3474,25 +3322,7 @@
       ]
     },
     {
-      "id": "q026",
-      "category": "visual",
-      "query": "На фотографии лодка",
-      "split": "development",
-      "relevant": [
-        "coco-000000113051",
-        "coco-000000190140",
-        "coco-000000395633",
-        "coco-000000400803",
-        "coco-000000451090",
-        "coco-000000511321",
-        "coco-000000543300"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q027",
+      "id": "q018",
       "category": "visual",
       "query": "самолёт",
       "split": "holdout",
@@ -3510,7 +3340,7 @@
       ]
     },
     {
-      "id": "q028",
+      "id": "q019",
       "category": "visual",
       "query": "airplane",
       "split": "holdout",
@@ -3528,25 +3358,7 @@
       ]
     },
     {
-      "id": "q029",
-      "category": "visual",
-      "query": "На фотографии самолёт",
-      "split": "holdout",
-      "relevant": [
-        "coco-000000084752",
-        "coco-000000096549",
-        "coco-000000099054",
-        "coco-000000110721",
-        "coco-000000463037",
-        "coco-000000490413",
-        "coco-000000495054"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q030",
+      "id": "q020",
       "category": "visual",
       "query": "слон",
       "split": "development",
@@ -3563,7 +3375,7 @@
       ]
     },
     {
-      "id": "q031",
+      "id": "q021",
       "category": "visual",
       "query": "elephant",
       "split": "development",
@@ -3580,24 +3392,7 @@
       ]
     },
     {
-      "id": "q032",
-      "category": "visual",
-      "query": "На фотографии слон",
-      "split": "development",
-      "relevant": [
-        "coco-000000132796",
-        "coco-000000133631",
-        "coco-000000166642",
-        "coco-000000167128",
-        "coco-000000414795",
-        "coco-000000519208"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q033",
+      "id": "q022",
       "category": "visual",
       "query": "зебра",
       "split": "holdout",
@@ -3615,7 +3410,7 @@
       ]
     },
     {
-      "id": "q034",
+      "id": "q023",
       "category": "visual",
       "query": "zebra",
       "split": "holdout",
@@ -3633,25 +3428,7 @@
       ]
     },
     {
-      "id": "q035",
-      "category": "visual",
-      "query": "На фотографии зебра",
-      "split": "holdout",
-      "relevant": [
-        "coco-000000064499",
-        "coco-000000159977",
-        "coco-000000172977",
-        "coco-000000201676",
-        "coco-000000290833",
-        "coco-000000320632",
-        "coco-000000552902"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q036",
+      "id": "q024",
       "category": "visual",
       "query": "жираф",
       "split": "development",
@@ -3668,7 +3445,7 @@
       ]
     },
     {
-      "id": "q037",
+      "id": "q025",
       "category": "visual",
       "query": "giraffe",
       "split": "development",
@@ -3685,24 +3462,7 @@
       ]
     },
     {
-      "id": "q038",
-      "category": "visual",
-      "query": "На фотографии жираф",
-      "split": "development",
-      "relevant": [
-        "coco-000000079188",
-        "coco-000000157098",
-        "coco-000000205282",
-        "coco-000000248810",
-        "coco-000000272364",
-        "coco-000000288882"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q039",
+      "id": "q026",
       "category": "visual",
       "query": "пицца",
       "split": "development",
@@ -3719,7 +3479,7 @@
       ]
     },
     {
-      "id": "q040",
+      "id": "q027",
       "category": "visual",
       "query": "pizza",
       "split": "development",
@@ -3736,24 +3496,7 @@
       ]
     },
     {
-      "id": "q041",
-      "category": "visual",
-      "query": "На фотографии пицца",
-      "split": "development",
-      "relevant": [
-        "coco-000000100582",
-        "coco-000000127476",
-        "coco-000000174123",
-        "coco-000000232489",
-        "coco-000000360393",
-        "coco-000000555412"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q042",
+      "id": "q028",
       "category": "visual",
       "query": "торт",
       "split": "holdout",
@@ -3770,7 +3513,7 @@
       ]
     },
     {
-      "id": "q043",
+      "id": "q029",
       "category": "visual",
       "query": "cake",
       "split": "holdout",
@@ -3787,24 +3530,7 @@
       ]
     },
     {
-      "id": "q044",
-      "category": "visual",
-      "query": "На фотографии торт",
-      "split": "holdout",
-      "relevant": [
-        "coco-000000245651",
-        "coco-000000276434",
-        "coco-000000377368",
-        "coco-000000453040",
-        "coco-000000495448",
-        "coco-000000502737"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q045",
+      "id": "q030",
       "category": "visual",
       "query": "банан",
       "split": "development",
@@ -3822,7 +3548,7 @@
       ]
     },
     {
-      "id": "q046",
+      "id": "q031",
       "category": "visual",
       "query": "banana",
       "split": "development",
@@ -3840,25 +3566,7 @@
       ]
     },
     {
-      "id": "q047",
-      "category": "visual",
-      "query": "На фотографии банан",
-      "split": "development",
-      "relevant": [
-        "coco-000000006012",
-        "coco-000000008844",
-        "coco-000000028809",
-        "coco-000000090891",
-        "coco-000000269314",
-        "coco-000000348708",
-        "coco-000000548506"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q048",
+      "id": "q032",
       "category": "visual",
       "query": "ноутбук",
       "split": "development",
@@ -3878,7 +3586,7 @@
       ]
     },
     {
-      "id": "q049",
+      "id": "q033",
       "category": "visual",
       "query": "laptop",
       "split": "development",
@@ -3898,27 +3606,7 @@
       ]
     },
     {
-      "id": "q050",
-      "category": "visual",
-      "query": "На фотографии ноутбук",
-      "split": "development",
-      "relevant": [
-        "coco-000000076547",
-        "coco-000000080949",
-        "coco-000000215778",
-        "coco-000000239318",
-        "coco-000000248631",
-        "coco-000000290843",
-        "coco-000000343076",
-        "coco-000000427034",
-        "coco-000000553664"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q051",
+      "id": "q034",
       "category": "visual",
       "query": "часы",
       "split": "holdout",
@@ -3935,7 +3623,7 @@
       ]
     },
     {
-      "id": "q052",
+      "id": "q035",
       "category": "visual",
       "query": "clock",
       "split": "holdout",
@@ -3952,24 +3640,7 @@
       ]
     },
     {
-      "id": "q053",
-      "category": "visual",
-      "query": "На фотографии часы",
-      "split": "holdout",
-      "relevant": [
-        "coco-000000067896",
-        "coco-000000167353",
-        "coco-000000191013",
-        "coco-000000233139",
-        "coco-000000525286",
-        "coco-000000551780"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q054",
+      "id": "q036",
       "category": "visual",
       "query": "книга",
       "split": "development",
@@ -3990,7 +3661,7 @@
       ]
     },
     {
-      "id": "q055",
+      "id": "q037",
       "category": "visual",
       "query": "book",
       "split": "development",
@@ -4011,28 +3682,7 @@
       ]
     },
     {
-      "id": "q056",
-      "category": "visual",
-      "query": "На фотографии книга",
-      "split": "development",
-      "relevant": [
-        "coco-000000058111",
-        "coco-000000183049",
-        "coco-000000215778",
-        "coco-000000262938",
-        "coco-000000309938",
-        "coco-000000346968",
-        "coco-000000403353",
-        "coco-000000520077",
-        "coco-000000520531",
-        "coco-000000553664"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q057",
+      "id": "q038",
       "category": "visual",
       "query": "зонт",
       "split": "holdout",
@@ -4049,7 +3699,7 @@
       ]
     },
     {
-      "id": "q058",
+      "id": "q039",
       "category": "visual",
       "query": "umbrella",
       "split": "holdout",
@@ -4066,24 +3716,7 @@
       ]
     },
     {
-      "id": "q059",
-      "category": "visual",
-      "query": "На фотографии зонт",
-      "split": "holdout",
-      "relevant": [
-        "coco-000000084477",
-        "coco-000000121506",
-        "coco-000000232563",
-        "coco-000000250137",
-        "coco-000000339823",
-        "coco-000000441543"
-      ],
-      "channels": [
-        "visual"
-      ]
-    },
-    {
-      "id": "q060",
+      "id": "q040",
       "category": "identifier",
       "query": "RX-482931",
       "split": "development",
@@ -4099,7 +3732,7 @@
       ]
     },
     {
-      "id": "q061",
+      "id": "q041",
       "category": "phrase",
       "query": "аптека листок",
       "split": "development",
@@ -4113,7 +3746,7 @@
       ]
     },
     {
-      "id": "q062",
+      "id": "q042",
       "category": "typo",
       "query": "аптека листк",
       "split": "development",
@@ -4127,7 +3760,7 @@
       ]
     },
     {
-      "id": "q063",
+      "id": "q043",
       "category": "document_semantics",
       "query": "покупка лекарств",
       "split": "development",
@@ -4141,7 +3774,7 @@
       ]
     },
     {
-      "id": "q064",
+      "id": "q044",
       "category": "duplicates",
       "query": "",
       "split": "development",
@@ -4153,7 +3786,7 @@
       "source_asset": "document-00-0"
     },
     {
-      "id": "q065",
+      "id": "q045",
       "category": "identifier",
       "query": "TK-793152",
       "split": "development",
@@ -4169,7 +3802,7 @@
       ]
     },
     {
-      "id": "q066",
+      "id": "q046",
       "category": "phrase",
       "query": "москва казань",
       "split": "development",
@@ -4183,7 +3816,7 @@
       ]
     },
     {
-      "id": "q067",
+      "id": "q047",
       "category": "typo",
       "query": "москв казань",
       "split": "development",
@@ -4197,7 +3830,7 @@
       ]
     },
     {
-      "id": "q068",
+      "id": "q048",
       "category": "document_semantics",
       "query": "поездка на поезде",
       "split": "development",
@@ -4211,7 +3844,7 @@
       ]
     },
     {
-      "id": "q069",
+      "id": "q049",
       "category": "duplicates",
       "query": "",
       "split": "development",
@@ -4223,7 +3856,7 @@
       "source_asset": "document-01-0"
     },
     {
-      "id": "q070",
+      "id": "q050",
       "category": "identifier",
       "query": "PK-651824",
       "split": "development",
@@ -4239,7 +3872,7 @@
       ]
     },
     {
-      "id": "q071",
+      "id": "q051",
       "category": "phrase",
       "query": "пункт выдачи",
       "split": "development",
@@ -4253,7 +3886,7 @@
       ]
     },
     {
-      "id": "q072",
+      "id": "q052",
       "category": "typo",
       "query": "пунк выдачи",
       "split": "development",
@@ -4267,7 +3900,7 @@
       ]
     },
     {
-      "id": "q073",
+      "id": "q053",
       "category": "document_semantics",
       "query": "забрать заказ из пункта выдачи",
       "split": "development",
@@ -4281,7 +3914,7 @@
       ]
     },
     {
-      "id": "q074",
+      "id": "q054",
       "category": "duplicates",
       "query": "",
       "split": "development",
@@ -4293,7 +3926,7 @@
       "source_asset": "document-02-0"
     },
     {
-      "id": "q075",
+      "id": "q055",
       "category": "identifier",
       "query": "WF-928461",
       "split": "development",
@@ -4309,7 +3942,7 @@
       ]
     },
     {
-      "id": "q076",
+      "id": "q056",
       "category": "phrase",
       "query": "пароль от wi-fi",
       "split": "development",
@@ -4323,7 +3956,7 @@
       ]
     },
     {
-      "id": "q077",
+      "id": "q057",
       "category": "typo",
       "query": "парол от wi-fi",
       "split": "development",
@@ -4337,7 +3970,7 @@
       ]
     },
     {
-      "id": "q078",
+      "id": "q058",
       "category": "document_semantics",
       "query": "подключение к домашнему интернету",
       "split": "development",
@@ -4351,7 +3984,7 @@
       ]
     },
     {
-      "id": "q079",
+      "id": "q059",
       "category": "duplicates",
       "query": "",
       "split": "development",
@@ -4363,7 +3996,7 @@
       "source_asset": "document-03-0"
     },
     {
-      "id": "q080",
+      "id": "q060",
       "category": "identifier",
       "query": "AS-374629",
       "split": "development",
@@ -4379,7 +4012,7 @@
       ]
     },
     {
-      "id": "q081",
+      "id": "q061",
       "category": "phrase",
       "query": "замена масла",
       "split": "development",
@@ -4393,7 +4026,7 @@
       ]
     },
     {
-      "id": "q082",
+      "id": "q062",
       "category": "typo",
       "query": "замена масл",
       "split": "development",
@@ -4407,7 +4040,7 @@
       ]
     },
     {
-      "id": "q083",
+      "id": "q063",
       "category": "document_semantics",
       "query": "техническое обслуживание автомобиля",
       "split": "development",
@@ -4421,7 +4054,7 @@
       ]
     },
     {
-      "id": "q084",
+      "id": "q064",
       "category": "duplicates",
       "query": "",
       "split": "development",
@@ -4433,7 +4066,7 @@
       "source_asset": "document-04-0"
     },
     {
-      "id": "q085",
+      "id": "q065",
       "category": "identifier",
       "query": "HT-582713",
       "split": "development",
@@ -4449,7 +4082,7 @@
       ]
     },
     {
-      "id": "q086",
+      "id": "q066",
       "category": "phrase",
       "query": "гостиница берег",
       "split": "development",
@@ -4463,7 +4096,7 @@
       ]
     },
     {
-      "id": "q087",
+      "id": "q067",
       "category": "typo",
       "query": "гостиниц берег",
       "split": "development",
@@ -4477,7 +4110,7 @@
       ]
     },
     {
-      "id": "q088",
+      "id": "q068",
       "category": "document_semantics",
       "query": "где остановиться во время поездки",
       "split": "development",
@@ -4491,7 +4124,7 @@
       ]
     },
     {
-      "id": "q089",
+      "id": "q069",
       "category": "duplicates",
       "query": "",
       "split": "development",
@@ -4503,7 +4136,7 @@
       "source_asset": "document-05-0"
     },
     {
-      "id": "q090",
+      "id": "q070",
       "category": "identifier",
       "query": "RC-416938",
       "split": "development",
@@ -4519,7 +4152,7 @@
       ]
     },
     {
-      "id": "q091",
+      "id": "q071",
       "category": "phrase",
       "query": "яблоки и корица",
       "split": "development",
@@ -4533,7 +4166,7 @@
       ]
     },
     {
-      "id": "q092",
+      "id": "q072",
       "category": "typo",
       "query": "яблки и корица",
       "split": "development",
@@ -4547,7 +4180,7 @@
       ]
     },
     {
-      "id": "q093",
+      "id": "q073",
       "category": "document_semantics",
       "query": "как приготовить десерт из яблок",
       "split": "development",
@@ -4561,7 +4194,7 @@
       ]
     },
     {
-      "id": "q094",
+      "id": "q074",
       "category": "duplicates",
       "query": "",
       "split": "development",
@@ -4573,7 +4206,7 @@
       "source_asset": "document-06-0"
     },
     {
-      "id": "q095",
+      "id": "q075",
       "category": "identifier",
       "query": "EL-863147",
       "split": "holdout",
@@ -4589,7 +4222,7 @@
       ]
     },
     {
-      "id": "q096",
+      "id": "q076",
       "category": "phrase",
       "query": "оплата электричества",
       "split": "holdout",
@@ -4603,7 +4236,7 @@
       ]
     },
     {
-      "id": "q097",
+      "id": "q077",
       "category": "typo",
       "query": "оплата электричства",
       "split": "holdout",
@@ -4617,7 +4250,7 @@
       ]
     },
     {
-      "id": "q098",
+      "id": "q078",
       "category": "document_semantics",
       "query": "коммунальные расходы за свет",
       "split": "holdout",
@@ -4631,7 +4264,7 @@
       ]
     },
     {
-      "id": "q099",
+      "id": "q079",
       "category": "duplicates",
       "query": "",
       "split": "holdout",
@@ -4643,7 +4276,7 @@
       "source_asset": "document-07-0"
     },
     {
-      "id": "q100",
+      "id": "q080",
       "category": "identifier",
       "query": "ED-719352",
       "split": "holdout",
@@ -4659,7 +4292,7 @@
       ]
     },
     {
-      "id": "q101",
+      "id": "q081",
       "category": "phrase",
       "query": "курс фотографии",
       "split": "holdout",
@@ -4673,7 +4306,7 @@
       ]
     },
     {
-      "id": "q102",
+      "id": "q082",
       "category": "typo",
       "query": "курс фотограии",
       "split": "holdout",
@@ -4687,7 +4320,7 @@
       ]
     },
     {
-      "id": "q103",
+      "id": "q083",
       "category": "document_semantics",
       "query": "когда начинается обучение съёмке",
       "split": "holdout",
@@ -4701,7 +4334,7 @@
       ]
     },
     {
-      "id": "q104",
+      "id": "q084",
       "category": "duplicates",
       "query": "",
       "split": "holdout",
@@ -4713,7 +4346,7 @@
       "source_asset": "document-08-0"
     },
     {
-      "id": "q105",
+      "id": "q085",
       "category": "identifier",
       "query": "MU-245819",
       "split": "holdout",
@@ -4729,7 +4362,7 @@
       ]
     },
     {
-      "id": "q106",
+      "id": "q086",
       "category": "phrase",
       "query": "камерной музыки",
       "split": "holdout",
@@ -4743,7 +4376,7 @@
       ]
     },
     {
-      "id": "q107",
+      "id": "q087",
       "category": "typo",
       "query": "камерной музки",
       "split": "holdout",
@@ -4757,7 +4390,7 @@
       ]
     },
     {
-      "id": "q108",
+      "id": "q088",
       "category": "document_semantics",
       "query": "послушать живую музыку",
       "split": "holdout",
@@ -4771,7 +4404,7 @@
       ]
     },
     {
-      "id": "q109",
+      "id": "q089",
       "category": "duplicates",
       "query": "",
       "split": "holdout",
@@ -4783,7 +4416,7 @@
       "source_asset": "document-09-0"
     },
     {
-      "id": "q110",
+      "id": "q090",
       "category": "negative_identifier",
       "query": "ZZ-NAYTI-000000",
       "split": "development",
@@ -4795,7 +4428,7 @@
       ]
     },
     {
-      "id": "q111",
+      "id": "q091",
       "category": "negative_identifier",
       "query": "QX-NEVER-819573",
       "split": "development",
@@ -4807,7 +4440,7 @@
       ]
     },
     {
-      "id": "q112",
+      "id": "q092",
       "category": "negative_identifier",
       "query": "Счёт ZZ-000000",
       "split": "development",
@@ -4819,7 +4452,7 @@
       ]
     },
     {
-      "id": "q113",
+      "id": "q093",
       "category": "negative_identifier",
       "query": "NAYTI-ABSENT-725190",
       "split": "development",
@@ -4831,7 +4464,7 @@
       ]
     },
     {
-      "id": "q114",
+      "id": "q094",
       "category": "negative_identifier",
       "query": "XX-NO-592641",
       "split": "holdout",
@@ -4843,7 +4476,7 @@
       ]
     },
     {
-      "id": "q115",
+      "id": "q095",
       "category": "negative_identifier",
       "query": "ZZ-MISSING-312987",
       "split": "holdout",
@@ -4853,8 +4486,316 @@
         "semantic",
         "visual"
       ]
+    },
+    {
+      "id": "q096",
+      "category": "action",
+      "query": "всадник прыгает на лошади через препятствие",
+      "split": "development",
+      "relevant": [
+        "coco-000000191288"
+      ],
+      "channels": [
+        "visual"
+      ],
+      "label_method": "independent visual inspection 2026-09-08; source bytes pinned"
+    },
+    {
+      "id": "q097",
+      "category": "scene",
+      "query": "женщина стоит рядом с лошадью на траве",
+      "split": "development",
+      "relevant": [
+        "coco-000000367818"
+      ],
+      "channels": [
+        "visual"
+      ],
+      "label_method": "independent visual inspection 2026-09-08; source bytes pinned"
+    },
+    {
+      "id": "q098",
+      "category": "attributes",
+      "query": "девочка в шлеме сидит в седле",
+      "split": "development",
+      "relevant": [
+        "coco-000000045070"
+      ],
+      "channels": [
+        "visual"
+      ],
+      "label_method": "independent visual inspection 2026-09-08; source bytes pinned"
+    },
+    {
+      "id": "q099",
+      "category": "scene",
+      "query": "самолёт SWISS у телетрапа",
+      "split": "holdout",
+      "relevant": [
+        "coco-000000110721"
+      ],
+      "channels": [
+        "visual"
+      ],
+      "label_method": "independent visual inspection 2026-09-08; source bytes pinned"
+    },
+    {
+      "id": "q100",
+      "category": "scene",
+      "query": "самолёт-памятник на бетонных опорах",
+      "split": "holdout",
+      "relevant": [
+        "coco-000000084752"
+      ],
+      "channels": [
+        "visual"
+      ],
+      "label_method": "independent visual inspection 2026-09-08; source bytes pinned"
+    },
+    {
+      "id": "q101",
+      "category": "attributes",
+      "query": "самолёт за сетчатым забором",
+      "split": "holdout",
+      "relevant": [
+        "coco-000000490413"
+      ],
+      "channels": [
+        "visual"
+      ],
+      "label_method": "independent visual inspection 2026-09-08; source bytes pinned"
+    },
+    {
+      "id": "q102",
+      "category": "negative_visual",
+      "query": "всадник скачет на лошади в снежную метель",
+      "split": "development",
+      "relevant": [],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q103",
+      "category": "negative_visual",
+      "query": "самолёт летит над морем",
+      "split": "holdout",
+      "relevant": [],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q104",
+      "category": "mixed",
+      "query": "покупка лекарств RX-482931",
+      "split": "development",
+      "relevant": [
+        "document-00-0",
+        "document-00-1",
+        "document-00-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q105",
+      "category": "mixed",
+      "query": "поездка на поезде TK-793152",
+      "split": "development",
+      "relevant": [
+        "document-01-0",
+        "document-01-1",
+        "document-01-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q106",
+      "category": "mixed",
+      "query": "забрать заказ из пункта выдачи PK-651824",
+      "split": "development",
+      "relevant": [
+        "document-02-0",
+        "document-02-1",
+        "document-02-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q107",
+      "category": "mixed",
+      "query": "коммунальные расходы за свет EL-863147",
+      "split": "holdout",
+      "relevant": [
+        "document-07-0",
+        "document-07-1",
+        "document-07-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q108",
+      "category": "mixed",
+      "query": "когда начинается обучение съёмке ED-719352",
+      "split": "holdout",
+      "relevant": [
+        "document-08-0",
+        "document-08-1",
+        "document-08-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q109",
+      "category": "filter_empty",
+      "query": "фотография",
+      "split": "development",
+      "relevant": [],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ],
+      "filter": {
+        "mime_type": "image/png"
+      }
+    },
+    {
+      "id": "q110",
+      "category": "filter_empty",
+      "query": "документ",
+      "split": "development",
+      "relevant": [],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ],
+      "filter": {
+        "taken_before_millis": 1770000000000
+      }
+    },
+    {
+      "id": "q111",
+      "category": "filter_empty",
+      "query": "фотография",
+      "split": "holdout",
+      "relevant": [],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ],
+      "filter": {
+        "mime_type": "image/png"
+      }
+    },
+    {
+      "id": "q112",
+      "category": "filter_empty",
+      "query": "документ",
+      "split": "holdout",
+      "relevant": [],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ],
+      "filter": {
+        "taken_before_millis": 1770000000000
+      }
+    },
+    {
+      "id": "q113",
+      "category": "exact_fields",
+      "query": "1240",
+      "split": "development",
+      "relevant": [
+        "document-00-0",
+        "document-00-1",
+        "document-00-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q114",
+      "category": "exact_fields",
+      "query": "18.11.2026",
+      "split": "development",
+      "relevant": [
+        "document-01-0",
+        "document-01-1",
+        "document-01-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q115",
+      "category": "exact_fields",
+      "query": "2380",
+      "split": "holdout",
+      "relevant": [
+        "document-07-0",
+        "document-07-1",
+        "document-07-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q116",
+      "category": "exact_fields",
+      "query": "19:00",
+      "split": "holdout",
+      "relevant": [
+        "document-08-0",
+        "document-08-1",
+        "document-08-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q117",
+      "category": "exact_fields",
+      "query": "ряд 7 место 12",
+      "split": "holdout",
+      "relevant": [
+        "document-09-0",
+        "document-09-1",
+        "document-09-2"
+      ],
+      "channels": [
+        "literal"
+      ]
     }
   ],
   "redistribution": "Images stay outside Git. Recheck source attribution and licensing before any redistribution.",
-  "label_limits": "COCO object-presence labels are not exhaustive scene/action/caption judgements. Negative queries test absent synthetic identifiers, not general visual rejection."
+  "label_limits": "Object-presence labels are not exhaustive scene judgements. Six visually inspected action/scene/attribute queries and two hard visual negatives supplement them; this small sample cannot establish universal rejection quality. No model-output-derived labels."
 }

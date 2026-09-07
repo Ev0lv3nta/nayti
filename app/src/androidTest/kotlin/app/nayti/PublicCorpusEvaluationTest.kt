@@ -146,9 +146,14 @@ class PublicCorpusEvaluationTest {
                     val bucketIds = assets.filter { it.getString("split") == split }
                         .map { byId.getValue(it.getString("id")).bucketId }.toSet()
                     check(bucketIds.size == 1 && bucketIds.single() != null)
+                    val filter = query.optJSONObject("filter")
                     val result = graph.search().search(
                         query.getString("query"), OcrIndexingRuntime.PipelineVersion, pack.manifestSha256,
-                        filter = SearchFilter(bucketId = bucketIds.single()),
+                        filter = SearchFilter(
+                            bucketId = bucketIds.single(),
+                            mimeType = filter?.optString("mime_type")?.takeIf { it.isNotBlank() },
+                            takenBeforeMillis = filter?.takeIf { it.has("taken_before_millis") }?.getLong("taken_before_millis"),
+                        ),
                         channels = SearchChannelSelection("literal" in selected, "semantic" in selected, "visual" in selected),
                     )
                     check(result.snapshotId != null)

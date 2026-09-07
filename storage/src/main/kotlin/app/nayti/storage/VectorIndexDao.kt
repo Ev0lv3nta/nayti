@@ -1182,7 +1182,7 @@ interface VectorIndexDao {
                 sha256(ocrComponentHash),
         )
         require(maximumPublicationEpoch >= 0)
-        validateSearchFilters(takenFromMillis, takenBeforeMillis, bucketId, mimeType)
+        validateDateAndMimeFilters(takenFromMillis, takenBeforeMillis, mimeType)
         val manifest = checkNotNull(manifest(manifestRevision))
         check(manifest.channel == IndexChannel.OCR_SEMANTIC)
         return semanticEligibleRecordIds(
@@ -1244,7 +1244,7 @@ interface VectorIndexDao {
     ): List<Long> {
         require(identifier(manifestRevision) && sha256(segmentSha256))
         require(contractValue(visualPipelineVersion) && sha256(componentHash))
-        validateSearchFilters(takenFromMillis, takenBeforeMillis, bucketId, mimeType)
+        validateDateAndMimeFilters(takenFromMillis, takenBeforeMillis, mimeType)
         val manifest = checkNotNull(manifest(manifestRevision))
         check(manifest.channel == IndexChannel.VISUAL)
         return visualEligibleRecordIds(
@@ -1262,16 +1262,15 @@ interface VectorIndexDao {
         }
     }
 
-    private fun validateSearchFilters(
+    private fun validateDateAndMimeFilters(
         takenFromMillis: Long?,
         takenBeforeMillis: Long?,
-        bucketId: Long?,
         mimeType: String?,
     ) {
         require(takenFromMillis == null || takenFromMillis >= 0)
         require(takenBeforeMillis == null || takenBeforeMillis >= 0)
         require(takenFromMillis == null || takenBeforeMillis == null || takenFromMillis < takenBeforeMillis)
-        require(bucketId == null || bucketId >= 0)
+        // Negative MediaStore bucket IDs are valid; never reinterpret them as an absent filter.
         require(mimeType == null || MimeType.matches(mimeType))
     }
 

@@ -67,6 +67,7 @@ def evaluate(manifest: dict, run: dict, manifest_sha256: str) -> dict:
             "rr": 0 if rank is None else 1 / rank, "ms": milliseconds,
             "false_exact": any(hit.get("reason") in EXACT_REASONS for hit in hits),
             "any_result": bool(hits),
+            "literal_enabled": "literal" in query["channels"],
         })
     if seen != set(queries):
         raise ValueError("Missing queries; incomplete runs must not become a final score")
@@ -74,19 +75,21 @@ def evaluate(manifest: dict, run: dict, manifest_sha256: str) -> dict:
     for (split, category), rows in sorted(grouped.items()):
         positive = [row for row in rows if row["positive"]]
         negative = [row for row in rows if not row["positive"]]
+        negative_literal = [row for row in negative if row["literal_enabled"]]
         latency = sorted(row["ms"] for row in rows)
         groups.append({
             "split": split, "category": category, "queries": len(rows),
             "positive_queries": len(positive), "hit_at_1_count": sum(row["hit1"] for row in positive),
             "hit_at_5_count": sum(row["hit5"] for row in positive),
             "mrr": sum(row["rr"] for row in positive) / len(positive) if positive else None,
-            "negative_queries": len(negative), "false_exact_count": sum(row["false_exact"] for row in negative),
+            "negative_queries": len(negative), "negative_with_literal_queries": len(negative_literal),
+            "false_exact_count": sum(row["false_exact"] for row in negative_literal) if negative_literal else None,
             "negative_with_any_result_count": sum(row["any_result"] for row in negative),
             "latency_p50_ms": statistics.median(latency),
             "latency_p95_ms": latency[math.ceil(len(latency) * .95) - 1],
         })
     return {"schema": 1, "manifest_sha256": manifest_sha256, "metadata": metadata, "groups": groups,
-            "limits": "No cosine/confidence threshold inferred. False-exact counts use production evidence reasons. COCO relevance is object presence, not exhaustive scene relevance. Device run remains required."}
+            "limits": "No cosine/confidence threshold inferred. False-exact counts apply only where literal retrieval is enabled; visual-only negatives report any-result counts, not a vacuous zero exact-error rate. Latency measures production query API, not Compose hydration/rendering. Device run remains required."}
 
 
 if __name__ == "__main__":

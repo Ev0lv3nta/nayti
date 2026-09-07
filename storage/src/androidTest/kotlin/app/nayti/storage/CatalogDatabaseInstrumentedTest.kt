@@ -179,7 +179,7 @@ class CatalogDatabaseInstrumentedTest {
             (1L..5L).map { mediaStoreId ->
                 draft("external_primary", mediaStoreId).copy(
                     dateTakenMillis = mediaStoreId * 1_000,
-                    bucketId = if (mediaStoreId < 4) 10 else 20,
+                    bucketId = if (mediaStoreId < 4) -10 else 20,
                     bucketDisplayName = if (mediaStoreId < 4) "Camera" else "Downloads",
                 )
             },
@@ -196,6 +196,7 @@ class CatalogDatabaseInstrumentedTest {
             facets.albums.associate { it.displayName to it.assetCount },
         )
         assertEquals(3L, facets.mimeTypes.single().assetCount)
+        assertEquals(-10L, facets.albums.single { it.displayName == "Camera" }.bucketId)
     }
 
     private suspend fun completeRun(

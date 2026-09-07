@@ -172,7 +172,7 @@ class VectorPublicationStoreInstrumentedTest {
                 current.copy(
                     mimeType = "image/png",
                     dateTakenMillis = 5_000,
-                    bucketId = 200,
+                    bucketId = -200,
                     bucketDisplayName = "Documents",
                 ),
             ),
@@ -187,7 +187,7 @@ class VectorPublicationStoreInstrumentedTest {
                 componentHash = ComponentHash,
                 takenFromMillis = 4_000,
                 takenBeforeMillis = 6_000,
-                bucketId = 200,
+                bucketId = -200,
                 mimeType = "image/png",
             ),
         )

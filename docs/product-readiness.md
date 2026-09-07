@@ -11,7 +11,7 @@
 - Отмена импорта без потери старого пакета; стадии и понятные причины ошибки; KAT использует общую очередь нейровычислений.
 - Hash-specific совместимость пакета с app code 2, одинаковая policy на import и restore. Embedding identities не меняются из-за номера APK.
 - Все AndroidTest в fast gate, platform-media в emulator matrix, отдельный реальный startup benchmark.
-- Безопасный corpus/evaluator: 180 изображений, 116 запросов, 32 holdout; production Android path при фактическом запуске.
+- Безопасный corpus/evaluator: 180 изображений, 118 запросов, 38 holdout; production Android path при фактическом запуске.
 
 ## Проверки
 
@@ -28,7 +28,7 @@
 ## Далее
 
 1. Собрать конечный commit с прежней подписью и checksums/SBOM/notices; до device gates это кандидат.
-2. Выполнить [corpus run](../evaluation/README.md) в изолированной ARM64-среде. Сохранить baseline, разобрать development, заранее зафиксировать критерии, затем final на неизменённом holdout. Дополнить независимые scene/action/negative/filters labels до закрытия quality gate.
+2. Выполнить [corpus run](../evaluation/README.md) в изолированной ARM64-среде. Сохранить baseline, разобрать development, заранее зафиксировать критерии, затем final на неизменённом holdout. Проверить новые scene/action/negative/filters cases; расширять development по выявленным пробелам, не подгонять holdout.
 3. Пройти Android matrix и телефонные UX/resource сценарии: resume, отмена, смена периода/доступа, ошибки моделей, поиск при подготовке, внешний viewer, zoom/rotation, крупный шрифт.
 4. Проверить **точный подписанный APK**: чистая установка без удаления личной установки и upgrade с прежним ключом/пакетом/индексом. Не удалять личные данные ради теста.
 5. Снять реальные screenshots на собственных synthetic documents, добавить проверенные агрегаты; сверить release notes и remote digests. После gates публиковать GitHub prerelease. Google Play, аккаунты и монетизация сейчас не нужны.

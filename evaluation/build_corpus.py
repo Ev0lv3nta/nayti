@@ -145,7 +145,7 @@ def build(annotations: Path, output: Path, font: Path) -> dict:
     for name, russian in CATEGORIES.items():
         split = "holdout" if name in HOLDOUT else "development"
         relevant = [a["id"] for a in assets if a["split"] == split and name in a["labels"]]
-        for text in (russian, name, f"На фотографии {russian}"):
+        for text in (russian, name):
             add("visual", text, split, relevant, ["visual"])
     for index, document in enumerate(DOCUMENTS):
         split = "holdout" if index >= 7 else "development"
@@ -158,11 +158,37 @@ def build(annotations: Path, output: Path, font: Path) -> dict:
         add("duplicates", "", split, relevant[1:], [], source_asset=relevant[0])
     for index, text in enumerate(("ZZ-NAYTI-000000", "QX-NEVER-819573", "Счёт ZZ-000000", "NAYTI-ABSENT-725190", "XX-NO-592641", "ZZ-MISSING-312987")):
         add("negative_identifier", text, "holdout" if index >= 4 else "development", [], ["literal", "semantic", "visual"])
+    # Inspected independently of Nayti output, before the first baseline. Object annotations
+    # alone do not establish actions: e.g. only one of three person+horse photos shows a jump.
+    for split, category, text, ids in (
+        ("development", "action", "всадник прыгает на лошади через препятствие", ["191288"]),
+        ("development", "scene", "женщина стоит рядом с лошадью на траве", ["367818"]),
+        ("development", "attributes", "девочка в шлеме сидит в седле", ["045070"]),
+        ("holdout", "scene", "самолёт SWISS у телетрапа", ["110721"]),
+        ("holdout", "scene", "самолёт-памятник на бетонных опорах", ["084752"]),
+        ("holdout", "attributes", "самолёт за сетчатым забором", ["490413"]),
+    ):
+        add(category, text, split, [f"coco-000000{key}" for key in ids], ["visual"],
+            label_method="independent visual inspection 2026-09-08; source bytes pinned")
+    add("negative_visual", "всадник скачет на лошади в снежную метель", "development", [], ["visual"])
+    add("negative_visual", "самолёт летит над морем", "holdout", [], ["visual"])
+    for index in (0, 1, 2, 7, 8):
+        document = DOCUMENTS[index]
+        split = "holdout" if index >= 7 else "development"
+        relevant = [a["id"] for a in assets if a["family"] == f"document-{index:02d}"]
+        add("mixed", document[4] + " " + document[2].split()[-1], split, relevant, ["literal", "semantic", "visual"])
+    for split in ("development", "holdout"):
+        add("filter_empty", "фотография", split, [], ["literal", "semantic", "visual"], filter={"mime_type": "image/png"})
+        add("filter_empty", "документ", split, [], ["literal", "semantic", "visual"], filter={"taken_before_millis": 1_770_000_000_000})
+    for index, text in ((0, "1240"), (1, "18.11.2026"), (7, "2380"), (8, "19:00"), (9, "ряд 7 место 12")):
+        split = "holdout" if index >= 7 else "development"
+        relevant = [a["id"] for a in assets if a["family"] == f"document-{index:02d}"]
+        add("exact_fields", text, split, relevant, ["literal"])
     manifest = {"schema": 1, "corpus": "nayti-public-v1", "annotations_sha256": ANNOTATIONS_SHA256,
                 "annotations_source": ANNOTATIONS_URL, "annotations_license": "CC-BY-4.0 (COCO Consortium)",
                 "font_sha256": digest(font), "assets": assets, "queries": queries,
                 "redistribution": "Images stay outside Git. Recheck source attribution and licensing before any redistribution.",
-                "label_limits": "COCO object-presence labels are not exhaustive scene/action/caption judgements. Negative queries test absent synthetic identifiers, not general visual rejection."}
+                "label_limits": "Object-presence labels are not exhaustive scene judgements. Six visually inspected action/scene/attribute queries and two hard visual negatives supplement them; this small sample cannot establish universal rejection quality. No model-output-derived labels."}
     hashes = [a["sha256"] for a in assets]
     if len(hashes) != len(set(hashes)):
         raise ValueError("Duplicate image bytes; audit families before accepting corpus")

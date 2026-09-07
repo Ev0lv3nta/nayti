@@ -11,7 +11,7 @@ data class SearchFilter(
         require(takenFromMillis == null || takenFromMillis >= 0)
         require(takenBeforeMillis == null || takenBeforeMillis >= 0)
         require(takenFromMillis == null || takenBeforeMillis == null || takenFromMillis < takenBeforeMillis)
-        require(bucketId == null || bucketId >= 0)
+        // MediaStore bucket IDs are opaque signed values (AOSP uses a directory hash).
         require(mimeType == null || MimeType.matches(mimeType))
     }
 

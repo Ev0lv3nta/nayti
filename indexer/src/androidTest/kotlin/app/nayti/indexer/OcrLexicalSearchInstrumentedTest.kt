@@ -107,7 +107,7 @@ class OcrLexicalSearchInstrumentedTest {
                 fingerprint = FingerprintB,
                 mimeType = "image/png",
                 dateTakenMillis = 5_000,
-                bucketId = 200,
+                bucketId = -200,
             )
         val claims = startAndClaim(listOf(excludedId, includedId))
         publish(claims.getValue(excludedId), "Invoice")
@@ -123,7 +123,7 @@ class OcrLexicalSearchInstrumentedTest {
                 limit = 1,
                 takenFromMillis = 4_000,
                 takenBeforeMillis = 6_000,
-                bucketId = 200,
+                bucketId = -200,
                 mimeType = "image/png",
             )
 
@@ -139,7 +139,7 @@ class OcrLexicalSearchInstrumentedTest {
                     SearchFilter(
                         takenFromMillis = 4_000,
                         takenBeforeMillis = 6_000,
-                        bucketId = 200,
+                        bucketId = -200,
                         mimeType = "image/png",
                     ),
             )

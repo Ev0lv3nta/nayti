@@ -11,8 +11,8 @@ class ScoreTest(unittest.TestCase):
             {"id": "b", "family": "b", "split": "development"},
             {"id": "c", "family": "c", "split": "holdout"},
         ], "queries": [
-            {"id": "q1", "category": "visual", "split": "development", "relevant": ["b"]},
-            {"id": "q2", "category": "negative_identifier", "split": "holdout", "relevant": []},
+            {"id": "q1", "category": "visual", "split": "development", "relevant": ["b"], "channels": ["visual"]},
+            {"id": "q2", "category": "negative_identifier", "split": "holdout", "relevant": [], "channels": ["literal", "visual"]},
         ]}
         self.run = {"schema": 1, "manifest_sha256": "h", "execution": "production-mediastore-index-query",
                     "metadata": {"source_commit": "a" * 40, "pack_manifest_sha256": "b" * 64,
@@ -50,6 +50,29 @@ class ScoreTest(unittest.TestCase):
                 change(run)
                 with self.assertRaises(ValueError):
                     evaluate(self.manifest, run, "h")
+
+    def test_visual_only_negative_does_not_claim_zero_literal_errors(self):
+        self.manifest["queries"][1]["channels"] = ["visual"]
+        group = evaluate(self.manifest, self.run, "h")["groups"][1]
+        self.assertIsNone(group["false_exact_count"])
+        self.assertEqual(0, group["negative_with_literal_queries"])
+        self.assertEqual(1, group["negative_with_any_result_count"])
+
+    def test_pinned_corpus_has_disjoint_families_and_complete_labels(self):
+        import json
+        from pathlib import Path
+        corpus = json.loads(Path(__file__).with_name("corpus-v1.json").read_text())
+        assets = {a["id"]: a for a in corpus["assets"]}
+        self.assertEqual(180, len(assets))
+        self.assertEqual(118, len(corpus["queries"]))
+        self.assertEqual(38, sum(q["split"] == "holdout" for q in corpus["queries"]))
+        families = {}
+        for asset in assets.values():
+            self.assertEqual(families.setdefault(asset["family"], asset["split"]), asset["split"])
+        for query in corpus["queries"]:
+            self.assertEqual(query["category"].startswith("negative_") or query["category"] == "filter_empty", not bool(query["relevant"]))
+            for key in query["relevant"]:
+                self.assertEqual(query["split"], assets[key]["split"])
 
     def test_rejects_private_unknown_and_out_of_scope_ids(self):
         for value in ("private-file", "c"):

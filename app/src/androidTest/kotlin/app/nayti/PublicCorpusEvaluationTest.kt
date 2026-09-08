@@ -42,6 +42,12 @@ class PublicCorpusEvaluationTest {
         val arguments = InstrumentationRegistry.getArguments()
         assumeTrue("Explicit corpus run only", arguments.getString("naytiEvaluation") == "true")
         val context = InstrumentationRegistry.getInstrumentation().targetContext
+        check(!context.getSystemService(android.os.PowerManager::class.java).isPowerSaveMode) {
+            "Turn off battery saver before evaluation; runtime constraints must not be bypassed"
+        }
+        check(!context.getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked) {
+            "Unlock the physical device before evaluation"
+        }
         check(context.packageName == "app.nayti.debug") { "Never evaluate in the personal release installation" }
         check(Build.SUPPORTED_ABIS.first() == "arm64-v8a") { "Actual ARM64 inference required" }
         val commit = requireNotNull(arguments.getString("sourceCommit"))
@@ -126,6 +132,9 @@ class PublicCorpusEvaluationTest {
                 delay(1_000)
                 graph.indexing().state.first {
                     println("NAYTI_EVALUATION: indexing=${it.status}, code=${it.errorCode}, channels=${it.capabilities.size}")
+                    check(it.errorCode == null || it.capabilities.all { channel -> channel.outstanding == 0L }) {
+                        "Preparation requires attention: ${it.errorCode}; no automatic constraint override"
+                    }
                     check(it.status !in setOf(OcrIndexingStatus.Failed, OcrIndexingStatus.Waiting, OcrIndexingStatus.Paused)) {
                         "Preparation stopped: ${it.errorCode}; resolve the resource condition, do not bypass it"
                     }

@@ -1,6 +1,6 @@
-# Готовность следующей alpha
+# Готовность personal alpha
 
-Обновлено 8 сентября 2026. Текущая линия — app `0.1.0-alpha.2`, versionCode 2, неизменённый model pack `0.1.0-alpha.2`. Это состояние разработки, не заявление об успешной приёмке на телефоне.
+Обновлено 8 сентября 2026. Текущая линия — app `0.1.0-alpha.2`, versionCode 2, неизменённый model pack `0.1.0-alpha.2`. [Фактический протокол телефона](../evaluation/physical-2026-09-08.md) отделяет проверки от непроверенных конфигураций.
 
 ## Реализованные изменения
 
@@ -22,18 +22,18 @@
 | Host unit/lint/build/native, статические safety gates | Выполняются в PR; источником истины являются checks данного commit |
 | Signed pack: import app 1 → тот же immutable pack на app 2, restore/отрицательная compatibility | Проверен JVM importer с настоящим контейнером; без ARM64 KAT на Mac |
 | AndroidTest compilation | Включена в gate; не заменяет выполнение |
-| Android runtime suites | Исторический API30 на `c90ba3e`: 139 PASS / 1 opt-in skip; opt-in E2E затем отдельно прошёл. Последующие изменения на Android ещё не выполнены |
+| Android runtime suites | Galaxy S23+: 139 PASS / 1 opt-in skip; затем отдельный corpus PASS. Повторный storage regression и проверка manifest IME policy PASS |
 | Matrix API 30/33/34/35/36/37, 16 KiB | Для конечного commit не выполнена. Новые проверки — только физические устройства; недоступные API/16 KiB не объявляются проверенными |
-| Model-backed baseline/final и калибровка | [Baseline на c90ba3e](../evaluation/baseline-2026-09-08.md) выполнен; final и калибровка не выполнены, сложные сцены/действия покрыты ограниченно |
-| Signed release clean install и upgrade на физическом ARM64 | Не выполнены, release blocker |
-| Визуальная приёмка, TalkBack/шрифт, gestures, sharing, scrolling, RAM/FD/thermal | Требуют устройства; не обозначаются PASS по компиляции |
+| Model-backed baseline/final и калибровка | Физический final PASS, положительные Hit@1/5 не ухудшились, negative identifiers исправлены. Visual negatives/pHash misses остаются; пороги не подгонялись |
+| Signed release clean install и повторная установка на физическом ARM64 | Alpha.2 установлена, pack импортирован и сохранён при install-r; синтетический документ подготовлен и найден. Это не матрица миграций будущих версий |
+| Визуальная приёмка, TalkBack/шрифт, gestures, sharing, scrolling, RAM/FD/thermal | UI suites и реальная клавиатура проверены; наблюдались ограниченные PSS и thermal0–1. Полная TalkBack/FD/macrobenchmark матрица не заявляется |
 
-## Далее
+## Порядок публикации
 
 1. Собрать конечный commit с прежней подписью и checksums/SBOM/notices; до device gates это кандидат.
-2. Выполнить final [corpus run](../evaluation/README.md) на изолированном физическом ARM64-устройстве по заранее записанным критериям. Сохранённый baseline/holdout не менять; личную медиатеку не очищать и не использовать как публичный benchmark.
+2. Для изменений движка повторить [corpus run](../evaluation/README.md) по заранее записанным критериям. Сохранённый baseline/holdout не менять; личную медиатеку не очищать и не использовать как публичный benchmark.
 3. Пройти доступные телефонные UX/resource сценарии: resume, отмена, смена периода/доступа, ошибки моделей, поиск при подготовке, внешний viewer, zoom/rotation, крупный шрифт. Эмуляторы не использовать. Другие API/page-size configurations оставить непроверенными, если соответствующего физического устройства нет.
-4. Проверить **точный подписанный APK**: чистая установка без удаления личной установки и upgrade с прежним ключом/пакетом/индексом. Не удалять личные данные ради теста.
-5. Снять реальные screenshots на собственных synthetic documents, добавить проверенные агрегаты; сверить release notes и remote digests. После gates публиковать GitHub prerelease. Google Play, аккаунты и монетизация сейчас не нужны.
+4. Проверить **точный подписанный APK** с прежним ключом/пакетом/индексом. Переход с developer signer, требующий удаления внутренних данных Nayti, допустим только с явным разрешением владельца. Фотографии не удаляются.
+5. Добавить проверенные агрегаты; сверить release notes и remote digests. После gates публиковать GitHub prerelease. Скриншоты личного телефона не публикуются. Google Play, аккаунты и монетизация сейчас не нужны.
 
 Персональные данные, сырые логи, keys, модели и тяжёлый корпус остаются вне Git. Отсутствие телефона не превращается в «100% готово».

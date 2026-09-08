@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -36,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -248,6 +251,7 @@ private fun NaytiAppContent(
     val currentEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentEntry?.destination?.route
     val showRootNavigation = RootDestination.entries.any { it.route == currentRoute }
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     val shellStatus = ShellStatusMapper.map(catalog, modelPack, indexing)
     var pendingPeriodSelection by remember {
         mutableStateOf<ReadinessPeriodSelection?>(null)
@@ -341,7 +345,7 @@ private fun NaytiAppContent(
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.background,
                 bottomBar = {
-                    if (showRootNavigation) {
+                    if (showRootNavigation && !imeVisible) {
                         RootNavigationBar(
                             currentRoute = currentRoute,
                             indexNeedsAttention =
@@ -390,7 +394,7 @@ private fun NaytiAppContent(
                     onRollbackModelPack = onRollbackModelPack,
                     themeMode = themeMode,
                     onThemeModeChange = onThemeModeChange,
-                    modifier = Modifier.padding(innerPadding),
+                    modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding),
                 )
             }
         }

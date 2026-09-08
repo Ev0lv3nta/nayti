@@ -39,6 +39,7 @@ class ModelPackRegistryInstrumentedTest {
 
         assertEquals(candidate, dao.registerInstalledCandidate(candidate))
         assertEquals(candidate, dao.registerInstalledCandidate(candidate))
+        assertEquals(candidate, dao.registerInstalledCandidate(candidate.copy(installedAtMillis = candidate.installedAtMillis + 60_000)))
         reopenDatabase()
 
         assertEquals(listOf(candidate), dao.packs())

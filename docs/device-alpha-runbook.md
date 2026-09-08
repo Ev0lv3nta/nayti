@@ -1,6 +1,6 @@
 # Установка и приёмка personal alpha
 
-Этот runbook предназначен для ручной установки и проверки Nayti на ARM64 Android 11+, прежде всего Samsung Galaxy S23+. Канал планируемой публикации — GitHub Releases, не Google Play. Сейчас `0.1.0-alpha.2` является кандидатом: новый физический signed smoke ещё не выполнен.
+Этот runbook предназначен для ручной установки и проверки Nayti на ARM64 Android 11+, прежде всего Samsung Galaxy S23+. Канал публикации — GitHub Releases, не Google Play. Фактические проверки alpha.2 описаны в `evaluation/physical-2026-09-08.md` репозитория; точный APK и сертификат закреплены в BUILD-INFO и SHA256SUMS выпуска.
 
 Release-процесс не собирает пользовательское содержимое. Не прикладывать к issue, pull request или release фотографии, скриншоты личной медиатеки, запросы, OCR, имена файлов, URI, MediaStore IDs, embeddings или raw diagnostics. Для отчёта достаточно агрегированных процентов, counts, PSS, thermal state и результата сценария.
 

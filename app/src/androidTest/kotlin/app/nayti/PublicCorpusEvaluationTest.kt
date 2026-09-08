@@ -111,7 +111,9 @@ class PublicCorpusEvaluationTest {
             val installed = withTimeout(15 * 60_000L) {
                 packs.state.first { it.status != ModelPackRuntimeStatus.Installing }
             }
-            check(installed.status == ModelPackRuntimeStatus.Ready)
+            check(installed.status == ModelPackRuntimeStatus.Ready) {
+                "Pack import failed: status=${installed.status}, code=${installed.errorCode}, reason=${installed.failureReason}"
+            }
             val pack = checkNotNull(installed.installed)
             check(graph.indexing().setIndexingScope(null))
             val started = withContext(Dispatchers.Main) { graph.controller().start() }

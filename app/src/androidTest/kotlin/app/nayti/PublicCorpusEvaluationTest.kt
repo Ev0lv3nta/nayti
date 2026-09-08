@@ -105,6 +105,7 @@ class PublicCorpusEvaluationTest {
             withTimeout(120_000) {
                 graph.catalog().state.first { it.status == CatalogRuntimeStatus.Ready && it.summary.available == assets.size.toLong() }
             }
+            println("NAYTI_EVALUATION: catalog ready")
             val packs = graph.packs()
             packs.state.first { it.status != ModelPackRuntimeStatus.Loading }
             packs.install(FileModelPackSource(File(root, "model.naytipack").toPath()))
@@ -114,13 +115,17 @@ class PublicCorpusEvaluationTest {
             check(installed.status == ModelPackRuntimeStatus.Ready) {
                 "Pack import failed: status=${installed.status}, code=${installed.errorCode}, reason=${installed.failureReason}"
             }
+            println("NAYTI_EVALUATION: pack ready")
             val pack = checkNotNull(installed.installed)
             check(graph.indexing().setIndexingScope(null))
+            println("NAYTI_EVALUATION: scope ready")
             val started = withContext(Dispatchers.Main) { graph.controller().start() }
             check(started == IndexingStartResult.Started) { "Foreground start rejected: $started" }
+            println("NAYTI_EVALUATION: foreground start accepted")
             withTimeout(45 * 60_000L) {
                 delay(1_000)
                 graph.indexing().state.first {
+                    println("NAYTI_EVALUATION: indexing=${it.status}, code=${it.errorCode}, channels=${it.capabilities.size}")
                     check(it.status !in setOf(OcrIndexingStatus.Failed, OcrIndexingStatus.Waiting, OcrIndexingStatus.Paused)) {
                         "Preparation stopped: ${it.errorCode}; resolve the resource condition, do not bypass it"
                     }

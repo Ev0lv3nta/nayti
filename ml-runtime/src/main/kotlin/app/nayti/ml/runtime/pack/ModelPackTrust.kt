@@ -36,7 +36,7 @@ internal object ModelPackSignature {
             manifest.copyInto(message, DomainSeparator.size)
             Ed25519Verify(key.publicKeyBytes).verify(signature, message)
         } catch (failure: Exception) {
-            throw ModelPackException("Model pack signature is invalid", failure)
+            throw ModelPackException("Model pack signature is invalid", failure, ModelPackFailureReason.Signature)
         }
     }
 }

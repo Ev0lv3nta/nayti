@@ -12,12 +12,17 @@ import java.nio.ByteOrder
 import java.security.MessageDigest
 import kotlin.math.abs
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
 /** Opens every deploy graph and checks signed known-answer tensors before pack publication. */
-class OrtKnownAnswerPayloadValidator : ModelPackPayloadValidator {
+class OrtKnownAnswerPayloadValidator(
+    private val acquireModelPermit: suspend () -> AutoCloseable = { AutoCloseable {} },
+) : ModelPackPayloadValidator {
     override suspend fun validate(candidate: ModelPackValidationCandidate) {
         withContext(Dispatchers.Default) {
             OcrDecoderVocabulary.parseCanonical(
@@ -29,7 +34,7 @@ class OrtKnownAnswerPayloadValidator : ModelPackPayloadValidator {
         }
     }
 
-    fun validatePackPayload(payloadRoot: File) {
+    private suspend fun validatePackPayload(payloadRoot: File) {
         try {
             val canonicalRoot = payloadRoot.canonicalFile
             validate(
@@ -38,12 +43,13 @@ class OrtKnownAnswerPayloadValidator : ModelPackPayloadValidator {
                 manifestFile = resolveChild(canonicalRoot, "tests/manifest.json"),
             )
         } catch (failure: Exception) {
+            if (failure is CancellationException) throw failure
             if (failure is ModelPackException) throw failure
             throw ModelPackException("Model pack runtime known-answer validation failed", failure)
         }
     }
 
-    private fun validate(modelRoot: File, fixtureRoot: File, manifestFile: File) {
+    private suspend fun validate(modelRoot: File, fixtureRoot: File, manifestFile: File) {
         val manifest = JSONObject(manifestFile.readText(Charsets.UTF_8))
         contract(manifest.getInt("schemaVersion") == 2, "Unsupported runtime KAT schema")
         contract(manifest.getString("byteOrder") == "little", "Runtime KAT byte order drifted")
@@ -55,7 +61,12 @@ class OrtKnownAnswerPayloadValidator : ModelPackPayloadValidator {
         contract(environment.version == RequiredOrtVersion, "ONNX Runtime version drifted")
         environment.setTelemetry(false)
         ModelOrder.forEach { modelName ->
-            runModel(environment, modelRoot, fixtureRoot, modelName, models.getJSONObject(modelName))
+            currentCoroutineContext().ensureActive()
+            // Release between graphs so queued interactive searches can use the active pack.
+            acquireModelPermit().use {
+                currentCoroutineContext().ensureActive()
+                runModel(environment, modelRoot, fixtureRoot, modelName, models.getJSONObject(modelName))
+            }
         }
     }
 

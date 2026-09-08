@@ -41,6 +41,7 @@ data class InstalledOcrPack(
 class InstalledOcrPackResolver(
     private val registry: ModelPackDao,
     modelPackRoot: Path,
+    private val validateManifest: (ByteArray) -> Unit,
 ) {
     private val root = modelPackRoot.toAbsolutePath().normalize()
 
@@ -87,6 +88,7 @@ class InstalledOcrPackResolver(
             if (sha256(manifest) != entry.manifestSha256) {
                 throw ModelPackUnavailableException("Installed model pack manifest identity changed")
             }
+            validateManifest(Files.readAllBytes(manifest))
             InstalledOcrPack(entry, payload)
         }
 

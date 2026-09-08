@@ -6,6 +6,13 @@ import org.junit.Test
 
 class SearchFilterTest {
     @Test
+    fun mediaStoreBucketIdentityKeepsItsSign() {
+        val filter = SearchFilter(bucketId = -123456789)
+        assertEquals(-123456789L, filter.bucketId)
+        assertEquals(-123456789L, filter.constrainedFrom(100).bucketId)
+    }
+
+    @Test
     fun indexingCutoffIntersectsUserDateFilterWithoutWeakeningOtherFacets() {
         val filter =
             SearchFilter(

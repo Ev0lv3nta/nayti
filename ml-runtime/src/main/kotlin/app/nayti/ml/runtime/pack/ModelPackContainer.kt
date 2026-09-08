@@ -10,12 +10,16 @@ import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 fun interface ModelPackSource {
     fun openStream(): InputStream
+    fun declaredLengthBytes(): Long? = null
+    fun reportStage(stage: ModelPackImportStage) = Unit
+    fun reportRequiredStorage(bytes: Long?) = Unit
 }
 
 fun interface ModelPackStorageBudget {
@@ -24,6 +28,7 @@ fun interface ModelPackStorageBudget {
 
 class FileModelPackSource(private val path: Path) : ModelPackSource {
     override fun openStream(): InputStream = Files.newInputStream(path)
+    override fun declaredLengthBytes(): Long = Files.size(path)
 }
 
 fun interface ModelPackCandidateInstaller {
@@ -51,12 +56,32 @@ class ModelPackInstaller(
             val incoming = root.resolve(".incoming-$token.naytipack")
             val staging = root.resolve(".staging-$token")
             try {
+                source.reportStage(ModelPackImportStage.Reading)
+                val declaredLength = source.declaredLengthBytes()?.takeIf { it >= 0 }
+                val maximumLength = ModelPackManifestParser.MaxTotalPayloadBytes + ModelPackManifestParser.MaxManifestBytes + ContainerOverheadBytes
+                if (declaredLength != null && declaredLength > maximumLength) {
+                    throw ModelPackException("Model pack exceeds container size cap")
+                }
+                val requiredBytes = declaredLength?.let { Math.addExact(Math.multiplyExact(it, 2), minimumFreeBytesAfterInstall) }
+                source.reportRequiredStorage(requiredBytes)
+                if (requiredBytes != null && storageBudget.allocatableBytes(root) < requiredBytes) {
+                    throw ModelPackException("Insufficient private storage for model pack", reason = ModelPackFailureReason.Storage)
+                }
                 copyBounded(source, incoming, checkpoint)
+                source.reportStage(ModelPackImportStage.Verifying)
                 val staged = verifyAndExtract(incoming, staging, checkpoint)
                 checkpoint()
-                payloadValidator.validate(staged.validationCandidate(staging))
+                source.reportStage(ModelPackImportStage.TestingModels)
+                try {
+                    payloadValidator.validate(staged.validationCandidate(staging))
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (failure: Exception) {
+                    throw ModelPackException("Model runtime validation failed", failure, ModelPackFailureReason.ModelValidation)
+                }
                 checkpoint()
                 verifyPayload(staging.resolve("payload"), staged.manifest, checkpoint)
+                source.reportStage(ModelPackImportStage.Publishing)
                 publish(staged, staging, checkpoint)
             } finally {
                 Files.deleteIfExists(incoming)
@@ -90,7 +115,7 @@ class ModelPackInstaller(
                     checkpoint()
                     if (copied % (64L * 1024 * 1024) < CopyBufferBytes &&
                         storageBudget.allocatableBytes(destination.parent) < minimumFreeBytesAfterInstall
-                    ) throw ModelPackException("Insufficient private storage for model pack")
+                    ) throw ModelPackException("Insufficient private storage for model pack", reason = ModelPackFailureReason.Storage)
                     val count = input.read(buffer)
                     if (count == -1) break
                     if (count == 0) continue
@@ -125,12 +150,12 @@ class ModelPackInstaller(
             val manifestBytes = input.readExact(manifestLength)
             val signature = input.readExact(signatureLength)
             val manifest = ModelPackManifestParser.parse(manifestBytes)
-            val trustedKey = trustedKeys[manifest.keyId] ?: throw ModelPackException("Model pack key is not trusted")
+            val trustedKey = trustedKeys[manifest.keyId] ?: throw ModelPackException("Model pack key is not trusted", reason = ModelPackFailureReason.Signature)
             ModelPackSignature.verify(trustedKey, manifestBytes, signature)
-            policy.validate(manifest)
+            policy.validateManifest(manifestBytes)
             val requiredFree = Math.addExact(manifest.totalPayloadBytes, minimumFreeBytesAfterInstall)
             if (storageBudget.allocatableBytes(staging) < requiredFree) {
-                throw ModelPackException("Insufficient private storage for model pack")
+                throw ModelPackException("Insufficient private storage for model pack", reason = ModelPackFailureReason.Storage)
             }
 
             manifest.files.forEach { descriptor -> extractFile(input, payloadRoot, descriptor, checkpoint) }

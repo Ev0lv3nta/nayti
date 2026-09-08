@@ -74,6 +74,7 @@ object CatalogRuntimeModule {
     fun provideModelPackRuntime(
         @ApplicationContext context: Context,
         storage: CatalogStorage,
+        neuralExecutionLane: NeuralExecutionLane,
     ): ModelPackRuntime {
         val root = context.noBackupFilesDir.toPath().resolve(StorageContract.ModelPackDirectory)
         val installer =
@@ -84,7 +85,7 @@ object CatalogRuntimeModule {
                         trustedKeys = AlphaModelPackTrust.keys,
                         policy = AndroidModelPackPolicy.current(appVersionCode = BuildConfig.VERSION_CODE.toLong()),
                         storageBudget = AndroidModelPackStorageBudget(context),
-                        payloadValidator = OrtKnownAnswerPayloadValidator(),
+                        payloadValidator = OrtKnownAnswerPayloadValidator { neuralExecutionLane.acquire() },
                     ),
                 registry = storage.modelPackDao,
                 modelPackRoot = root,
@@ -138,6 +139,7 @@ object CatalogRuntimeModule {
         InstalledOcrPackResolver(
             storage.modelPackDao,
             context.noBackupFilesDir.toPath().resolve(StorageContract.ModelPackDirectory),
+            AndroidModelPackPolicy.current(BuildConfig.VERSION_CODE.toLong())::validateManifest,
         )
 
     @Provides

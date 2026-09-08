@@ -1,6 +1,9 @@
 package app.nayti.indexer
 
 import app.nayti.ml.runtime.pack.ModelPackSource
+import app.nayti.ml.runtime.pack.ModelPackException
+import app.nayti.ml.runtime.pack.ModelPackFailureReason
+import app.nayti.ml.runtime.pack.ModelPackImportStage
 import app.nayti.storage.ModelPackDao
 import app.nayti.storage.ModelPackEntity
 import app.nayti.storage.ModelPackStatus
@@ -11,6 +14,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 enum class ModelPackRuntimeStatus {
@@ -27,6 +31,9 @@ data class ModelPackRuntimeState(
     val candidate: ModelPackEntity?,
     val errorCode: String?,
     val cancelRequested: Boolean = false,
+    val importStage: ModelPackImportStage? = null,
+    val failureReason: ModelPackFailureReason? = null,
+    val estimatedStorageBytes: Long? = null,
 )
 
 class ModelPackRuntime(
@@ -55,12 +62,22 @@ class ModelPackRuntime(
         val previous = mutableState.value
         mutableState.value = mutableState.value.copy(
             status = ModelPackRuntimeStatus.Installing, errorCode = null, cancelRequested = false,
+            importStage = ModelPackImportStage.Reading, failureReason = null, estimatedStorageBytes = null,
         )
         val entered = AtomicBoolean(false)
         installationJob = scope.launch {
             entered.set(true)
             try {
-                val installed = installer.install(source)
+                val installed = installer.install(object : ModelPackSource {
+                    override fun openStream() = source.openStream()
+                    override fun declaredLengthBytes() = source.declaredLengthBytes()
+                    override fun reportStage(stage: ModelPackImportStage) {
+                        mutableState.update { it.copy(importStage = stage) }
+                    }
+                    override fun reportRequiredStorage(bytes: Long?) {
+                        mutableState.update { it.copy(estimatedStorageBytes = bytes) }
+                    }
+                })
                 val active = activePack()
                 mutableState.value =
                     ModelPackRuntimeState(
@@ -79,6 +96,12 @@ class ModelPackRuntime(
                         installed = activePack() ?: newestInstalled(),
                         candidate = null,
                         errorCode = failure::class.java.simpleName.uppercase(),
+                        failureReason = when (failure) {
+                            is ModelPackException -> failure.reason
+                            is java.io.IOException, is SecurityException -> ModelPackFailureReason.Io
+                            else -> ModelPackFailureReason.InvalidFile
+                        },
+                        estimatedStorageBytes = mutableState.value.estimatedStorageBytes,
                     )
             } catch (_: LinkageError) {
                 mutableState.value =
@@ -87,6 +110,7 @@ class ModelPackRuntime(
                         installed = activePack() ?: newestInstalled(),
                         candidate = null,
                         errorCode = "RUNTIME_UNAVAILABLE",
+                        failureReason = ModelPackFailureReason.Runtime,
                     )
             } finally {
                 installing.set(false)
@@ -104,7 +128,7 @@ class ModelPackRuntime(
 
     fun cancelInstall() {
         if (!installing.get()) return
-        mutableState.value = mutableState.value.copy(cancelRequested = true)
+        mutableState.update { it.copy(cancelRequested = true) }
         installationJob?.cancel()
     }
 

@@ -20,18 +20,23 @@ class InstalledOcrPackResolverTest {
     fun resolvesRegisteredImmutablePayload() = runTest {
         val fixture = fixture()
 
-        val resolved = InstalledOcrPackResolver(FakeRegistry(fixture.entry), fixture.root)
+        var validated = false
+        val resolved = InstalledOcrPackResolver(FakeRegistry(fixture.entry), fixture.root) {
+            assertEquals("signed canonical manifest", it.decodeToString())
+            validated = true
+        }
             .resolve(PackId, PackVersion)
 
         assertEquals(fixture.payload, resolved.payloadDirectory)
         assertEquals(fixture.entry.manifestSha256, resolved.componentHash)
+        assertTrue(validated)
     }
 
     @Test
     fun rejectsManifestChangedAfterRegistration() = runTest {
         val fixture = fixture()
         Files.writeString(fixture.manifest, "changed")
-        val resolver = InstalledOcrPackResolver(FakeRegistry(fixture.entry), fixture.root)
+        val resolver = InstalledOcrPackResolver(FakeRegistry(fixture.entry), fixture.root) { error("must reject identity first") }
 
         val failure = runCatching { resolver.resolve(PackId, PackVersion) }.exceptionOrNull()
 
@@ -42,11 +47,21 @@ class InstalledOcrPackResolverTest {
     fun rejectsRegistryPathOutsideCanonicalIdentity() = runTest {
         val fixture = fixture()
         val escaped = fixture.entry.copy(relativeDirectory = "../elsewhere")
-        val resolver = InstalledOcrPackResolver(FakeRegistry(escaped), fixture.root)
+        val resolver = InstalledOcrPackResolver(FakeRegistry(escaped), fixture.root) { error("must reject path first") }
 
         val failure = runCatching { resolver.resolve(PackId, PackVersion) }.exceptionOrNull()
 
         assertTrue(failure is ModelPackUnavailableException)
+    }
+
+    @Test
+    fun rejectsPreviouslyInstalledPackWhenCurrentPolicyRejectsIt() = runTest {
+        val fixture = fixture()
+        val resolver = InstalledOcrPackResolver(FakeRegistry(fixture.entry), fixture.root) {
+            throw ModelPackUnavailableException("incompatible with current app")
+        }
+        assertTrue(runCatching { resolver.resolve(PackId, PackVersion) }.exceptionOrNull() is ModelPackUnavailableException)
+        assertTrue(Files.exists(fixture.manifest))
     }
 
     private fun fixture(): Fixture {

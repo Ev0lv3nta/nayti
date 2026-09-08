@@ -88,10 +88,7 @@
     <string name="settings_search_components_title">Компоненты поиска</string>
     <string name="settings_search_components_missing">Компоненты поиска не установлены.</string>
     <string name="settings_search_components_loading">Проверяем локальные компоненты поиска…</string>
-    <string name="settings_search_components_installing">Проверяем совместимость. Рабочая версия остаётся доступна.</string>
     <string name="settings_search_components_ready">Версия %1$s · %2$d МБ</string>
-    <string name="settings_search_components_failed">Новый файл не прошёл проверку. Рабочие данные не изменены.</string>
-    <string name="settings_search_components_failed_previous">Новый файл не прошёл проверку. Используется версия %1$s.</string>
     <string name="settings_search_components_choose">Выбрать файл</string>
     <string name="settings_search_components_replace">Выбрать другую версию</string>
     <string name="settings_previous_version_title">Предыдущая версия компонентов</string>

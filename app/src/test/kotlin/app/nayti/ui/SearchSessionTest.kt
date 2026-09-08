@@ -72,4 +72,15 @@ class SearchSessionTest {
         request.query, request.filter, emptyList(), request.channels,
         OcrSemanticSearchStatus.NOT_REQUESTED, null,
     )
+
+    @Test
+    fun exactRoutingPreservesSubmittedSelectionForDraftComparison() = runTest {
+        val literal = SearchChannelSelection(true, false, false)
+        val session = SearchSession(backgroundScope) { ready(it).copy(executedChannels = literal) }
+        session.submit("AB-12345", SearchFilter.None, SearchChannelSelection.All)
+        runCurrent()
+        val result = session.state.value as SearchUiState.Ready
+        assertEquals(SearchChannelSelection.All, result.submittedRequest()?.channels)
+        assertEquals(literal, result.executedChannels)
+    }
 }

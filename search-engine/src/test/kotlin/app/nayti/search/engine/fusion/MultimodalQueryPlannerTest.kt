@@ -1,15 +1,13 @@
 package app.nayti.search.engine.fusion
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MultimodalQueryPlannerTest {
     private val planner = MultimodalQueryPlanner()
 
     @Test
-    fun exactIdentifiersNamesAndQuotesNeverOpenVisualRetriever() {
+    fun identifiesExactSyntaxAndNameCandidatesForRanking() {
         mapOf(
             "№ АБ-123/45" to MultimodalQueryIntent.IDENTIFIER,
             "15.07.2026" to MultimodalQueryIntent.IDENTIFIER,
@@ -18,7 +16,6 @@ class MultimodalQueryPlannerTest {
         ).forEach { (query, expected) ->
             val plan = planner.plan(query)
             assertEquals(expected, plan.intent)
-            assertFalse(plan.usesVisualRetriever)
         }
     }
 
@@ -34,6 +31,5 @@ class MultimodalQueryPlannerTest {
         assertEquals(MultimodalQueryIntent.PERSON_NAME, planner.plan("Bill Gates").intent)
         assertEquals(MultimodalQueryIntent.BROAD_HYBRID, planner.plan("скриншот настроек Wi-Fi").intent)
         assertEquals(MultimodalQueryIntent.BROAD_HYBRID, planner.plan("мой прошлогодний отпуск").intent)
-        assertTrue(planner.plan("мой прошлогодний отпуск").usesVisualRetriever)
     }
 }

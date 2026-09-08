@@ -11,7 +11,7 @@ cd "$repo_dir"
 : "${NAYTI_RELEASE_KEY_PASSWORD:?NAYTI_RELEASE_KEY_PASSWORD is required}"
 : "${JAVA_HOME:?JAVA_HOME must point to JDK 17}"
 
-readonly version="0.1.0-alpha.1"
+readonly version="0.1.0-alpha.2"
 readonly expected_pack_sha256="2c90206b2c1ac09233a2b4f3c882dbe4e721bd52ddc3bde46cc6631d51a42167"
 readonly expected_signer_sha256="15c830a26fce61cf0797bdee34c4d8394dd85ee1e52d03d2b6affe10a90c2048"
 if [[ ! -f "$NAYTI_MODEL_PACK" ]]; then

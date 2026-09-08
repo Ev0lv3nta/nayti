@@ -1,0 +1,4801 @@
+{
+  "schema": 1,
+  "corpus": "nayti-public-v1",
+  "annotations_sha256": "113a836d90195ee1f884e704da6304dfaaecff1f023f49b6ca93c4aaae470268",
+  "annotations_source": "https://s3.amazonaws.com/images.cocodataset.org/annotations/annotations_trainval2017.zip",
+  "annotations_license": "CC-BY-4.0 (COCO Consortium)",
+  "font_sha256": "17bb58fb69aec2dfb047a2ebf52534023e9b688c97a6b7ac795b0a72912c2063",
+  "assets": [
+    {
+      "id": "coco-000000392818",
+      "family": "coco-000000392818",
+      "split": "development",
+      "file": "development/coco-000000392818.jpg",
+      "sha256": "8918cd7c88cfe2bf32a8417abf5ad4a0402d677573c149fb29de7a6b9b6490f5",
+      "labels": [
+        "dog"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000392818.jpg",
+      "original": "http://farm3.staticflickr.com/2446/3572256424_9d106e4692_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000498286",
+      "family": "coco-000000498286",
+      "split": "development",
+      "file": "development/coco-000000498286.jpg",
+      "sha256": "3253772566d47969b4ca29bdd608d84b9876a09ec6b25435ff00c27bf9c1b207",
+      "labels": [
+        "car",
+        "dog",
+        "truck"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000498286.jpg",
+      "original": "http://farm7.staticflickr.com/6195/6048065934_bfaf1be964_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000389933",
+      "family": "coco-000000389933",
+      "split": "development",
+      "file": "development/coco-000000389933.jpg",
+      "sha256": "27ccfbb2aec33b2e4ff4e03168119ddcbd3aadb021516bb7316d1c9468cca30e",
+      "labels": [
+        "couch",
+        "dog"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000389933.jpg",
+      "original": "http://farm5.staticflickr.com/4061/4376326145_7ef66603e3_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000283412",
+      "family": "coco-000000283412",
+      "split": "development",
+      "file": "development/coco-000000283412.jpg",
+      "sha256": "ecff06907a7898f62175cdebf1108b752e085d9b53a4806869c6b4df508d6602",
+      "labels": [
+        "bed",
+        "cup",
+        "dog"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000283412.jpg",
+      "original": "http://farm6.staticflickr.com/5215/5499994653_748a7cbcbd_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000331075",
+      "family": "coco-000000331075",
+      "split": "development",
+      "file": "development/coco-000000331075.jpg",
+      "sha256": "f9a0c8e0050fa38bb4fd0a7d3007e0ff5def7cea1c67a9a70ae80c6256d9a549",
+      "labels": [
+        "dog"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000331075.jpg",
+      "original": "http://farm4.staticflickr.com/3790/9178299324_d12a3582e0_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000253386",
+      "family": "coco-000000253386",
+      "split": "development",
+      "file": "development/coco-000000253386.jpg",
+      "sha256": "3764f11fe83bcb95e67778f8186a81fc837037a23b6f5835938d2026410f70ee",
+      "labels": [
+        "dog",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000253386.jpg",
+      "original": "http://farm4.staticflickr.com/3196/3037448990_28822471dd_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000475732",
+      "family": "coco-000000475732",
+      "split": "development",
+      "file": "development/coco-000000475732.jpg",
+      "sha256": "9f2c46374153ac27594475e3b42be01838eb35295068108a89134ad6c73532e7",
+      "labels": [
+        "cat"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000475732.jpg",
+      "original": "http://farm5.staticflickr.com/4047/4277980850_fb595d679e_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000058111",
+      "family": "coco-000000058111",
+      "split": "development",
+      "file": "development/coco-000000058111.jpg",
+      "sha256": "2c476318934bf7b8e6ddbb0bcb119b8ce5ed9409e3444a6b8f8b4622e59fa1fe",
+      "labels": [
+        "book",
+        "cat"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000058111.jpg",
+      "original": "http://farm2.staticflickr.com/1212/1432440864_7e0f17c51a_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000046378",
+      "family": "coco-000000046378",
+      "split": "development",
+      "file": "development/coco-000000046378.jpg",
+      "sha256": "927a104a4eb1ba7960946cf89ed6cc199bd7c840674787b8e77b74a7dd60aafe",
+      "labels": [
+        "bird",
+        "cat"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000046378.jpg",
+      "original": "http://farm3.staticflickr.com/2163/1809310489_e2707eed0b_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000343076",
+      "family": "coco-000000343076",
+      "split": "development",
+      "file": "development/coco-000000343076.jpg",
+      "sha256": "b3b75e4a3ad7dd8b211680c4bcf1288f7d3bea2aa360358752b3d1640015e8b0",
+      "labels": [
+        "cat",
+        "laptop"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000343076.jpg",
+      "original": "http://farm4.staticflickr.com/3528/3940136096_1831da02ea_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000166277",
+      "family": "coco-000000166277",
+      "split": "development",
+      "file": "development/coco-000000166277.jpg",
+      "sha256": "339f27367484fcbe52320570a985448dc0314a584b0b86ac0b25d1462324f8f0",
+      "labels": [
+        "cat",
+        "cup"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000166277.jpg",
+      "original": "http://farm1.staticflickr.com/247/522239585_3ad698c8a7_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000284623",
+      "family": "coco-000000284623",
+      "split": "development",
+      "file": "development/coco-000000284623.jpg",
+      "sha256": "b7d443c3ac4cd71881259a33c8d85aa8dc2036de7a70de6d05b25a5aaec51698",
+      "labels": [
+        "bottle",
+        "cat",
+        "sink",
+        "toothbrush"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000284623.jpg",
+      "original": "http://farm3.staticflickr.com/2585/3697788816_f6b63cbb16_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000227686",
+      "family": "coco-000000227686",
+      "split": "development",
+      "file": "development/coco-000000227686.jpg",
+      "sha256": "a83edf5a9c555d909d26779d645a302d51f53da842e2c5264d3f72f47c01455e",
+      "labels": [
+        "horse"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000227686.jpg",
+      "original": "http://farm6.staticflickr.com/5162/5321580225_fc7b1a7ecf_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000380203",
+      "family": "coco-000000380203",
+      "split": "development",
+      "file": "development/coco-000000380203.jpg",
+      "sha256": "aa273f525d420f231aa4d8ffe3f8cc6ad8e9162a878ada41bc5032613d50ac1e",
+      "labels": [
+        "horse"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000380203.jpg",
+      "original": "http://farm5.staticflickr.com/4121/4894742604_c45710ab18_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000045070",
+      "family": "coco-000000045070",
+      "split": "development",
+      "file": "development/coco-000000045070.jpg",
+      "sha256": "0048f03ce376c1c3de6143ea8462c609cf0ff15847e20a20d042f0c4d968eeb8",
+      "labels": [
+        "horse",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000045070.jpg",
+      "original": "http://farm4.staticflickr.com/3819/9272204163_a30ebf1d58_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000118209",
+      "family": "coco-000000118209",
+      "split": "development",
+      "file": "development/coco-000000118209.jpg",
+      "sha256": "ceae3f93b17268cf155a5733f7858fc59803ad17c7d7f06a0deed244bbb9556f",
+      "labels": [
+        "horse"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000118209.jpg",
+      "original": "http://farm5.staticflickr.com/4104/4953441455_a1b9200a62_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000191288",
+      "family": "coco-000000191288",
+      "split": "development",
+      "file": "development/coco-000000191288.jpg",
+      "sha256": "a5cc3e797d789950cd1cd8479d582a56ebfd37001afff0a146126792934f2b0a",
+      "labels": [
+        "horse",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000191288.jpg",
+      "original": "http://farm4.staticflickr.com/3733/9192472019_8099077709_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000367818",
+      "family": "coco-000000367818",
+      "split": "development",
+      "file": "development/coco-000000367818.jpg",
+      "sha256": "47d1e607d2b623aa2e55dce0fa64f4ac66dc03f2611d4375caffe84358728a2d",
+      "labels": [
+        "horse",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000367818.jpg",
+      "original": "http://farm8.staticflickr.com/7395/9711101074_12b299b7d3_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000147498",
+      "family": "coco-000000147498",
+      "split": "development",
+      "file": "development/coco-000000147498.jpg",
+      "sha256": "70c27d6d67cafe8d0d5a91a6913bc26ce1ba68f7cb69cdec60e96894ac1ec5d6",
+      "labels": [
+        "bird"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000147498.jpg",
+      "original": "http://farm9.staticflickr.com/8063/8243726314_4c66ec3015_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000056545",
+      "family": "coco-000000056545",
+      "split": "development",
+      "file": "development/coco-000000056545.jpg",
+      "sha256": "852f95c0f7d5d72ec994fcead05a2a5501e7459966a360d92c26a5827584c744",
+      "labels": [
+        "bird"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000056545.jpg",
+      "original": "http://farm3.staticflickr.com/2894/9470927378_921b919b7e_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000270705",
+      "family": "coco-000000270705",
+      "split": "development",
+      "file": "development/coco-000000270705.jpg",
+      "sha256": "25d07d472c7ad54b5806f912ed770a8a86cf8164d450164af4a1b5975df38038",
+      "labels": [
+        "bird"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000270705.jpg",
+      "original": "http://farm7.staticflickr.com/6024/6009338149_c4084ec013_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000186938",
+      "family": "coco-000000186938",
+      "split": "development",
+      "file": "development/coco-000000186938.jpg",
+      "sha256": "291ff31f43eccd746a0f2c13b7b38b5ff59579db14f8229105bf57eff7da9850",
+      "labels": [
+        "bird"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000186938.jpg",
+      "original": "http://farm5.staticflickr.com/4033/4547499012_0b65368ae5_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000182441",
+      "family": "coco-000000182441",
+      "split": "development",
+      "file": "development/coco-000000182441.jpg",
+      "sha256": "8d34f24d1ed01ac22e5849346b72e4dbe5563799d08100f49bf5045f2c84e693",
+      "labels": [
+        "bird",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000182441.jpg",
+      "original": "http://farm3.staticflickr.com/2817/9439811527_de41cb0b8c_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000167902",
+      "family": "coco-000000167902",
+      "split": "development",
+      "file": "development/coco-000000167902.jpg",
+      "sha256": "59b7bbc9fc78d7673eae4407a75dadc7eb1e98a2d54900651ac08b4523bf062b",
+      "labels": [
+        "bird"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000167902.jpg",
+      "original": "http://farm4.staticflickr.com/3582/3682650179_e990e0cdf7_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000274687",
+      "family": "coco-000000274687",
+      "split": "development",
+      "file": "development/coco-000000274687.jpg",
+      "sha256": "ebc13d2019005f8d7009f72f33e0e861d5e98837ca4c1d56958636d58dd8ba2b",
+      "labels": [
+        "bed",
+        "bicycle",
+        "chair"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000274687.jpg",
+      "original": "http://farm4.staticflickr.com/3602/4075988767_c3b2313002_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000242287",
+      "family": "coco-000000242287",
+      "split": "development",
+      "file": "development/coco-000000242287.jpg",
+      "sha256": "28926e1727c30c84dc8be5537cd607817dd39f44c40a03c822779135755d2d23",
+      "labels": [
+        "bicycle"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000242287.jpg",
+      "original": "http://farm3.staticflickr.com/2626/4072194513_edb6acfb2b_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000011149",
+      "family": "coco-000000011149",
+      "split": "development",
+      "file": "development/coco-000000011149.jpg",
+      "sha256": "5973b8f1d5a30de98b1dcb715f1c94928a676fff8e45283515d0474e51ac0abc",
+      "labels": [
+        "bicycle",
+        "motorcycle",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000011149.jpg",
+      "original": "http://farm4.staticflickr.com/3625/3323418866_ea5017538d_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000076547",
+      "family": "coco-000000076547",
+      "split": "development",
+      "file": "development/coco-000000076547.jpg",
+      "sha256": "f4f730a011b99aaa7b9ee851b6ba4c77fe2e3c4c81d12d58b7221d0f1b199c01",
+      "labels": [
+        "backpack",
+        "bench",
+        "bicycle",
+        "chair",
+        "dining table",
+        "laptop",
+        "person",
+        "tie",
+        "traffic light",
+        "train"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000076547.jpg",
+      "original": "http://farm9.staticflickr.com/8557/8771723390_13dc9d18fa_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000472623",
+      "family": "coco-000000472623",
+      "split": "development",
+      "file": "development/coco-000000472623.jpg",
+      "sha256": "3b1a4b3e7a06e2f67ff42f2821f089e5038d53d9a06de390a23f65652af85d6d",
+      "labels": [
+        "bicycle",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000472623.jpg",
+      "original": "http://farm6.staticflickr.com/5298/5540579478_e9d5e490b2_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000135670",
+      "family": "coco-000000135670",
+      "split": "development",
+      "file": "development/coco-000000135670.jpg",
+      "sha256": "8f3eea478483e5b94935fe4e20da629a3631b28895899bccb5acc0fba5286060",
+      "labels": [
+        "bicycle"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000135670.jpg",
+      "original": "http://farm3.staticflickr.com/2528/3925803088_79760dbe81_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000461751",
+      "family": "coco-000000461751",
+      "split": "development",
+      "file": "development/coco-000000461751.jpg",
+      "sha256": "7dcf0c5f5135b3e8eedbda7794d0eb4a03e129a742468620a6e3918a14f79fca",
+      "labels": [
+        "backpack",
+        "car",
+        "motorcycle",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000461751.jpg",
+      "original": "http://farm6.staticflickr.com/5035/7145171189_ac4034c5f3_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000078823",
+      "family": "coco-000000078823",
+      "split": "development",
+      "file": "development/coco-000000078823.jpg",
+      "sha256": "d9fe245622dc52d9c977eb501aa70d23a9e0fb61e2873879db6c0a89b1bc6b88",
+      "labels": [
+        "car",
+        "dog",
+        "potted plant"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000078823.jpg",
+      "original": "http://farm1.staticflickr.com/9/13918737_12ed28cb16_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000138979",
+      "family": "coco-000000138979",
+      "split": "development",
+      "file": "development/coco-000000138979.jpg",
+      "sha256": "1422f5ad941613d3a62795c276abda2ed3b45972d0fc84d9df5a1a715338131e",
+      "labels": [
+        "bus",
+        "car",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000138979.jpg",
+      "original": "http://farm9.staticflickr.com/8471/8149448889_244498909c_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000183246",
+      "family": "coco-000000183246",
+      "split": "development",
+      "file": "development/coco-000000183246.jpg",
+      "sha256": "25d6c62b5ee245a99b98de1f078ab5d827c6737dfe11c60815955146604b6e7b",
+      "labels": [
+        "car",
+        "person",
+        "traffic light",
+        "truck"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000183246.jpg",
+      "original": "http://farm3.staticflickr.com/2259/2469205788_1473198ae0_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000442456",
+      "family": "coco-000000442456",
+      "split": "development",
+      "file": "development/coco-000000442456.jpg",
+      "sha256": "edc04913d2e51d0146a5a2a3dd6a30945ad51df77d2cd16d70a91ece69ea4f6d",
+      "labels": [
+        "car",
+        "cell phone",
+        "handbag",
+        "person",
+        "truck"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000442456.jpg",
+      "original": "http://farm9.staticflickr.com/8264/8602459939_be3c670999_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000542625",
+      "family": "coco-000000542625",
+      "split": "development",
+      "file": "development/coco-000000542625.jpg",
+      "sha256": "96bcf0e82d56c029bbb5f440727dbd0daf156a14327a5a83d6fd68ba67f62712",
+      "labels": [
+        "bird",
+        "car",
+        "fire hydrant",
+        "parking meter",
+        "traffic light",
+        "truck"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000542625.jpg",
+      "original": "http://farm8.staticflickr.com/7415/9089660689_e77a462f81_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000455085",
+      "family": "coco-000000455085",
+      "split": "development",
+      "file": "development/coco-000000455085.jpg",
+      "sha256": "022d2068d525b03a753287c333c09026fe22b9ae6d8071d4e8c757cbed32bdc4",
+      "labels": [
+        "bus",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000455085.jpg",
+      "original": "http://farm9.staticflickr.com/8328/8376341185_a823707710_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000534673",
+      "family": "coco-000000534673",
+      "split": "development",
+      "file": "development/coco-000000534673.jpg",
+      "sha256": "e3596c112886930b23b8e698ad5f637a1fe7522f45acc7f7a927b4a7e294757a",
+      "labels": [
+        "bus",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000534673.jpg",
+      "original": "http://farm8.staticflickr.com/7054/8689267710_94db8887b8_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000542856",
+      "family": "coco-000000542856",
+      "split": "development",
+      "file": "development/coco-000000542856.jpg",
+      "sha256": "9bd2d9be44355c59e3599f1f5ddcfc06bf8209a0f24b655538e891ae6a4b3fcf",
+      "labels": [
+        "bus",
+        "person",
+        "traffic light"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000542856.jpg",
+      "original": "http://farm9.staticflickr.com/8285/7826926496_3aa9e9d112_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000269632",
+      "family": "coco-000000269632",
+      "split": "development",
+      "file": "development/coco-000000269632.jpg",
+      "sha256": "eacd77dd985fd0c0ea4a761c6087956a885394240033649296cb015e4469485e",
+      "labels": [
+        "bus",
+        "car",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000269632.jpg",
+      "original": "http://farm8.staticflickr.com/7287/9106564326_f1af288935_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000423519",
+      "family": "coco-000000423519",
+      "split": "development",
+      "file": "development/coco-000000423519.jpg",
+      "sha256": "a6a6d1615bf3fcab74358eb32672f579939c11d1513ad291a89669462c8b43a8",
+      "labels": [
+        "bus"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000423519.jpg",
+      "original": "http://farm4.staticflickr.com/3754/10191731076_ac8f52461a_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000362682",
+      "family": "coco-000000362682",
+      "split": "development",
+      "file": "development/coco-000000362682.jpg",
+      "sha256": "840ceaeff4c9d12ebbf3820ef38426091e6a28782ec6cceea9f265cf8cfb2651",
+      "labels": [
+        "bus",
+        "person",
+        "truck"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000362682.jpg",
+      "original": "http://farm9.staticflickr.com/8528/8575643656_6194a29a31_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000078170",
+      "family": "coco-000000078170",
+      "split": "development",
+      "file": "development/coco-000000078170.jpg",
+      "sha256": "e9ccccb034030771eafc383d2872bce55e7ff395313b610ffc1215eeb72912a3",
+      "labels": [
+        "bottle",
+        "cell phone",
+        "chair",
+        "handbag",
+        "person",
+        "train"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000078170.jpg",
+      "original": "http://farm9.staticflickr.com/8466/8108218074_bacf160a3c_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000508482",
+      "family": "coco-000000508482",
+      "split": "development",
+      "file": "development/coco-000000508482.jpg",
+      "sha256": "b54e580028cafb79a51ce192be84d23a7a974e5c558ca44d4331a0ea854ec44d",
+      "labels": [
+        "train"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000508482.jpg",
+      "original": "http://farm9.staticflickr.com/8437/7987831442_6e59b3fec0_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000534639",
+      "family": "coco-000000534639",
+      "split": "development",
+      "file": "development/coco-000000534639.jpg",
+      "sha256": "0e2722b6f071bb72c697fb7083b34f0097c355981e521df0d019413cc7dfffe7",
+      "labels": [
+        "car",
+        "traffic light",
+        "train"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000534639.jpg",
+      "original": "http://farm9.staticflickr.com/8114/10190866013_de7086c9ef_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000249643",
+      "family": "coco-000000249643",
+      "split": "development",
+      "file": "development/coco-000000249643.jpg",
+      "sha256": "99ec37c419f10dc2876c335bd601887d1f73e8dd67b07564b107e13a6833ffd6",
+      "labels": [
+        "person",
+        "train"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000249643.jpg",
+      "original": "http://farm8.staticflickr.com/7360/9167356387_9e47583e84_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000458109",
+      "family": "coco-000000458109",
+      "split": "development",
+      "file": "development/coco-000000458109.jpg",
+      "sha256": "7c0ccee4ccf4604e4e46cb426fab310b1b44639b1639f7682fd2916af514746e",
+      "labels": [
+        "person",
+        "train"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000458109.jpg",
+      "original": "http://farm4.staticflickr.com/3712/9932279996_5e591d53d4_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000186624",
+      "family": "coco-000000186624",
+      "split": "development",
+      "file": "development/coco-000000186624.jpg",
+      "sha256": "b041e6c1451614e6a7a117291e6519729d38e292cf448cfbe5dab313f3aaa587",
+      "labels": [
+        "backpack",
+        "handbag",
+        "person",
+        "train"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000186624.jpg",
+      "original": "http://farm6.staticflickr.com/5535/9272267604_d034ab2f0d_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000190140",
+      "family": "coco-000000190140",
+      "split": "development",
+      "file": "development/coco-000000190140.jpg",
+      "sha256": "abade429d12b97abe8d8e437d38fa2beda1058343ddbc46fa5bdd80000aa6c32",
+      "labels": [
+        "boat",
+        "dog",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000190140.jpg",
+      "original": "http://farm7.staticflickr.com/6118/6216901971_786976ff66_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000395633",
+      "family": "coco-000000395633",
+      "split": "development",
+      "file": "development/coco-000000395633.jpg",
+      "sha256": "2c500ed0e2bffd930e7001607cf46b31bb15b2b6bee3727ea638217e3247a6f4",
+      "labels": [
+        "boat",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000395633.jpg",
+      "original": "http://farm7.staticflickr.com/6117/6227458541_7df2d92981_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000400803",
+      "family": "coco-000000400803",
+      "split": "development",
+      "file": "development/coco-000000400803.jpg",
+      "sha256": "30ab2224ea490cdf0d603b6d901e87d964d6fb253657a91949832af2ddc8b585",
+      "labels": [
+        "boat",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000400803.jpg",
+      "original": "http://farm2.staticflickr.com/1153/4611657921_86a8cab295_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000543300",
+      "family": "coco-000000543300",
+      "split": "development",
+      "file": "development/coco-000000543300.jpg",
+      "sha256": "72bcd0502e2cce873aa3acc1524f314b242550b5362c57edf178966abd400c7c",
+      "labels": [
+        "boat"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000543300.jpg",
+      "original": "http://farm6.staticflickr.com/5331/10115212384_e0d2794b2a_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000113051",
+      "family": "coco-000000113051",
+      "split": "development",
+      "file": "development/coco-000000113051.jpg",
+      "sha256": "08e92ec10d2b3b5e1308e6853d50846fb11f718b57d1c4e32e302f8be7aac6a6",
+      "labels": [
+        "boat"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000113051.jpg",
+      "original": "http://farm7.staticflickr.com/6149/5946397184_28af5fa883_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000451090",
+      "family": "coco-000000451090",
+      "split": "development",
+      "file": "development/coco-000000451090.jpg",
+      "sha256": "05bb152e0b9079ae7aeba29569550e911e8fc6de22c5282b6b0527d73b463be0",
+      "labels": [
+        "boat"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000451090.jpg",
+      "original": "http://farm4.staticflickr.com/3686/9404551615_6af13a75ee_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000099054",
+      "family": "coco-000000099054",
+      "split": "holdout",
+      "file": "holdout/coco-000000099054.jpg",
+      "sha256": "1149e1ee570c476c2422eb40c3cec73156b7f7f48ef74155ade66c4b517e9c2d",
+      "labels": [
+        "airplane",
+        "person",
+        "truck"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000099054.jpg",
+      "original": "http://farm5.staticflickr.com/4033/5162745508_9bc949f49f_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000110721",
+      "family": "coco-000000110721",
+      "split": "holdout",
+      "file": "holdout/coco-000000110721.jpg",
+      "sha256": "f84ea80728eb631e44811b1909c2022728fd01284d124942fa3e167305e6eb81",
+      "labels": [
+        "airplane",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000110721.jpg",
+      "original": "http://farm9.staticflickr.com/8221/8264882784_3011d9da8f_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000463037",
+      "family": "coco-000000463037",
+      "split": "holdout",
+      "file": "holdout/coco-000000463037.jpg",
+      "sha256": "7223596aa1f6d0e1cf2c2634a23671809975105dd03e59390474946b4f1eb914",
+      "labels": [
+        "airplane",
+        "car"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000463037.jpg",
+      "original": "http://farm6.staticflickr.com/5228/5601865726_2e1a8966e9_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000096549",
+      "family": "coco-000000096549",
+      "split": "holdout",
+      "file": "holdout/coco-000000096549.jpg",
+      "sha256": "1cb2d1fa59bd7f84952f4e24ab7562e3f2939c71fce88a9ae6d55a630ba5a53a",
+      "labels": [
+        "airplane"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000096549.jpg",
+      "original": "http://farm9.staticflickr.com/8265/8622452992_833365e25c_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000490413",
+      "family": "coco-000000490413",
+      "split": "holdout",
+      "file": "holdout/coco-000000490413.jpg",
+      "sha256": "84c861cb5cda260415fdb0d8bd8798802c692316f2773f3b5e78a3392adad079",
+      "labels": [
+        "airplane"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000490413.jpg",
+      "original": "http://farm9.staticflickr.com/8010/7228076248_0a54e97446_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000084752",
+      "family": "coco-000000084752",
+      "split": "holdout",
+      "file": "holdout/coco-000000084752.jpg",
+      "sha256": "94f8f85c762d5fd6f766dc85bebb0daaabdc1dfffe2c0d8b8b4f1e72b54dcc43",
+      "labels": [
+        "airplane",
+        "car",
+        "truck"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000084752.jpg",
+      "original": "http://farm8.staticflickr.com/7268/7044989013_c8821aaa75_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000519208",
+      "family": "coco-000000519208",
+      "split": "development",
+      "file": "development/coco-000000519208.jpg",
+      "sha256": "251ea96f960403b82085683813326671034e3dfa5171887bd155fb14528a9534",
+      "labels": [
+        "elephant",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000519208.jpg",
+      "original": "http://farm6.staticflickr.com/5443/9135914617_3b723dd387_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000414795",
+      "family": "coco-000000414795",
+      "split": "development",
+      "file": "development/coco-000000414795.jpg",
+      "sha256": "8d3945f3c30be9a21aed6e9808f39e74a46bb20198f7bd29e24f4279e716af1e",
+      "labels": [
+        "elephant",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000414795.jpg",
+      "original": "http://farm1.staticflickr.com/69/221842206_28bfc63fc8_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000133631",
+      "family": "coco-000000133631",
+      "split": "development",
+      "file": "development/coco-000000133631.jpg",
+      "sha256": "92cc8755d93f89fcd21b0c6d21cb1523ab77353397f696baa8f80ecd36e13ffc",
+      "labels": [
+        "elephant"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000133631.jpg",
+      "original": "http://farm9.staticflickr.com/8289/7822152024_2cea0d2cff_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000167128",
+      "family": "coco-000000167128",
+      "split": "development",
+      "file": "development/coco-000000167128.jpg",
+      "sha256": "35f0372aa2dca6a117e1733fbe5192584cf559bd5af8b8f9e599ef6bdef8f76b",
+      "labels": [
+        "elephant"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000167128.jpg",
+      "original": "http://farm5.staticflickr.com/4017/4538485332_b7c4cb664c_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000166642",
+      "family": "coco-000000166642",
+      "split": "development",
+      "file": "development/coco-000000166642.jpg",
+      "sha256": "7505cf2fe933b1652e652b8c7fb5600a9fef255b7ef06f0ad7e41e3465287738",
+      "labels": [
+        "elephant"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000166642.jpg",
+      "original": "http://farm8.staticflickr.com/7203/6977687239_3a57ee90d8_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000132796",
+      "family": "coco-000000132796",
+      "split": "development",
+      "file": "development/coco-000000132796.jpg",
+      "sha256": "689329fe1f003664d40a9330421fef02e16c26d5e64d25ac8ecf0c5d5ad6db23",
+      "labels": [
+        "backpack",
+        "bench",
+        "chair",
+        "elephant",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000132796.jpg",
+      "original": "http://farm6.staticflickr.com/5130/5382853203_aa9df7df0e_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000320632",
+      "family": "coco-000000320632",
+      "split": "holdout",
+      "file": "holdout/coco-000000320632.jpg",
+      "sha256": "24ccd8f02cf63428b50a2a874ca118d1fde420fe0ae0ef0f5475dae2d8d572b3",
+      "labels": [
+        "zebra"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000320632.jpg",
+      "original": "http://farm4.staticflickr.com/3729/8892244724_b080d12e4c_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000172977",
+      "family": "coco-000000172977",
+      "split": "holdout",
+      "file": "holdout/coco-000000172977.jpg",
+      "sha256": "f33f8a6defdd89c71f469b3d069b9833a9fdd2ccdcfb81ff323b61adf46567cb",
+      "labels": [
+        "zebra"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000172977.jpg",
+      "original": "http://farm3.staticflickr.com/2751/5719822970_84357ed931_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000290833",
+      "family": "coco-000000290833",
+      "split": "holdout",
+      "file": "holdout/coco-000000290833.jpg",
+      "sha256": "79ad81b31814f88c4431f96f18fbbbb0a4a95ed00075161745eac0498c519f09",
+      "labels": [
+        "zebra"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000290833.jpg",
+      "original": "http://farm1.staticflickr.com/71/169854910_5afb94edb5_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000064499",
+      "family": "coco-000000064499",
+      "split": "holdout",
+      "file": "holdout/coco-000000064499.jpg",
+      "sha256": "59e1d75bb19d61b4e6935e1701ca3a4e3abfa4cca546f81a2ca965992f4c9535",
+      "labels": [
+        "zebra"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000064499.jpg",
+      "original": "http://farm5.staticflickr.com/4125/5083031191_7324cb7741_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000552902",
+      "family": "coco-000000552902",
+      "split": "holdout",
+      "file": "holdout/coco-000000552902.jpg",
+      "sha256": "ecae0002c2e7c82e63a47c377d92d05a9d340dbe283e2c4a0fdfe21627e77885",
+      "labels": [
+        "zebra"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000552902.jpg",
+      "original": "http://farm9.staticflickr.com/8538/8603855827_320e7fbb3c_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000201676",
+      "family": "coco-000000201676",
+      "split": "holdout",
+      "file": "holdout/coco-000000201676.jpg",
+      "sha256": "bd6d68f6db1152c33c97d1369e89facb659a300538cd0904601ef90cffffc6dc",
+      "labels": [
+        "zebra"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000201676.jpg",
+      "original": "http://farm3.staticflickr.com/2037/2316855213_ed66bb31fb_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000079188",
+      "family": "coco-000000079188",
+      "split": "development",
+      "file": "development/coco-000000079188.jpg",
+      "sha256": "c02055fda44d9b96cfa570fd7eded4b53769da9e3c0ff8ca7d4e7ed43300f44a",
+      "labels": [
+        "giraffe"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000079188.jpg",
+      "original": "http://farm6.staticflickr.com/5337/8893150526_e517ed3bf3_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000288882",
+      "family": "coco-000000288882",
+      "split": "development",
+      "file": "development/coco-000000288882.jpg",
+      "sha256": "f26b300b60b63e438dd0b7d4448165cf8fc510071810ee062739adf5e509e610",
+      "labels": [
+        "giraffe"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000288882.jpg",
+      "original": "http://farm9.staticflickr.com/8197/8246389680_c6d7ef3356_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000272364",
+      "family": "coco-000000272364",
+      "split": "development",
+      "file": "development/coco-000000272364.jpg",
+      "sha256": "a412c21283703aa8822175e319638957a0fbb1e0c909d302a5c27a6188b94989",
+      "labels": [
+        "giraffe"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000272364.jpg",
+      "original": "http://farm4.staticflickr.com/3354/3262516437_2f4c70fa62_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000205282",
+      "family": "coco-000000205282",
+      "split": "development",
+      "file": "development/coco-000000205282.jpg",
+      "sha256": "82b35c37e5b52aae04650677503465b729785943dc7ab2a9eb4b545f66864625",
+      "labels": [
+        "giraffe"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000205282.jpg",
+      "original": "http://farm4.staticflickr.com/3806/8892272617_b5f681bc37_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000248810",
+      "family": "coco-000000248810",
+      "split": "development",
+      "file": "development/coco-000000248810.jpg",
+      "sha256": "45f0c3ff2c7a8ff6ea3b6ae2f697e1e1254a729675d2d1c38439e36aae8c7f1b",
+      "labels": [
+        "giraffe",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000248810.jpg",
+      "original": "http://farm1.staticflickr.com/195/490309492_7b15dd0b70_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000157098",
+      "family": "coco-000000157098",
+      "split": "development",
+      "file": "development/coco-000000157098.jpg",
+      "sha256": "c1df58fceb47592032579a9047cdb812ed611c1d7f2bc2bcbd2524c034f5e53c",
+      "labels": [
+        "giraffe"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000157098.jpg",
+      "original": "http://farm1.staticflickr.com/49/137204740_b8b9faa744_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000555412",
+      "family": "coco-000000555412",
+      "split": "development",
+      "file": "development/coco-000000555412.jpg",
+      "sha256": "110933a17bcc31cf2b1aee13da2064db5fd74a554bf4b35d4dd7b2c4db967e14",
+      "labels": [
+        "pizza"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000555412.jpg",
+      "original": "http://farm2.staticflickr.com/1287/4708570836_62cae13ef6_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000100582",
+      "family": "coco-000000100582",
+      "split": "development",
+      "file": "development/coco-000000100582.jpg",
+      "sha256": "670b8c6c5a125c68a9a4c7d446504338561f2b4cac3e6240f776b086a6090a20",
+      "labels": [
+        "dining table",
+        "fork",
+        "pizza"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000100582.jpg",
+      "original": "http://farm5.staticflickr.com/4006/4707927889_a5a966361e_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000174123",
+      "family": "coco-000000174123",
+      "split": "development",
+      "file": "development/coco-000000174123.jpg",
+      "sha256": "c1538f7d64831b48c106b8729113ce6dd356abd8fccc09adafa1f756f9384ee7",
+      "labels": [
+        "dining table",
+        "fork",
+        "knife",
+        "person",
+        "pizza"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000174123.jpg",
+      "original": "http://farm4.staticflickr.com/3023/2334881948_0838093fde_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000127476",
+      "family": "coco-000000127476",
+      "split": "development",
+      "file": "development/coco-000000127476.jpg",
+      "sha256": "b64ac6e5ed43a914164f2d4a1d913028177365de13cf85bb9ed85915efac4d46",
+      "labels": [
+        "pizza"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000127476.jpg",
+      "original": "http://farm8.staticflickr.com/7109/7775534850_4337211708_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000360393",
+      "family": "coco-000000360393",
+      "split": "development",
+      "file": "development/coco-000000360393.jpg",
+      "sha256": "00723fd47795b91bf6fc2fbdc35982cddf3b7150eee9366ce944527181ed74ee",
+      "labels": [
+        "bowl",
+        "pizza"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000360393.jpg",
+      "original": "http://farm8.staticflickr.com/7153/6533098435_76b2fe85a0_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000232489",
+      "family": "coco-000000232489",
+      "split": "development",
+      "file": "development/coco-000000232489.jpg",
+      "sha256": "2aa8b4f0f7498c5cda3170ed3de9cd1421e7cd2f6e33bb2e7c9da9a519151283",
+      "labels": [
+        "pizza"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000232489.jpg",
+      "original": "http://farm8.staticflickr.com/7239/7163918053_22e5ab1e70_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000245651",
+      "family": "coco-000000245651",
+      "split": "holdout",
+      "file": "holdout/coco-000000245651.jpg",
+      "sha256": "475dea5ebf7371dc9c00e7465da425f8e9cf9df79aae8978d56148897d2e7009",
+      "labels": [
+        "cake"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000245651.jpg",
+      "original": "http://farm3.staticflickr.com/2437/3956562901_0f6fdbb0a7_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000495448",
+      "family": "coco-000000495448",
+      "split": "holdout",
+      "file": "holdout/coco-000000495448.jpg",
+      "sha256": "048eaf322b75935f7441845d441567d55ebcedea1a1c9f3cbe628b35bb01120d",
+      "labels": [
+        "cake",
+        "knife"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000495448.jpg",
+      "original": "http://farm8.staticflickr.com/7369/9678307057_4d7bc4aaa4_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000453040",
+      "family": "coco-000000453040",
+      "split": "holdout",
+      "file": "holdout/coco-000000453040.jpg",
+      "sha256": "a2487091b242be566698a97acb505a94282fad01ba9a8ef40ce420386b5294ee",
+      "labels": [
+        "cake",
+        "dining table"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000453040.jpg",
+      "original": "http://farm6.staticflickr.com/5327/8834178988_33ecf210db_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000502737",
+      "family": "coco-000000502737",
+      "split": "holdout",
+      "file": "holdout/coco-000000502737.jpg",
+      "sha256": "b8fcea1fecb77c46986dcaf94629b90d8815c863ecfaa2925af8de74cf6fc78e",
+      "labels": [
+        "cake",
+        "cup",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000502737.jpg",
+      "original": "http://farm2.staticflickr.com/1370/1343129188_df1aebda3f_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000377368",
+      "family": "coco-000000377368",
+      "split": "holdout",
+      "file": "holdout/coco-000000377368.jpg",
+      "sha256": "37858dad24b3e4ffc50abe1d8bfca6037b6a371ef7511963e6cb63526ac8f21d",
+      "labels": [
+        "bench",
+        "cake",
+        "cup",
+        "dining table",
+        "handbag",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000377368.jpg",
+      "original": "http://farm6.staticflickr.com/5293/5538913095_e3c5a908bc_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000276434",
+      "family": "coco-000000276434",
+      "split": "holdout",
+      "file": "holdout/coco-000000276434.jpg",
+      "sha256": "f9a0ee581309a7587135f760508c524635196621492b5e1000369ec5abf563ba",
+      "labels": [
+        "cake",
+        "dining table",
+        "knife",
+        "orange",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000276434.jpg",
+      "original": "http://farm4.staticflickr.com/3554/3431913937_84630a1cdf_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000090891",
+      "family": "coco-000000090891",
+      "split": "development",
+      "file": "development/coco-000000090891.jpg",
+      "sha256": "d3ca274ad2a7c3620c54f1024a65325fe7bfa0d6bb91a818edfc9fc5b1ea2be6",
+      "labels": [
+        "banana",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000090891.jpg",
+      "original": "http://farm7.staticflickr.com/6145/5938772497_5a89d3ec7c_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000008844",
+      "family": "coco-000000008844",
+      "split": "development",
+      "file": "development/coco-000000008844.jpg",
+      "sha256": "bd8133fe5862ea2b0b308db3c1d96b23012f2f667d43cb524d35ac1b710670a4",
+      "labels": [
+        "banana",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000008844.jpg",
+      "original": "http://farm7.staticflickr.com/6109/6283843124_f4091ce78a_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000028809",
+      "family": "coco-000000028809",
+      "split": "development",
+      "file": "development/coco-000000028809.jpg",
+      "sha256": "ae2c7be44df33d27135b6aa2f5d82d4c8bb9784e99469a04be708ee68943a45d",
+      "labels": [
+        "banana"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000028809.jpg",
+      "original": "http://farm5.staticflickr.com/4026/4444464874_e0a59ec935_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000006012",
+      "family": "coco-000000006012",
+      "split": "development",
+      "file": "development/coco-000000006012.jpg",
+      "sha256": "7cd0d627b15c09f373aa613d013fb2d8ae6bd20bcce0d98aa31b963e6bcca495",
+      "labels": [
+        "banana"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000006012.jpg",
+      "original": "http://farm5.staticflickr.com/4030/4281955635_f02ce45926_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000548506",
+      "family": "coco-000000548506",
+      "split": "development",
+      "file": "development/coco-000000548506.jpg",
+      "sha256": "6587aa7e069e1aec1ef2bac033583a7173db33619ba2cecdd4e52e8cf17e4ad3",
+      "labels": [
+        "apple",
+        "banana"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000548506.jpg",
+      "original": "http://farm8.staticflickr.com/7215/7172313601_80f97928a8_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000348708",
+      "family": "coco-000000348708",
+      "split": "development",
+      "file": "development/coco-000000348708.jpg",
+      "sha256": "a0a54622b4ee5cf059b69a7346407013987fcbefa16fbd71d894f4e3817369d4",
+      "labels": [
+        "banana",
+        "bowl",
+        "dining table"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000348708.jpg",
+      "original": "http://farm5.staticflickr.com/4145/5435483128_849e37a0dd_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000239318",
+      "family": "coco-000000239318",
+      "split": "development",
+      "file": "development/coco-000000239318.jpg",
+      "sha256": "7e7f3b9de9cc514e6e21891f3eb9c1b70f2d54a5dea2d480d6443f660bc4a28a",
+      "labels": [
+        "chair",
+        "keyboard",
+        "laptop"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000239318.jpg",
+      "original": "http://farm1.staticflickr.com/26/39047896_b94db54bb4_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000080949",
+      "family": "coco-000000080949",
+      "split": "development",
+      "file": "development/coco-000000080949.jpg",
+      "sha256": "b61281d7ad2ca043eb4a6066becd42586ab66394757171ee2f31277241b4bc51",
+      "labels": [
+        "bottle",
+        "cat",
+        "cup",
+        "laptop"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000080949.jpg",
+      "original": "http://farm3.staticflickr.com/2221/2232846153_5eee9c75fc_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000427034",
+      "family": "coco-000000427034",
+      "split": "development",
+      "file": "development/coco-000000427034.jpg",
+      "sha256": "67f67faa801571ade9d12ca207f582bc5abdda9af672b9e5dab8e9414c2cb3a3",
+      "labels": [
+        "clock",
+        "dog",
+        "laptop",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000427034.jpg",
+      "original": "http://farm5.staticflickr.com/4146/4845125160_b23cf4bd2d_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000248631",
+      "family": "coco-000000248631",
+      "split": "development",
+      "file": "development/coco-000000248631.jpg",
+      "sha256": "45ea37728704ce7d5a62ff39c68ab4a1d149cdd743414c0a5455524ea337150a",
+      "labels": [
+        "laptop",
+        "mouse"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000248631.jpg",
+      "original": "http://farm8.staticflickr.com/7209/6856333555_8988fcece0_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000215778",
+      "family": "coco-000000215778",
+      "split": "development",
+      "file": "development/coco-000000215778.jpg",
+      "sha256": "37486e1ac89a7860c4721892f3b56d8acde342a62dd211eba10a3128a9c1655c",
+      "labels": [
+        "book",
+        "cup",
+        "keyboard",
+        "laptop",
+        "mouse"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000215778.jpg",
+      "original": "http://farm3.staticflickr.com/2550/3728951244_f7df6b91ba_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000290843",
+      "family": "coco-000000290843",
+      "split": "development",
+      "file": "development/coco-000000290843.jpg",
+      "sha256": "6994d38a2582525f0c33f0cb28ee7e149ffcc950fa4c02cbd9ad9a3261955cc9",
+      "labels": [
+        "bed",
+        "cat",
+        "laptop",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000290843.jpg",
+      "original": "http://farm4.staticflickr.com/3426/3384885001_346b9951a5_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000167353",
+      "family": "coco-000000167353",
+      "split": "holdout",
+      "file": "holdout/coco-000000167353.jpg",
+      "sha256": "8e6737773e7548e3fc299c7dc5e255b5997c0b05e08423f016b277719e8232a0",
+      "labels": [
+        "clock"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000167353.jpg",
+      "original": "http://farm9.staticflickr.com/8022/7178592902_5974224cac_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000067896",
+      "family": "coco-000000067896",
+      "split": "holdout",
+      "file": "holdout/coco-000000067896.jpg",
+      "sha256": "41dd62010a54964537df22befdf97aab83979ffc406c89909f8eac8075841497",
+      "labels": [
+        "clock"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000067896.jpg",
+      "original": "http://farm9.staticflickr.com/8442/7997145503_9c5e040b00_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000551780",
+      "family": "coco-000000551780",
+      "split": "holdout",
+      "file": "holdout/coco-000000551780.jpg",
+      "sha256": "3d4490937783d48c381caf35e9901cb099ef4bf5a9d1bbd36db9b11ab7ebcb5e",
+      "labels": [
+        "clock",
+        "spoon"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000551780.jpg",
+      "original": "http://farm6.staticflickr.com/5125/5333676592_1219ccca49_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000525286",
+      "family": "coco-000000525286",
+      "split": "holdout",
+      "file": "holdout/coco-000000525286.jpg",
+      "sha256": "fc59935b296e9b8417ae6900069dfabed05be86b35fd3a0dc137320023fb4f06",
+      "labels": [
+        "clock"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000525286.jpg",
+      "original": "http://farm7.staticflickr.com/6043/6283834311_9086e17c62_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000233139",
+      "family": "coco-000000233139",
+      "split": "holdout",
+      "file": "holdout/coco-000000233139.jpg",
+      "sha256": "b01f830541abca2fc5ff1227f8d622c7a9b2856a6232b422ca9aff09f493ec89",
+      "labels": [
+        "clock"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000233139.jpg",
+      "original": "http://farm8.staticflickr.com/7012/6449253229_94676a38e6_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000191013",
+      "family": "coco-000000191013",
+      "split": "holdout",
+      "file": "holdout/coco-000000191013.jpg",
+      "sha256": "c630ba727a128d2e4d42c4498bd9b7e50d7564c23905925865186bbb529c37b3",
+      "labels": [
+        "car",
+        "clock",
+        "person",
+        "truck"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000191013.jpg",
+      "original": "http://farm9.staticflickr.com/8057/8193281147_81461e9773_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000262938",
+      "family": "coco-000000262938",
+      "split": "development",
+      "file": "development/coco-000000262938.jpg",
+      "sha256": "ce78e1690b2b47515d3d1e36f149faee2cb032efcebc130a8f38c5489545958e",
+      "labels": [
+        "book",
+        "dog"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000262938.jpg",
+      "original": "http://farm8.staticflickr.com/7029/6716837175_fb5e4de84a_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000553664",
+      "family": "coco-000000553664",
+      "split": "development",
+      "file": "development/coco-000000553664.jpg",
+      "sha256": "69d32a91d82468a3c3140cc844586f1fe790d780afa7b44fc2391f2082de7f18",
+      "labels": [
+        "book",
+        "cell phone",
+        "keyboard",
+        "laptop",
+        "mouse"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000553664.jpg",
+      "original": "http://farm9.staticflickr.com/8184/8359838012_b3491d063c_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000520531",
+      "family": "coco-000000520531",
+      "split": "development",
+      "file": "development/coco-000000520531.jpg",
+      "sha256": "2ba4713ac86fef08a8b150861b289f27fa4263d4522cd3fa74bc94aa6fd0af51",
+      "labels": [
+        "book",
+        "cat",
+        "chair",
+        "remote",
+        "teddy bear"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000520531.jpg",
+      "original": "http://farm5.staticflickr.com/4062/4340091694_248849448e_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000520077",
+      "family": "coco-000000520077",
+      "split": "development",
+      "file": "development/coco-000000520077.jpg",
+      "sha256": "7e4985f7c75dd8940526cef636179af20151b3af7b7653f6986eed71f32488b0",
+      "labels": [
+        "book",
+        "bottle",
+        "mouse",
+        "tv"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000520077.jpg",
+      "original": "http://farm1.staticflickr.com/189/510193497_2b98403243_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000183049",
+      "family": "coco-000000183049",
+      "split": "development",
+      "file": "development/coco-000000183049.jpg",
+      "sha256": "fd2ee31aceafdd19a676f309d5ab6c9ff302bf28e494e5793b4481d02c594e52",
+      "labels": [
+        "book",
+        "clock"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000183049.jpg",
+      "original": "http://farm1.staticflickr.com/35/103482887_f53eff4e29_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000309938",
+      "family": "coco-000000309938",
+      "split": "development",
+      "file": "development/coco-000000309938.jpg",
+      "sha256": "8956749b98223cb888cb948f97d64cbc7330d7a8c285da0921a8630cc2f6f4a8",
+      "labels": [
+        "book",
+        "dog"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000309938.jpg",
+      "original": "http://farm3.staticflickr.com/2460/3742502573_02458ab759_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000441543",
+      "family": "coco-000000441543",
+      "split": "holdout",
+      "file": "holdout/coco-000000441543.jpg",
+      "sha256": "200948918a4f8136c1040174e80ab80e7bc6e6d904487ef656e89854374e8ea7",
+      "labels": [
+        "backpack",
+        "cell phone",
+        "person",
+        "umbrella"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000441543.jpg",
+      "original": "http://farm6.staticflickr.com/5461/9168165820_0a3b383210_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000232563",
+      "family": "coco-000000232563",
+      "split": "holdout",
+      "file": "holdout/coco-000000232563.jpg",
+      "sha256": "601e0bfd4627087ed9a402fa549077d6cb1b1fc78d93c8a87d22478fb4d99cb8",
+      "labels": [
+        "handbag",
+        "person",
+        "umbrella"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000232563.jpg",
+      "original": "http://farm6.staticflickr.com/5478/9825627186_e7f5590cda_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000339823",
+      "family": "coco-000000339823",
+      "split": "holdout",
+      "file": "holdout/coco-000000339823.jpg",
+      "sha256": "c278f5713c135f44dcd7d708f0d9abc4f63a2870a6d1c7753ad5a7b198bbabbe",
+      "labels": [
+        "person",
+        "umbrella"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000339823.jpg",
+      "original": "http://farm6.staticflickr.com/5023/5596623597_042b2c2ded_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000084477",
+      "family": "coco-000000084477",
+      "split": "holdout",
+      "file": "holdout/coco-000000084477.jpg",
+      "sha256": "182bab08d6173f7d044f291b2493833dcd7ce61f54bd83e0ecfc2e58b22e33b2",
+      "labels": [
+        "chair",
+        "person",
+        "umbrella"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000084477.jpg",
+      "original": "http://farm9.staticflickr.com/8454/7897786544_4e902801e3_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000250137",
+      "family": "coco-000000250137",
+      "split": "holdout",
+      "file": "holdout/coco-000000250137.jpg",
+      "sha256": "00b60aa56c8552f04a59da5ec1a6ba555991fa22cd8ff932f31d72a159595e8b",
+      "labels": [
+        "cup",
+        "handbag",
+        "person",
+        "umbrella"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000250137.jpg",
+      "original": "http://farm5.staticflickr.com/4084/5028973928_910bfd2613_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000121506",
+      "family": "coco-000000121506",
+      "split": "holdout",
+      "file": "holdout/coco-000000121506.jpg",
+      "sha256": "c343589eeba3701c2e6bc2b7f7f6c65eaaf9b2d998fd0402b90d82bdc69a0325",
+      "labels": [
+        "bench",
+        "car",
+        "chair",
+        "dining table",
+        "umbrella"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000121506.jpg",
+      "original": "http://farm8.staticflickr.com/7116/7721233008_99b07f96b1_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000495054",
+      "family": "coco-000000495054",
+      "split": "holdout",
+      "file": "holdout/coco-000000495054.jpg",
+      "sha256": "5864a5039d151cdf03efc9dfcde0a52227f9ffdbf3a26cd09c1add8e401058f5",
+      "labels": [
+        "airplane",
+        "truck"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000495054.jpg",
+      "original": "http://farm3.staticflickr.com/2662/3697328838_11da7136fc_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000252332",
+      "family": "coco-000000252332",
+      "split": "holdout",
+      "file": "holdout/coco-000000252332.jpg",
+      "sha256": "f2545620c6878bd0faf03dff4f32409a174c1f52bae525170f014abbaae4294b",
+      "labels": [
+        "stop sign"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000252332.jpg",
+      "original": "http://farm6.staticflickr.com/5261/5836914735_bef9249442_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000351530",
+      "family": "coco-000000351530",
+      "split": "holdout",
+      "file": "holdout/coco-000000351530.jpg",
+      "sha256": "c0dd4c7912f49996c6db70407078f13642da6239661294dc27bf190b2e1669f7",
+      "labels": [
+        "bench",
+        "bicycle",
+        "cell phone",
+        "chair",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000351530.jpg",
+      "original": "http://farm9.staticflickr.com/8334/8125752591_b7f7b8da3b_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000566436",
+      "family": "coco-000000566436",
+      "split": "holdout",
+      "file": "holdout/coco-000000566436.jpg",
+      "sha256": "e81b086e5d51141374b81752c31e48355fab5f432983a3f70d3a69f46866c93d",
+      "labels": [
+        "bench",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000566436.jpg",
+      "original": "http://farm5.staticflickr.com/4057/4551440072_6100545cec_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000247917",
+      "family": "coco-000000247917",
+      "split": "holdout",
+      "file": "holdout/coco-000000247917.jpg",
+      "sha256": "3d19e31ae4de033abffb9586dffd9663e646f040d1ac5293bc4c7c467150c1c1",
+      "labels": [
+        "baseball glove",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000247917.jpg",
+      "original": "http://farm9.staticflickr.com/8164/7205570594_5aba222a6f_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000012667",
+      "family": "coco-000000012667",
+      "split": "holdout",
+      "file": "holdout/coco-000000012667.jpg",
+      "sha256": "0bf182b59b89f534d6f89a2b57c976c47b7f9a95e5e47a7f236b285b9211af14",
+      "labels": [
+        "banana"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000012667.jpg",
+      "original": "http://farm1.staticflickr.com/197/499050773_995cd1e9bb_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000241319",
+      "family": "coco-000000241319",
+      "split": "holdout",
+      "file": "holdout/coco-000000241319.jpg",
+      "sha256": "86e9949e3dbaa94b1543f585375f1d8ef1b05aa8411fca298bc4c13e53d29c1d",
+      "labels": [
+        "bottle",
+        "cup",
+        "handbag",
+        "sink",
+        "toothbrush"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000241319.jpg",
+      "original": "http://farm5.staticflickr.com/4110/5030334212_7d75b72d07_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000159977",
+      "family": "coco-000000159977",
+      "split": "holdout",
+      "file": "holdout/coco-000000159977.jpg",
+      "sha256": "6fe8628f93d0e3c2889c787e6a54dba874bc51a1a2b33039b6bd533efc9e335d",
+      "labels": [
+        "bird",
+        "giraffe",
+        "zebra"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000159977.jpg",
+      "original": "http://farm6.staticflickr.com/5333/8872308635_2189ecfdbf_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000471756",
+      "family": "coco-000000471756",
+      "split": "development",
+      "file": "development/coco-000000471756.jpg",
+      "sha256": "78702571dc1cac8e21bd51b1403e5ab6fcfd779b9baa6a3a891bae8655a7e2e4",
+      "labels": [
+        "person",
+        "surfboard"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000471756.jpg",
+      "original": "http://farm9.staticflickr.com/8314/7887157332_762a499b84_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000140556",
+      "family": "coco-000000140556",
+      "split": "development",
+      "file": "development/coco-000000140556.jpg",
+      "sha256": "132750613623f8796699dc0e4c6f70aea6c9e0fa09dadd37d72b9df729a01a1f",
+      "labels": [
+        "fire hydrant",
+        "person",
+        "truck"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000140556.jpg",
+      "original": "http://farm9.staticflickr.com/8009/7421122526_0eec2dd48b_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000511321",
+      "family": "coco-000000511321",
+      "split": "development",
+      "file": "development/coco-000000511321.jpg",
+      "sha256": "1f11a7961b4d3175280aee99a8ec93107cc13c4ba798c16ecd1c8411a64a64eb",
+      "labels": [
+        "boat"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000511321.jpg",
+      "original": "http://farm4.staticflickr.com/3668/9987909545_5c30c1ce40_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000270908",
+      "family": "coco-000000270908",
+      "split": "development",
+      "file": "development/coco-000000270908.jpg",
+      "sha256": "65bb8aa5f5d9824ec94e17911f26d6fd13bf70ff1c5756cc61fe09cfcd308618",
+      "labels": [
+        "person",
+        "tennis racket"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000270908.jpg",
+      "original": "http://farm4.staticflickr.com/3474/3875628760_a9c353f71a_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000541952",
+      "family": "coco-000000541952",
+      "split": "development",
+      "file": "development/coco-000000541952.jpg",
+      "sha256": "beba1509c1e0c89b19d92ed04c8a072352515670c8830ac1e3f9e2ff13d03a9d",
+      "labels": [
+        "clock"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000541952.jpg",
+      "original": "http://farm8.staticflickr.com/7001/6558484543_29d8e178e5_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000357567",
+      "family": "coco-000000357567",
+      "split": "development",
+      "file": "development/coco-000000357567.jpg",
+      "sha256": "a3ef4377e4e197497a39d30eeeca7ae759b96003f5546c23aec913f7ab251557",
+      "labels": [
+        "sink",
+        "toilet"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000357567.jpg",
+      "original": "http://farm4.staticflickr.com/3387/3556433761_fa6daaec21_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000269314",
+      "family": "coco-000000269314",
+      "split": "development",
+      "file": "development/coco-000000269314.jpg",
+      "sha256": "b2914080945166979a01da027e3bc6a6f4968ab7e64f2092d8f61896ba40ea41",
+      "labels": [
+        "banana",
+        "cat"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000269314.jpg",
+      "original": "http://farm4.staticflickr.com/3492/3178700644_5c55c28a4c_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000023781",
+      "family": "coco-000000023781",
+      "split": "development",
+      "file": "development/coco-000000023781.jpg",
+      "sha256": "085b1c7f25bf1d149b6dff82dfdb0a83fbf6e875c01d5d374070eb582aada80e",
+      "labels": [
+        "broccoli",
+        "carrot"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000023781.jpg",
+      "original": "http://farm4.staticflickr.com/3631/3669674438_5e744504c0_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000263969",
+      "family": "coco-000000263969",
+      "split": "development",
+      "file": "development/coco-000000263969.jpg",
+      "sha256": "77e51b2628fd424c716785c56aead155174b8fcd8e5c8a83d77ac535e5fccc8f",
+      "labels": [
+        "cake",
+        "knife",
+        "person",
+        "tie"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000263969.jpg",
+      "original": "http://farm8.staticflickr.com/7307/8735597371_053c077264_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000078266",
+      "family": "coco-000000078266",
+      "split": "development",
+      "file": "development/coco-000000078266.jpg",
+      "sha256": "01297ee066ac26e787c2f112d73e24085b9b9b94100e4bb6b13b5758c77ab2e5",
+      "labels": [
+        "apple",
+        "bowl",
+        "carrot",
+        "knife",
+        "orange",
+        "refrigerator",
+        "sink"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000078266.jpg",
+      "original": "http://farm7.staticflickr.com/6167/6180130159_ae0bf83d72_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000049259",
+      "family": "coco-000000049259",
+      "split": "development",
+      "file": "development/coco-000000049259.jpg",
+      "sha256": "75deea304839610c4f1d2312046b8c7d01ba6f350512a507d95abf2c7859ba7f",
+      "labels": [
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000049259.jpg",
+      "original": "http://farm5.staticflickr.com/4109/5607932075_8588a5787a_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000000885",
+      "family": "coco-000000000885",
+      "split": "development",
+      "file": "development/coco-000000000885.jpg",
+      "sha256": "1c67b783f78b18ddb5dd20aaba4d4aacaf98e5277051688a96da096afa9cdf1f",
+      "labels": [
+        "person",
+        "tennis racket"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000000885.jpg",
+      "original": "http://farm4.staticflickr.com/3715/9639200419_ee41490b2a_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000304545",
+      "family": "coco-000000304545",
+      "split": "development",
+      "file": "development/coco-000000304545.jpg",
+      "sha256": "6fd870d7d530062a891ef165d9e4c5f40df23003e129ec4754b5997ce7014fd7",
+      "labels": [
+        "suitcase"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000304545.jpg",
+      "original": "http://farm3.staticflickr.com/2505/4156817608_8ba165ecc2_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000403353",
+      "family": "coco-000000403353",
+      "split": "development",
+      "file": "development/coco-000000403353.jpg",
+      "sha256": "6c775b14fadf4e5ca3fc236117ce0aece4dc1503c8264e54b32578ab36592b18",
+      "labels": [
+        "bed",
+        "book"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000403353.jpg",
+      "original": "http://farm9.staticflickr.com/8486/8245255095_5669dbf878_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000261061",
+      "family": "coco-000000261061",
+      "split": "development",
+      "file": "development/coco-000000261061.jpg",
+      "sha256": "886f87e9e2cea4ea6855ae03b8707b99ef321dc3ad409f7ff9a712b94c569cd9",
+      "labels": [
+        "baseball bat",
+        "person",
+        "potted plant"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000261061.jpg",
+      "original": "http://farm3.staticflickr.com/2579/3661648054_10cef105c9_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000346968",
+      "family": "coco-000000346968",
+      "split": "development",
+      "file": "development/coco-000000346968.jpg",
+      "sha256": "ae8123cc4ce23a0949e165be5e1577e11354f0ff20f9d0c0963cb8ab8e2b65db",
+      "labels": [
+        "book",
+        "cell phone",
+        "chair",
+        "person"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000346968.jpg",
+      "original": "http://farm8.staticflickr.com/7309/9970559874_9a86b357a1_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000142620",
+      "family": "coco-000000142620",
+      "split": "development",
+      "file": "development/coco-000000142620.jpg",
+      "sha256": "0f3dd713a8c98734879b3108ac6a160877b031831048330a0fc09cedfdf1dd80",
+      "labels": [
+        "bottle",
+        "bowl",
+        "chair",
+        "cup",
+        "dining table",
+        "knife",
+        "orange",
+        "person",
+        "spoon"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000142620.jpg",
+      "original": "http://farm8.staticflickr.com/7375/9756491185_311b0b2b7d_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000039551",
+      "family": "coco-000000039551",
+      "split": "development",
+      "file": "development/coco-000000039551.jpg",
+      "sha256": "4c84a652af01f02005d2116c351bdadcb1b82445c2fae9cd47adaccf6470a136",
+      "labels": [
+        "person",
+        "sports ball",
+        "tennis racket"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000039551.jpg",
+      "original": "http://farm5.staticflickr.com/4145/4963684976_cc0fa0b133_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000199055",
+      "family": "coco-000000199055",
+      "split": "development",
+      "file": "development/coco-000000199055.jpg",
+      "sha256": "b1dda03e61f7c502aaf30959faf6dd86e522372106a7389e5934f0e8b931c604",
+      "labels": [
+        "person",
+        "skateboard"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000199055.jpg",
+      "original": "http://farm2.staticflickr.com/1114/5134639056_ce7fe0524b_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000001000",
+      "family": "coco-000000001000",
+      "split": "development",
+      "file": "development/coco-000000001000.jpg",
+      "sha256": "24bb77a31928404e45a0454b06f6a0bd54a8db103590c9d7917288a1e0269f05",
+      "labels": [
+        "backpack",
+        "handbag",
+        "person",
+        "tennis racket"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000001000.jpg",
+      "original": "http://farm5.staticflickr.com/4115/4906536419_6113bd7de4_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "coco-000000152465",
+      "family": "coco-000000152465",
+      "split": "development",
+      "file": "development/coco-000000152465.jpg",
+      "sha256": "53830b0ab3a58d26508cb96fafa374d4f1cc1856f4e788a325ffe4a83e58657c",
+      "labels": [
+        "fire hydrant"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000152465.jpg",
+      "original": "http://farm8.staticflickr.com/7302/8985286701_c0a5fa6bd6_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by-sa/2.0/"
+    },
+    {
+      "id": "coco-000000170099",
+      "family": "coco-000000170099",
+      "split": "development",
+      "file": "development/coco-000000170099.jpg",
+      "sha256": "f2a5b87c4a5249e6b7c27fac24fb1e2994ebe22fe2a2f205f33893965c64b2b9",
+      "labels": [
+        "couch",
+        "person",
+        "tie"
+      ],
+      "kind": "photo",
+      "source": "https://s3.amazonaws.com/images.cocodataset.org/val2017/000000170099.jpg",
+      "original": "http://farm3.staticflickr.com/2280/1812763231_06381c802c_z.jpg",
+      "attribution": "Original Flickr contributor; see original source link. COCO 2017 annotation snapshot.",
+      "license": "https://creativecommons.org/licenses/by/2.0/"
+    },
+    {
+      "id": "document-00-0",
+      "family": "document-00",
+      "split": "development",
+      "file": "development/document-00-0.jpg",
+      "sha256": "5e6fc9da53230f495439d2c3bccd8d302b7f02fe0cfe6cb0a3db1082ab5b28b4",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "ЧЕК ИЗ АПТЕКИ",
+        "Аптека Листок",
+        "Заказ RX-482931",
+        "Итого 1240 рублей"
+      ]
+    },
+    {
+      "id": "document-00-1",
+      "family": "document-00",
+      "split": "development",
+      "file": "development/document-00-1.jpg",
+      "sha256": "165a30f2aac36f127caf30e75ebd66d6dbc2775d7497d6336b36fed03cb07e1b",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "ЧЕК ИЗ АПТЕКИ",
+        "Аптека Листок",
+        "Заказ RX-482931",
+        "Итого 1240 рублей"
+      ]
+    },
+    {
+      "id": "document-00-2",
+      "family": "document-00",
+      "split": "development",
+      "file": "development/document-00-2.jpg",
+      "sha256": "bd91eecbac6eac982c31820c7ee7c7d90baa561e3b9f7013f3c72e1897132ac7",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "ЧЕК ИЗ АПТЕКИ",
+        "Аптека Листок",
+        "Заказ RX-482931",
+        "Итого 1240 рублей"
+      ]
+    },
+    {
+      "id": "document-01-0",
+      "family": "document-01",
+      "split": "development",
+      "file": "development/document-01-0.jpg",
+      "sha256": "1f802ff94e7318f7ef67ed11d16d1fa97a341a25575f512da04a63f7eb3ce2f1",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "ЖЕЛЕЗНОДОРОЖНЫЙ БИЛЕТ",
+        "Москва — Казань",
+        "Билет TK-793152",
+        "Отправление 18.11.2026"
+      ]
+    },
+    {
+      "id": "document-01-1",
+      "family": "document-01",
+      "split": "development",
+      "file": "development/document-01-1.jpg",
+      "sha256": "2fc8c05f1601a26b902d44f9fdbf6a4adefa726730eba1420bea0f12fb657f83",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "ЖЕЛЕЗНОДОРОЖНЫЙ БИЛЕТ",
+        "Москва — Казань",
+        "Билет TK-793152",
+        "Отправление 18.11.2026"
+      ]
+    },
+    {
+      "id": "document-01-2",
+      "family": "document-01",
+      "split": "development",
+      "file": "development/document-01-2.jpg",
+      "sha256": "605add891e6f2d620ceacc8cb7980d9f23c2fe310ea2acd1eb175be717acd823",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "ЖЕЛЕЗНОДОРОЖНЫЙ БИЛЕТ",
+        "Москва — Казань",
+        "Билет TK-793152",
+        "Отправление 18.11.2026"
+      ]
+    },
+    {
+      "id": "document-02-0",
+      "family": "document-02",
+      "split": "development",
+      "file": "development/document-02-0.jpg",
+      "sha256": "2e3d9ca375930547487a8a92ceaa55b283e2c4f9f129b6f592f910fdac4a59f5",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "ДОСТАВКА ПОСЫЛКИ",
+        "Пункт выдачи на Садовой",
+        "Трек PK-651824",
+        "Получить до 21 ноября"
+      ]
+    },
+    {
+      "id": "document-02-1",
+      "family": "document-02",
+      "split": "development",
+      "file": "development/document-02-1.jpg",
+      "sha256": "22dcdc13d7c865fb3ad491164a679ea1bbbeb6c1ad0154f77a59153c73e908b5",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "ДОСТАВКА ПОСЫЛКИ",
+        "Пункт выдачи на Садовой",
+        "Трек PK-651824",
+        "Получить до 21 ноября"
+      ]
+    },
+    {
+      "id": "document-02-2",
+      "family": "document-02",
+      "split": "development",
+      "file": "development/document-02-2.jpg",
+      "sha256": "b70078ae6b77125ab90e2b4e5d0c5f41ae5ca03d5a6a5edaf7cd4596ba90b0ef",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "ДОСТАВКА ПОСЫЛКИ",
+        "Пункт выдачи на Садовой",
+        "Трек PK-651824",
+        "Получить до 21 ноября"
+      ]
+    },
+    {
+      "id": "document-03-0",
+      "family": "document-03",
+      "split": "development",
+      "file": "development/document-03-0.jpg",
+      "sha256": "6ebf02bdd08012c90978741b5587320662869524113444fcc4721b0338d32f1e",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "ДОМАШНЯЯ СЕТЬ",
+        "Пароль от Wi-Fi",
+        "Код WF-928461",
+        "Сеть: Nayti-Test"
+      ]
+    },
+    {
+      "id": "document-03-1",
+      "family": "document-03",
+      "split": "development",
+      "file": "development/document-03-1.jpg",
+      "sha256": "faffeeab54474422f71319d358f0ad5a285f36d01effef1133d8013c7791019a",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "ДОМАШНЯЯ СЕТЬ",
+        "Пароль от Wi-Fi",
+        "Код WF-928461",
+        "Сеть: Nayti-Test"
+      ]
+    },
+    {
+      "id": "document-03-2",
+      "family": "document-03",
+      "split": "development",
+      "file": "development/document-03-2.jpg",
+      "sha256": "b42a063c928554f01f5c7e1b30a210955b085750427f759029b9c142ecc618eb",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "ДОМАШНЯЯ СЕТЬ",
+        "Пароль от Wi-Fi",
+        "Код WF-928461",
+        "Сеть: Nayti-Test"
+      ]
+    },
+    {
+      "id": "document-04-0",
+      "family": "document-04",
+      "split": "development",
+      "file": "development/document-04-0.jpg",
+      "sha256": "96ff356045be7b8eb7157e8fd33791021a333b9861d8ccdb565f5ae491b1347c",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "ЗАПИСЬ НА ОБСЛУЖИВАНИЕ",
+        "Автосервис Мотор",
+        "Заявка AS-374629",
+        "Замена масла в пятницу"
+      ]
+    },
+    {
+      "id": "document-04-1",
+      "family": "document-04",
+      "split": "development",
+      "file": "development/document-04-1.jpg",
+      "sha256": "21abafbadcf7613aa3d45d98d11bef69176213af72b3c7cf92c1e3bd391093b7",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "ЗАПИСЬ НА ОБСЛУЖИВАНИЕ",
+        "Автосервис Мотор",
+        "Заявка AS-374629",
+        "Замена масла в пятницу"
+      ]
+    },
+    {
+      "id": "document-04-2",
+      "family": "document-04",
+      "split": "development",
+      "file": "development/document-04-2.jpg",
+      "sha256": "271913674cb1cba266702534eda6bb34a858a77be62b49b4224a4fcdd7dc8588",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "ЗАПИСЬ НА ОБСЛУЖИВАНИЕ",
+        "Автосервис Мотор",
+        "Заявка AS-374629",
+        "Замена масла в пятницу"
+      ]
+    },
+    {
+      "id": "document-05-0",
+      "family": "document-05",
+      "split": "development",
+      "file": "development/document-05-0.jpg",
+      "sha256": "41a3374bac92a47d3914cf3ac9f3101eb7f7a9a992773e22a2b5a46582b8ee9d",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "БРОНИРОВАНИЕ ОТЕЛЯ",
+        "Гостиница Берег",
+        "Бронь HT-582713",
+        "Заезд 12 декабря"
+      ]
+    },
+    {
+      "id": "document-05-1",
+      "family": "document-05",
+      "split": "development",
+      "file": "development/document-05-1.jpg",
+      "sha256": "0de7d5aacb33bb470668be3e1b6365b6e9fd97adaa61aa736d50acfd08832750",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "БРОНИРОВАНИЕ ОТЕЛЯ",
+        "Гостиница Берег",
+        "Бронь HT-582713",
+        "Заезд 12 декабря"
+      ]
+    },
+    {
+      "id": "document-05-2",
+      "family": "document-05",
+      "split": "development",
+      "file": "development/document-05-2.jpg",
+      "sha256": "5d822602134eeece198855107b6e425dce30771e7886a914b0ebbb562ae15b5f",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "БРОНИРОВАНИЕ ОТЕЛЯ",
+        "Гостиница Берег",
+        "Бронь HT-582713",
+        "Заезд 12 декабря"
+      ]
+    },
+    {
+      "id": "document-06-0",
+      "family": "document-06",
+      "split": "development",
+      "file": "development/document-06-0.jpg",
+      "sha256": "2f7ee08d99ef1d85b11a5d2b56527cdf26537731d30454479396c34ba2a64de5",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "РЕЦЕПТ ПИРОГА",
+        "Яблоки и корица",
+        "Рецепт RC-416938",
+        "Выпекать 40 минут"
+      ]
+    },
+    {
+      "id": "document-06-1",
+      "family": "document-06",
+      "split": "development",
+      "file": "development/document-06-1.jpg",
+      "sha256": "d05c190b196f900f26c59814f7dd217256f68fa3b959821187bab5962e03b81e",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "РЕЦЕПТ ПИРОГА",
+        "Яблоки и корица",
+        "Рецепт RC-416938",
+        "Выпекать 40 минут"
+      ]
+    },
+    {
+      "id": "document-06-2",
+      "family": "document-06",
+      "split": "development",
+      "file": "development/document-06-2.jpg",
+      "sha256": "cf6f94f7a1e0f1fc77a92e279b0e331df8c45534cc107e6ed0d3885c1398e996",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "РЕЦЕПТ ПИРОГА",
+        "Яблоки и корица",
+        "Рецепт RC-416938",
+        "Выпекать 40 минут"
+      ]
+    },
+    {
+      "id": "document-07-0",
+      "family": "document-07",
+      "split": "holdout",
+      "file": "holdout/document-07-0.jpg",
+      "sha256": "e1c1846bc92c898e20fdbc331d98e0f3e7ac5c5831afa51c3a90125abfbd8874",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "КВИТАНЦИЯ ЗА КВАРТИРУ",
+        "Оплата электричества",
+        "Счёт EL-863147",
+        "К оплате 2380 рублей"
+      ]
+    },
+    {
+      "id": "document-07-1",
+      "family": "document-07",
+      "split": "holdout",
+      "file": "holdout/document-07-1.jpg",
+      "sha256": "1060c81abcad7751b78ba88e6d9358bc81c4dd2a77310d8d96a4bb181e7d71eb",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "КВИТАНЦИЯ ЗА КВАРТИРУ",
+        "Оплата электричества",
+        "Счёт EL-863147",
+        "К оплате 2380 рублей"
+      ]
+    },
+    {
+      "id": "document-07-2",
+      "family": "document-07",
+      "split": "holdout",
+      "file": "holdout/document-07-2.jpg",
+      "sha256": "156c289194c2f0e90b6d6830bb6f7b40a8ba650f1a661d4fce1e0436978b310c",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "КВИТАНЦИЯ ЗА КВАРТИРУ",
+        "Оплата электричества",
+        "Счёт EL-863147",
+        "К оплате 2380 рублей"
+      ]
+    },
+    {
+      "id": "document-08-0",
+      "family": "document-08",
+      "split": "holdout",
+      "file": "holdout/document-08-0.jpg",
+      "sha256": "33aeef97195fee4d7b784ca0fc6b905d415a5482e23a5b42a9445ca14d2e92dd",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "УЧЕБНОЕ РАСПИСАНИЕ",
+        "Курс фотографии",
+        "Группа ED-719352",
+        "Занятие в среду в 19:00"
+      ]
+    },
+    {
+      "id": "document-08-1",
+      "family": "document-08",
+      "split": "holdout",
+      "file": "holdout/document-08-1.jpg",
+      "sha256": "f6a178a86337ca6418a57581bb20b5cd482a9f0740ca00e2bfbcd312a5454955",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "УЧЕБНОЕ РАСПИСАНИЕ",
+        "Курс фотографии",
+        "Группа ED-719352",
+        "Занятие в среду в 19:00"
+      ]
+    },
+    {
+      "id": "document-08-2",
+      "family": "document-08",
+      "split": "holdout",
+      "file": "holdout/document-08-2.jpg",
+      "sha256": "2d44b06f3c8125736e975799e524ff3579bf8e2544008292dc8798a81b621587",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "УЧЕБНОЕ РАСПИСАНИЕ",
+        "Курс фотографии",
+        "Группа ED-719352",
+        "Занятие в среду в 19:00"
+      ]
+    },
+    {
+      "id": "document-09-0",
+      "family": "document-09",
+      "split": "holdout",
+      "file": "holdout/document-09-0.jpg",
+      "sha256": "8914a85a45551ba6770b439bed32a4defc3286c3f8f203d638f27f859b0c1560",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "КОНЦЕРТНЫЙ БИЛЕТ",
+        "Вечер камерной музыки",
+        "Билет MU-245819",
+        "Ряд 7 место 12"
+      ]
+    },
+    {
+      "id": "document-09-1",
+      "family": "document-09",
+      "split": "holdout",
+      "file": "holdout/document-09-1.jpg",
+      "sha256": "27002ce7c135e71c3da6d833f35347ed66c485a3d0f4028a843d6c3a5c6096e1",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "КОНЦЕРТНЫЙ БИЛЕТ",
+        "Вечер камерной музыки",
+        "Билет MU-245819",
+        "Ряд 7 место 12"
+      ]
+    },
+    {
+      "id": "document-09-2",
+      "family": "document-09",
+      "split": "holdout",
+      "file": "holdout/document-09-2.jpg",
+      "sha256": "a407d487d2b0eb8100c97dd006d1ba0f84059a58120a9e8caf87945ae0544503",
+      "labels": [],
+      "kind": "document",
+      "source": "Nayti synthetic recipe v1",
+      "license": "CC0-1.0",
+      "text": [
+        "КОНЦЕРТНЫЙ БИЛЕТ",
+        "Вечер камерной музыки",
+        "Билет MU-245819",
+        "Ряд 7 место 12"
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "id": "q000",
+      "category": "visual",
+      "query": "собака",
+      "split": "development",
+      "relevant": [
+        "coco-000000078823",
+        "coco-000000190140",
+        "coco-000000253386",
+        "coco-000000262938",
+        "coco-000000283412",
+        "coco-000000309938",
+        "coco-000000331075",
+        "coco-000000389933",
+        "coco-000000392818",
+        "coco-000000427034",
+        "coco-000000498286"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q001",
+      "category": "visual",
+      "query": "dog",
+      "split": "development",
+      "relevant": [
+        "coco-000000078823",
+        "coco-000000190140",
+        "coco-000000253386",
+        "coco-000000262938",
+        "coco-000000283412",
+        "coco-000000309938",
+        "coco-000000331075",
+        "coco-000000389933",
+        "coco-000000392818",
+        "coco-000000427034",
+        "coco-000000498286"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q002",
+      "category": "visual",
+      "query": "кошка",
+      "split": "development",
+      "relevant": [
+        "coco-000000046378",
+        "coco-000000058111",
+        "coco-000000080949",
+        "coco-000000166277",
+        "coco-000000269314",
+        "coco-000000284623",
+        "coco-000000290843",
+        "coco-000000343076",
+        "coco-000000475732",
+        "coco-000000520531"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q003",
+      "category": "visual",
+      "query": "cat",
+      "split": "development",
+      "relevant": [
+        "coco-000000046378",
+        "coco-000000058111",
+        "coco-000000080949",
+        "coco-000000166277",
+        "coco-000000269314",
+        "coco-000000284623",
+        "coco-000000290843",
+        "coco-000000343076",
+        "coco-000000475732",
+        "coco-000000520531"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q004",
+      "category": "visual",
+      "query": "лошадь",
+      "split": "development",
+      "relevant": [
+        "coco-000000045070",
+        "coco-000000118209",
+        "coco-000000191288",
+        "coco-000000227686",
+        "coco-000000367818",
+        "coco-000000380203"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q005",
+      "category": "visual",
+      "query": "horse",
+      "split": "development",
+      "relevant": [
+        "coco-000000045070",
+        "coco-000000118209",
+        "coco-000000191288",
+        "coco-000000227686",
+        "coco-000000367818",
+        "coco-000000380203"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q006",
+      "category": "visual",
+      "query": "птица",
+      "split": "development",
+      "relevant": [
+        "coco-000000046378",
+        "coco-000000056545",
+        "coco-000000147498",
+        "coco-000000167902",
+        "coco-000000182441",
+        "coco-000000186938",
+        "coco-000000270705",
+        "coco-000000542625"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q007",
+      "category": "visual",
+      "query": "bird",
+      "split": "development",
+      "relevant": [
+        "coco-000000046378",
+        "coco-000000056545",
+        "coco-000000147498",
+        "coco-000000167902",
+        "coco-000000182441",
+        "coco-000000186938",
+        "coco-000000270705",
+        "coco-000000542625"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q008",
+      "category": "visual",
+      "query": "велосипед",
+      "split": "development",
+      "relevant": [
+        "coco-000000011149",
+        "coco-000000076547",
+        "coco-000000135670",
+        "coco-000000242287",
+        "coco-000000274687",
+        "coco-000000472623"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q009",
+      "category": "visual",
+      "query": "bicycle",
+      "split": "development",
+      "relevant": [
+        "coco-000000011149",
+        "coco-000000076547",
+        "coco-000000135670",
+        "coco-000000242287",
+        "coco-000000274687",
+        "coco-000000472623"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q010",
+      "category": "visual",
+      "query": "машина",
+      "split": "development",
+      "relevant": [
+        "coco-000000078823",
+        "coco-000000138979",
+        "coco-000000183246",
+        "coco-000000269632",
+        "coco-000000442456",
+        "coco-000000461751",
+        "coco-000000498286",
+        "coco-000000534639",
+        "coco-000000542625"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q011",
+      "category": "visual",
+      "query": "car",
+      "split": "development",
+      "relevant": [
+        "coco-000000078823",
+        "coco-000000138979",
+        "coco-000000183246",
+        "coco-000000269632",
+        "coco-000000442456",
+        "coco-000000461751",
+        "coco-000000498286",
+        "coco-000000534639",
+        "coco-000000542625"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q012",
+      "category": "visual",
+      "query": "автобус",
+      "split": "development",
+      "relevant": [
+        "coco-000000138979",
+        "coco-000000269632",
+        "coco-000000362682",
+        "coco-000000423519",
+        "coco-000000455085",
+        "coco-000000534673",
+        "coco-000000542856"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q013",
+      "category": "visual",
+      "query": "bus",
+      "split": "development",
+      "relevant": [
+        "coco-000000138979",
+        "coco-000000269632",
+        "coco-000000362682",
+        "coco-000000423519",
+        "coco-000000455085",
+        "coco-000000534673",
+        "coco-000000542856"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q014",
+      "category": "visual",
+      "query": "поезд",
+      "split": "development",
+      "relevant": [
+        "coco-000000076547",
+        "coco-000000078170",
+        "coco-000000186624",
+        "coco-000000249643",
+        "coco-000000458109",
+        "coco-000000508482",
+        "coco-000000534639"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q015",
+      "category": "visual",
+      "query": "train",
+      "split": "development",
+      "relevant": [
+        "coco-000000076547",
+        "coco-000000078170",
+        "coco-000000186624",
+        "coco-000000249643",
+        "coco-000000458109",
+        "coco-000000508482",
+        "coco-000000534639"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q016",
+      "category": "visual",
+      "query": "лодка",
+      "split": "development",
+      "relevant": [
+        "coco-000000113051",
+        "coco-000000190140",
+        "coco-000000395633",
+        "coco-000000400803",
+        "coco-000000451090",
+        "coco-000000511321",
+        "coco-000000543300"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q017",
+      "category": "visual",
+      "query": "boat",
+      "split": "development",
+      "relevant": [
+        "coco-000000113051",
+        "coco-000000190140",
+        "coco-000000395633",
+        "coco-000000400803",
+        "coco-000000451090",
+        "coco-000000511321",
+        "coco-000000543300"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q018",
+      "category": "visual",
+      "query": "самолёт",
+      "split": "holdout",
+      "relevant": [
+        "coco-000000084752",
+        "coco-000000096549",
+        "coco-000000099054",
+        "coco-000000110721",
+        "coco-000000463037",
+        "coco-000000490413",
+        "coco-000000495054"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q019",
+      "category": "visual",
+      "query": "airplane",
+      "split": "holdout",
+      "relevant": [
+        "coco-000000084752",
+        "coco-000000096549",
+        "coco-000000099054",
+        "coco-000000110721",
+        "coco-000000463037",
+        "coco-000000490413",
+        "coco-000000495054"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q020",
+      "category": "visual",
+      "query": "слон",
+      "split": "development",
+      "relevant": [
+        "coco-000000132796",
+        "coco-000000133631",
+        "coco-000000166642",
+        "coco-000000167128",
+        "coco-000000414795",
+        "coco-000000519208"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q021",
+      "category": "visual",
+      "query": "elephant",
+      "split": "development",
+      "relevant": [
+        "coco-000000132796",
+        "coco-000000133631",
+        "coco-000000166642",
+        "coco-000000167128",
+        "coco-000000414795",
+        "coco-000000519208"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q022",
+      "category": "visual",
+      "query": "зебра",
+      "split": "holdout",
+      "relevant": [
+        "coco-000000064499",
+        "coco-000000159977",
+        "coco-000000172977",
+        "coco-000000201676",
+        "coco-000000290833",
+        "coco-000000320632",
+        "coco-000000552902"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q023",
+      "category": "visual",
+      "query": "zebra",
+      "split": "holdout",
+      "relevant": [
+        "coco-000000064499",
+        "coco-000000159977",
+        "coco-000000172977",
+        "coco-000000201676",
+        "coco-000000290833",
+        "coco-000000320632",
+        "coco-000000552902"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q024",
+      "category": "visual",
+      "query": "жираф",
+      "split": "development",
+      "relevant": [
+        "coco-000000079188",
+        "coco-000000157098",
+        "coco-000000205282",
+        "coco-000000248810",
+        "coco-000000272364",
+        "coco-000000288882"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q025",
+      "category": "visual",
+      "query": "giraffe",
+      "split": "development",
+      "relevant": [
+        "coco-000000079188",
+        "coco-000000157098",
+        "coco-000000205282",
+        "coco-000000248810",
+        "coco-000000272364",
+        "coco-000000288882"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q026",
+      "category": "visual",
+      "query": "пицца",
+      "split": "development",
+      "relevant": [
+        "coco-000000100582",
+        "coco-000000127476",
+        "coco-000000174123",
+        "coco-000000232489",
+        "coco-000000360393",
+        "coco-000000555412"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q027",
+      "category": "visual",
+      "query": "pizza",
+      "split": "development",
+      "relevant": [
+        "coco-000000100582",
+        "coco-000000127476",
+        "coco-000000174123",
+        "coco-000000232489",
+        "coco-000000360393",
+        "coco-000000555412"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q028",
+      "category": "visual",
+      "query": "торт",
+      "split": "holdout",
+      "relevant": [
+        "coco-000000245651",
+        "coco-000000276434",
+        "coco-000000377368",
+        "coco-000000453040",
+        "coco-000000495448",
+        "coco-000000502737"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q029",
+      "category": "visual",
+      "query": "cake",
+      "split": "holdout",
+      "relevant": [
+        "coco-000000245651",
+        "coco-000000276434",
+        "coco-000000377368",
+        "coco-000000453040",
+        "coco-000000495448",
+        "coco-000000502737"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q030",
+      "category": "visual",
+      "query": "банан",
+      "split": "development",
+      "relevant": [
+        "coco-000000006012",
+        "coco-000000008844",
+        "coco-000000028809",
+        "coco-000000090891",
+        "coco-000000269314",
+        "coco-000000348708",
+        "coco-000000548506"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q031",
+      "category": "visual",
+      "query": "banana",
+      "split": "development",
+      "relevant": [
+        "coco-000000006012",
+        "coco-000000008844",
+        "coco-000000028809",
+        "coco-000000090891",
+        "coco-000000269314",
+        "coco-000000348708",
+        "coco-000000548506"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q032",
+      "category": "visual",
+      "query": "ноутбук",
+      "split": "development",
+      "relevant": [
+        "coco-000000076547",
+        "coco-000000080949",
+        "coco-000000215778",
+        "coco-000000239318",
+        "coco-000000248631",
+        "coco-000000290843",
+        "coco-000000343076",
+        "coco-000000427034",
+        "coco-000000553664"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q033",
+      "category": "visual",
+      "query": "laptop",
+      "split": "development",
+      "relevant": [
+        "coco-000000076547",
+        "coco-000000080949",
+        "coco-000000215778",
+        "coco-000000239318",
+        "coco-000000248631",
+        "coco-000000290843",
+        "coco-000000343076",
+        "coco-000000427034",
+        "coco-000000553664"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q034",
+      "category": "visual",
+      "query": "часы",
+      "split": "holdout",
+      "relevant": [
+        "coco-000000067896",
+        "coco-000000167353",
+        "coco-000000191013",
+        "coco-000000233139",
+        "coco-000000525286",
+        "coco-000000551780"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q035",
+      "category": "visual",
+      "query": "clock",
+      "split": "holdout",
+      "relevant": [
+        "coco-000000067896",
+        "coco-000000167353",
+        "coco-000000191013",
+        "coco-000000233139",
+        "coco-000000525286",
+        "coco-000000551780"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q036",
+      "category": "visual",
+      "query": "книга",
+      "split": "development",
+      "relevant": [
+        "coco-000000058111",
+        "coco-000000183049",
+        "coco-000000215778",
+        "coco-000000262938",
+        "coco-000000309938",
+        "coco-000000346968",
+        "coco-000000403353",
+        "coco-000000520077",
+        "coco-000000520531",
+        "coco-000000553664"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q037",
+      "category": "visual",
+      "query": "book",
+      "split": "development",
+      "relevant": [
+        "coco-000000058111",
+        "coco-000000183049",
+        "coco-000000215778",
+        "coco-000000262938",
+        "coco-000000309938",
+        "coco-000000346968",
+        "coco-000000403353",
+        "coco-000000520077",
+        "coco-000000520531",
+        "coco-000000553664"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q038",
+      "category": "visual",
+      "query": "зонт",
+      "split": "holdout",
+      "relevant": [
+        "coco-000000084477",
+        "coco-000000121506",
+        "coco-000000232563",
+        "coco-000000250137",
+        "coco-000000339823",
+        "coco-000000441543"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q039",
+      "category": "visual",
+      "query": "umbrella",
+      "split": "holdout",
+      "relevant": [
+        "coco-000000084477",
+        "coco-000000121506",
+        "coco-000000232563",
+        "coco-000000250137",
+        "coco-000000339823",
+        "coco-000000441543"
+      ],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q040",
+      "category": "identifier",
+      "query": "RX-482931",
+      "split": "development",
+      "relevant": [
+        "document-00-0",
+        "document-00-1",
+        "document-00-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q041",
+      "category": "phrase",
+      "query": "аптека листок",
+      "split": "development",
+      "relevant": [
+        "document-00-0",
+        "document-00-1",
+        "document-00-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q042",
+      "category": "typo",
+      "query": "аптека листк",
+      "split": "development",
+      "relevant": [
+        "document-00-0",
+        "document-00-1",
+        "document-00-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q043",
+      "category": "document_semantics",
+      "query": "покупка лекарств",
+      "split": "development",
+      "relevant": [
+        "document-00-0",
+        "document-00-1",
+        "document-00-2"
+      ],
+      "channels": [
+        "semantic"
+      ]
+    },
+    {
+      "id": "q044",
+      "category": "duplicates",
+      "query": "",
+      "split": "development",
+      "relevant": [
+        "document-00-1",
+        "document-00-2"
+      ],
+      "channels": [],
+      "source_asset": "document-00-0"
+    },
+    {
+      "id": "q045",
+      "category": "identifier",
+      "query": "TK-793152",
+      "split": "development",
+      "relevant": [
+        "document-01-0",
+        "document-01-1",
+        "document-01-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q046",
+      "category": "phrase",
+      "query": "москва казань",
+      "split": "development",
+      "relevant": [
+        "document-01-0",
+        "document-01-1",
+        "document-01-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q047",
+      "category": "typo",
+      "query": "москв казань",
+      "split": "development",
+      "relevant": [
+        "document-01-0",
+        "document-01-1",
+        "document-01-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q048",
+      "category": "document_semantics",
+      "query": "поездка на поезде",
+      "split": "development",
+      "relevant": [
+        "document-01-0",
+        "document-01-1",
+        "document-01-2"
+      ],
+      "channels": [
+        "semantic"
+      ]
+    },
+    {
+      "id": "q049",
+      "category": "duplicates",
+      "query": "",
+      "split": "development",
+      "relevant": [
+        "document-01-1",
+        "document-01-2"
+      ],
+      "channels": [],
+      "source_asset": "document-01-0"
+    },
+    {
+      "id": "q050",
+      "category": "identifier",
+      "query": "PK-651824",
+      "split": "development",
+      "relevant": [
+        "document-02-0",
+        "document-02-1",
+        "document-02-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q051",
+      "category": "phrase",
+      "query": "пункт выдачи",
+      "split": "development",
+      "relevant": [
+        "document-02-0",
+        "document-02-1",
+        "document-02-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q052",
+      "category": "typo",
+      "query": "пунк выдачи",
+      "split": "development",
+      "relevant": [
+        "document-02-0",
+        "document-02-1",
+        "document-02-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q053",
+      "category": "document_semantics",
+      "query": "забрать заказ из пункта выдачи",
+      "split": "development",
+      "relevant": [
+        "document-02-0",
+        "document-02-1",
+        "document-02-2"
+      ],
+      "channels": [
+        "semantic"
+      ]
+    },
+    {
+      "id": "q054",
+      "category": "duplicates",
+      "query": "",
+      "split": "development",
+      "relevant": [
+        "document-02-1",
+        "document-02-2"
+      ],
+      "channels": [],
+      "source_asset": "document-02-0"
+    },
+    {
+      "id": "q055",
+      "category": "identifier",
+      "query": "WF-928461",
+      "split": "development",
+      "relevant": [
+        "document-03-0",
+        "document-03-1",
+        "document-03-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q056",
+      "category": "phrase",
+      "query": "пароль от wi-fi",
+      "split": "development",
+      "relevant": [
+        "document-03-0",
+        "document-03-1",
+        "document-03-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q057",
+      "category": "typo",
+      "query": "парол от wi-fi",
+      "split": "development",
+      "relevant": [
+        "document-03-0",
+        "document-03-1",
+        "document-03-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q058",
+      "category": "document_semantics",
+      "query": "подключение к домашнему интернету",
+      "split": "development",
+      "relevant": [
+        "document-03-0",
+        "document-03-1",
+        "document-03-2"
+      ],
+      "channels": [
+        "semantic"
+      ]
+    },
+    {
+      "id": "q059",
+      "category": "duplicates",
+      "query": "",
+      "split": "development",
+      "relevant": [
+        "document-03-1",
+        "document-03-2"
+      ],
+      "channels": [],
+      "source_asset": "document-03-0"
+    },
+    {
+      "id": "q060",
+      "category": "identifier",
+      "query": "AS-374629",
+      "split": "development",
+      "relevant": [
+        "document-04-0",
+        "document-04-1",
+        "document-04-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q061",
+      "category": "phrase",
+      "query": "замена масла",
+      "split": "development",
+      "relevant": [
+        "document-04-0",
+        "document-04-1",
+        "document-04-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q062",
+      "category": "typo",
+      "query": "замена масл",
+      "split": "development",
+      "relevant": [
+        "document-04-0",
+        "document-04-1",
+        "document-04-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q063",
+      "category": "document_semantics",
+      "query": "техническое обслуживание автомобиля",
+      "split": "development",
+      "relevant": [
+        "document-04-0",
+        "document-04-1",
+        "document-04-2"
+      ],
+      "channels": [
+        "semantic"
+      ]
+    },
+    {
+      "id": "q064",
+      "category": "duplicates",
+      "query": "",
+      "split": "development",
+      "relevant": [
+        "document-04-1",
+        "document-04-2"
+      ],
+      "channels": [],
+      "source_asset": "document-04-0"
+    },
+    {
+      "id": "q065",
+      "category": "identifier",
+      "query": "HT-582713",
+      "split": "development",
+      "relevant": [
+        "document-05-0",
+        "document-05-1",
+        "document-05-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q066",
+      "category": "phrase",
+      "query": "гостиница берег",
+      "split": "development",
+      "relevant": [
+        "document-05-0",
+        "document-05-1",
+        "document-05-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q067",
+      "category": "typo",
+      "query": "гостиниц берег",
+      "split": "development",
+      "relevant": [
+        "document-05-0",
+        "document-05-1",
+        "document-05-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q068",
+      "category": "document_semantics",
+      "query": "где остановиться во время поездки",
+      "split": "development",
+      "relevant": [
+        "document-05-0",
+        "document-05-1",
+        "document-05-2"
+      ],
+      "channels": [
+        "semantic"
+      ]
+    },
+    {
+      "id": "q069",
+      "category": "duplicates",
+      "query": "",
+      "split": "development",
+      "relevant": [
+        "document-05-1",
+        "document-05-2"
+      ],
+      "channels": [],
+      "source_asset": "document-05-0"
+    },
+    {
+      "id": "q070",
+      "category": "identifier",
+      "query": "RC-416938",
+      "split": "development",
+      "relevant": [
+        "document-06-0",
+        "document-06-1",
+        "document-06-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q071",
+      "category": "phrase",
+      "query": "яблоки и корица",
+      "split": "development",
+      "relevant": [
+        "document-06-0",
+        "document-06-1",
+        "document-06-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q072",
+      "category": "typo",
+      "query": "яблки и корица",
+      "split": "development",
+      "relevant": [
+        "document-06-0",
+        "document-06-1",
+        "document-06-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q073",
+      "category": "document_semantics",
+      "query": "как приготовить десерт из яблок",
+      "split": "development",
+      "relevant": [
+        "document-06-0",
+        "document-06-1",
+        "document-06-2"
+      ],
+      "channels": [
+        "semantic"
+      ]
+    },
+    {
+      "id": "q074",
+      "category": "duplicates",
+      "query": "",
+      "split": "development",
+      "relevant": [
+        "document-06-1",
+        "document-06-2"
+      ],
+      "channels": [],
+      "source_asset": "document-06-0"
+    },
+    {
+      "id": "q075",
+      "category": "identifier",
+      "query": "EL-863147",
+      "split": "holdout",
+      "relevant": [
+        "document-07-0",
+        "document-07-1",
+        "document-07-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q076",
+      "category": "phrase",
+      "query": "оплата электричества",
+      "split": "holdout",
+      "relevant": [
+        "document-07-0",
+        "document-07-1",
+        "document-07-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q077",
+      "category": "typo",
+      "query": "оплата электричства",
+      "split": "holdout",
+      "relevant": [
+        "document-07-0",
+        "document-07-1",
+        "document-07-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q078",
+      "category": "document_semantics",
+      "query": "коммунальные расходы за свет",
+      "split": "holdout",
+      "relevant": [
+        "document-07-0",
+        "document-07-1",
+        "document-07-2"
+      ],
+      "channels": [
+        "semantic"
+      ]
+    },
+    {
+      "id": "q079",
+      "category": "duplicates",
+      "query": "",
+      "split": "holdout",
+      "relevant": [
+        "document-07-1",
+        "document-07-2"
+      ],
+      "channels": [],
+      "source_asset": "document-07-0"
+    },
+    {
+      "id": "q080",
+      "category": "identifier",
+      "query": "ED-719352",
+      "split": "holdout",
+      "relevant": [
+        "document-08-0",
+        "document-08-1",
+        "document-08-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q081",
+      "category": "phrase",
+      "query": "курс фотографии",
+      "split": "holdout",
+      "relevant": [
+        "document-08-0",
+        "document-08-1",
+        "document-08-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q082",
+      "category": "typo",
+      "query": "курс фотограии",
+      "split": "holdout",
+      "relevant": [
+        "document-08-0",
+        "document-08-1",
+        "document-08-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q083",
+      "category": "document_semantics",
+      "query": "когда начинается обучение съёмке",
+      "split": "holdout",
+      "relevant": [
+        "document-08-0",
+        "document-08-1",
+        "document-08-2"
+      ],
+      "channels": [
+        "semantic"
+      ]
+    },
+    {
+      "id": "q084",
+      "category": "duplicates",
+      "query": "",
+      "split": "holdout",
+      "relevant": [
+        "document-08-1",
+        "document-08-2"
+      ],
+      "channels": [],
+      "source_asset": "document-08-0"
+    },
+    {
+      "id": "q085",
+      "category": "identifier",
+      "query": "MU-245819",
+      "split": "holdout",
+      "relevant": [
+        "document-09-0",
+        "document-09-1",
+        "document-09-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q086",
+      "category": "phrase",
+      "query": "камерной музыки",
+      "split": "holdout",
+      "relevant": [
+        "document-09-0",
+        "document-09-1",
+        "document-09-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q087",
+      "category": "typo",
+      "query": "камерной музки",
+      "split": "holdout",
+      "relevant": [
+        "document-09-0",
+        "document-09-1",
+        "document-09-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q088",
+      "category": "document_semantics",
+      "query": "послушать живую музыку",
+      "split": "holdout",
+      "relevant": [
+        "document-09-0",
+        "document-09-1",
+        "document-09-2"
+      ],
+      "channels": [
+        "semantic"
+      ]
+    },
+    {
+      "id": "q089",
+      "category": "duplicates",
+      "query": "",
+      "split": "holdout",
+      "relevant": [
+        "document-09-1",
+        "document-09-2"
+      ],
+      "channels": [],
+      "source_asset": "document-09-0"
+    },
+    {
+      "id": "q090",
+      "category": "negative_identifier",
+      "query": "ZZ-NAYTI-000000",
+      "split": "development",
+      "relevant": [],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q091",
+      "category": "negative_identifier",
+      "query": "QX-NEVER-819573",
+      "split": "development",
+      "relevant": [],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q092",
+      "category": "negative_identifier",
+      "query": "Счёт ZZ-000000",
+      "split": "development",
+      "relevant": [],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q093",
+      "category": "negative_identifier",
+      "query": "NAYTI-ABSENT-725190",
+      "split": "development",
+      "relevant": [],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q094",
+      "category": "negative_identifier",
+      "query": "XX-NO-592641",
+      "split": "holdout",
+      "relevant": [],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q095",
+      "category": "negative_identifier",
+      "query": "ZZ-MISSING-312987",
+      "split": "holdout",
+      "relevant": [],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q096",
+      "category": "action",
+      "query": "всадник прыгает на лошади через препятствие",
+      "split": "development",
+      "relevant": [
+        "coco-000000191288"
+      ],
+      "channels": [
+        "visual"
+      ],
+      "label_method": "independent visual inspection 2026-09-08; source bytes pinned"
+    },
+    {
+      "id": "q097",
+      "category": "scene",
+      "query": "женщина стоит рядом с лошадью на траве",
+      "split": "development",
+      "relevant": [
+        "coco-000000367818"
+      ],
+      "channels": [
+        "visual"
+      ],
+      "label_method": "independent visual inspection 2026-09-08; source bytes pinned"
+    },
+    {
+      "id": "q098",
+      "category": "attributes",
+      "query": "девочка в шлеме сидит в седле",
+      "split": "development",
+      "relevant": [
+        "coco-000000045070"
+      ],
+      "channels": [
+        "visual"
+      ],
+      "label_method": "independent visual inspection 2026-09-08; source bytes pinned"
+    },
+    {
+      "id": "q099",
+      "category": "scene",
+      "query": "самолёт SWISS у телетрапа",
+      "split": "holdout",
+      "relevant": [
+        "coco-000000110721"
+      ],
+      "channels": [
+        "visual"
+      ],
+      "label_method": "independent visual inspection 2026-09-08; source bytes pinned"
+    },
+    {
+      "id": "q100",
+      "category": "scene",
+      "query": "самолёт-памятник на бетонных опорах",
+      "split": "holdout",
+      "relevant": [
+        "coco-000000084752"
+      ],
+      "channels": [
+        "visual"
+      ],
+      "label_method": "independent visual inspection 2026-09-08; source bytes pinned"
+    },
+    {
+      "id": "q101",
+      "category": "attributes",
+      "query": "самолёт за сетчатым забором",
+      "split": "holdout",
+      "relevant": [
+        "coco-000000490413"
+      ],
+      "channels": [
+        "visual"
+      ],
+      "label_method": "independent visual inspection 2026-09-08; source bytes pinned"
+    },
+    {
+      "id": "q102",
+      "category": "negative_visual",
+      "query": "всадник скачет на лошади в снежную метель",
+      "split": "development",
+      "relevant": [],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q103",
+      "category": "negative_visual",
+      "query": "самолёт летит над морем",
+      "split": "holdout",
+      "relevant": [],
+      "channels": [
+        "visual"
+      ]
+    },
+    {
+      "id": "q104",
+      "category": "mixed",
+      "query": "покупка лекарств RX-482931",
+      "split": "development",
+      "relevant": [
+        "document-00-0",
+        "document-00-1",
+        "document-00-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q105",
+      "category": "mixed",
+      "query": "поездка на поезде TK-793152",
+      "split": "development",
+      "relevant": [
+        "document-01-0",
+        "document-01-1",
+        "document-01-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q106",
+      "category": "mixed",
+      "query": "забрать заказ из пункта выдачи PK-651824",
+      "split": "development",
+      "relevant": [
+        "document-02-0",
+        "document-02-1",
+        "document-02-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q107",
+      "category": "mixed",
+      "query": "коммунальные расходы за свет EL-863147",
+      "split": "holdout",
+      "relevant": [
+        "document-07-0",
+        "document-07-1",
+        "document-07-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q108",
+      "category": "mixed",
+      "query": "когда начинается обучение съёмке ED-719352",
+      "split": "holdout",
+      "relevant": [
+        "document-08-0",
+        "document-08-1",
+        "document-08-2"
+      ],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ]
+    },
+    {
+      "id": "q109",
+      "category": "filter_empty",
+      "query": "фотография",
+      "split": "development",
+      "relevant": [],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ],
+      "filter": {
+        "mime_type": "image/png"
+      }
+    },
+    {
+      "id": "q110",
+      "category": "filter_empty",
+      "query": "документ",
+      "split": "development",
+      "relevant": [],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ],
+      "filter": {
+        "taken_before_millis": 1770000000000
+      }
+    },
+    {
+      "id": "q111",
+      "category": "filter_empty",
+      "query": "фотография",
+      "split": "holdout",
+      "relevant": [],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ],
+      "filter": {
+        "mime_type": "image/png"
+      }
+    },
+    {
+      "id": "q112",
+      "category": "filter_empty",
+      "query": "документ",
+      "split": "holdout",
+      "relevant": [],
+      "channels": [
+        "literal",
+        "semantic",
+        "visual"
+      ],
+      "filter": {
+        "taken_before_millis": 1770000000000
+      }
+    },
+    {
+      "id": "q113",
+      "category": "exact_fields",
+      "query": "1240",
+      "split": "development",
+      "relevant": [
+        "document-00-0",
+        "document-00-1",
+        "document-00-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q114",
+      "category": "exact_fields",
+      "query": "18.11.2026",
+      "split": "development",
+      "relevant": [
+        "document-01-0",
+        "document-01-1",
+        "document-01-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q115",
+      "category": "exact_fields",
+      "query": "2380",
+      "split": "holdout",
+      "relevant": [
+        "document-07-0",
+        "document-07-1",
+        "document-07-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q116",
+      "category": "exact_fields",
+      "query": "19:00",
+      "split": "holdout",
+      "relevant": [
+        "document-08-0",
+        "document-08-1",
+        "document-08-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    },
+    {
+      "id": "q117",
+      "category": "exact_fields",
+      "query": "ряд 7 место 12",
+      "split": "holdout",
+      "relevant": [
+        "document-09-0",
+        "document-09-1",
+        "document-09-2"
+      ],
+      "channels": [
+        "literal"
+      ]
+    }
+  ],
+  "redistribution": "Images stay outside Git. Recheck source attribution and licensing before any redistribution.",
+  "label_limits": "Object-presence labels are not exhaustive scene judgements. Six visually inspected action/scene/attribute queries and two hard visual negatives supplement them; this small sample cannot establish universal rejection quality. No model-output-derived labels."
+}

@@ -447,7 +447,7 @@ interface OcrDao {
             validateSearch(query, pipelineVersion, componentHash, maximumPublicationEpoch, limit)
         }
         require(maximumPublicationEpoch <= (publicationClock()?.lastEpoch ?: 0))
-        validateFilters(takenFromMillis, takenBeforeMillis, bucketId, mimeType)
+        validateDateAndMimeFilters(takenFromMillis, takenBeforeMillis, mimeType)
         val lexical =
             lexicalMatchQuery?.let { query ->
                 lexicalCandidatesRow(
@@ -520,16 +520,15 @@ interface OcrDao {
         require(limit in 1..MaximumCandidates)
     }
 
-    private fun validateFilters(
+    private fun validateDateAndMimeFilters(
         takenFromMillis: Long?,
         takenBeforeMillis: Long?,
-        bucketId: Long?,
         mimeType: String?,
     ) {
         require(takenFromMillis == null || takenFromMillis >= 0)
         require(takenBeforeMillis == null || takenBeforeMillis >= 0)
         require(takenFromMillis == null || takenBeforeMillis == null || takenFromMillis < takenBeforeMillis)
-        require(bucketId == null || bucketId >= 0)
+        // Negative MediaStore bucket IDs are valid; the SQL parameter remains bound.
         require(mimeType == null || MimeType.matches(mimeType))
     }
 

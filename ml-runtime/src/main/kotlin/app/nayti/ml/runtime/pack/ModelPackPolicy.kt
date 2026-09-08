@@ -1,5 +1,7 @@
 package app.nayti.ml.runtime.pack
 
+import java.security.MessageDigest
+
 data class ModelPackPolicy(
     val appVersionCode: Long,
     val engineApi: Long,
@@ -10,28 +12,38 @@ data class ModelPackPolicy(
     val expectedRuntimeVersion: String = "1.27.0",
     val expectedExtensionsVersion: String = "0.15.0+fe4e13f",
 ) {
-    internal fun validate(manifest: ModelPackManifest) {
+    /** Same policy at signed import and when restoring an already verified private installation. */
+    fun validateManifest(raw: ByteArray) {
+        val manifest = ModelPackManifestParser.parse(raw)
+        val hash = MessageDigest.getInstance("SHA-256").digest(raw)
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        validate(manifest, hash)
+    }
+
+    internal fun validate(manifest: ModelPackManifest, manifestSha256: String? = null) {
         if (manifest.packId != expectedPackId) throw ModelPackException("Unexpected model pack ID")
         val compatibility = manifest.compatibility
         val minApp = compatibility.integer("minAppVersionCode")
         val maxApp = compatibility.integer("maxAppVersionCode")
-        if (appVersionCode !in minApp..maxApp) throw ModelPackException("Model pack is incompatible with this app")
-        if (compatibility.integer("engineApi") != engineApi) throw ModelPackException("Model pack engine API mismatch")
-        if (androidApi < compatibility.integer("minAndroidApi")) throw ModelPackException("Android API is too old")
+        if (appVersionCode !in minApp..maxApp &&
+            !ReviewedPackCompatibility.accepts(appVersionCode, manifestSha256)
+        ) incompatible("Model pack is incompatible with this app")
+        if (compatibility.integer("engineApi") != engineApi) incompatible("Model pack engine API mismatch")
+        if (androidApi < compatibility.integer("minAndroidApi")) incompatible("Android API is too old")
         val abis = compatibility.stringSet("abis")
-        if (supportedAbis.intersect(abis).isEmpty()) throw ModelPackException("Model pack ABI mismatch")
+        if (supportedAbis.intersect(abis).isEmpty()) incompatible("Model pack ABI mismatch")
         val pageSizes = compatibility.integerSet("pageSizes")
-        if (pageSize !in pageSizes) throw ModelPackException("Model pack page-size mismatch")
+        if (pageSize !in pageSizes) incompatible("Model pack page-size mismatch")
 
         val runtime = manifest.runtime
         if (runtime.string("format") != "ORT" || runtime.string("executionProvider") != "CPU") {
-            throw ModelPackException("Unsupported model runtime")
+            incompatible("Unsupported model runtime")
         }
         if (runtime.string("onnxRuntime") != expectedRuntimeVersion) {
-            throw ModelPackException("ONNX Runtime version mismatch")
+            incompatible("ONNX Runtime version mismatch")
         }
         if (runtime.string("onnxRuntimeExtensions") != expectedExtensionsVersion) {
-            throw ModelPackException("ONNX Runtime Extensions version mismatch")
+            incompatible("ONNX Runtime Extensions version mismatch")
         }
         if (runtime.string("targetPlatform") != "arm") throw ModelPackException("Unexpected model target platform")
         if (runtime.string("operatorConfigPath") != RequiredOperatorConfig) {
@@ -87,6 +99,9 @@ data class ModelPackPolicy(
         if (containsUserData?.value != false) throw ModelPackException("Pack provenance does not exclude user data")
     }
 
+    private fun incompatible(message: String): Nothing =
+        throw ModelPackException(message, reason = ModelPackFailureReason.Incompatible)
+
     private companion object {
         const val RequiredOperatorConfig = "operators/required-operators.config"
         const val RequiredKatManifest = "tests/manifest.json"
@@ -102,6 +117,14 @@ data class ModelPackPolicy(
                 "eslav-recognizer" to "models/eslav_recognizer.ort",
             )
     }
+}
+
+/** Release-specific compatibility, never an open-ended engine-version fallback. */
+internal object ReviewedPackCompatibility {
+    const val Alpha2ManifestSha256 = "1f87cfe37659bee690441e464ae66415c1623e8ae751320a9483adc6aff79d83"
+
+    fun accepts(appVersionCode: Long, manifestSha256: String?): Boolean =
+        appVersionCode == 2L && manifestSha256 == Alpha2ManifestSha256
 }
 
 internal fun JsonValue.requireObject(description: String): JsonValue.ObjectValue =

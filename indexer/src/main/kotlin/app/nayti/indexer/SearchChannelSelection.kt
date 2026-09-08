@@ -7,7 +7,8 @@ enum class SearchChannel {
 }
 
 /**
- * Explicit retriever selection for one query.
+ * Enabled retrievers for one query. UnifiedSearch treats All as ordinary automatic search:
+ * exact syntax uses only literal OCR, while reduced selections are always explicit overrides.
  *
  * Search channels share the same durable index, so changing this value never rebuilds or mutates
  * prepared library data.

@@ -23,6 +23,26 @@ class ModelPackInstallerTest {
     @get:Rule val temporary = TemporaryFolder()
 
     @Test
+    fun knownSizeRejectsInsufficientSpaceBeforeReadingPayload() = runTest {
+        val fixture = fixture()
+        var opened = false
+        var required: Long? = null
+        val installer = ModelPackInstaller(root(), fixture.trustedKeys, policy(), ModelPackStorageBudget { 10 },
+            ModelPackPayloadValidator {}, minimumFreeBytesAfterInstall = 0)
+        val failure = runCatching {
+            installer.install(object : ModelPackSource {
+                override fun declaredLengthBytes() = 1_000L
+                override fun openStream(): java.io.InputStream { opened = true; return ByteArrayInputStream(fixture.container) }
+                override fun reportRequiredStorage(bytes: Long?) { required = bytes }
+            })
+        }.exceptionOrNull()
+        assertFalse(opened)
+        assertEquals(2_000L, required)
+        assertEquals(ModelPackFailureReason.Storage, (failure as ModelPackException).reason)
+        assertNoTemporaryFiles()
+    }
+
+    @Test
     fun cancellationDuringCopyClosesStreamAndRemovesStaging() = runTest {
         val fixture = fixture()
         var closed = false
@@ -49,10 +69,15 @@ class ModelPackInstallerTest {
     fun verifiedPackPublishesImmutableCandidateAndIsIdempotent() = runTest {
         val fixture = fixture()
         val installer = installer(fixture)
+        val stages = mutableListOf<ModelPackImportStage>()
 
-        val first = installer.install(ModelPackSource { ByteArrayInputStream(fixture.container) })
+        val first = installer.install(object : ModelPackSource {
+            override fun openStream() = ByteArrayInputStream(fixture.container)
+            override fun reportStage(stage: ModelPackImportStage) { stages += stage }
+        })
         val second = installer.install(ModelPackSource { ByteArrayInputStream(fixture.container) })
 
+        assertEquals(ModelPackImportStage.entries, stages)
         assertEquals(first, second)
         assertEquals("nayti-offline-search", first.packId)
         assertEquals("0.1.0-alpha.2", first.packVersion)
@@ -94,7 +119,7 @@ class ModelPackInstallerTest {
         val rejection =
             installer(fixture, ModelPackPayloadValidator { throw ModelPackException("runtime KAT failed") })
 
-        assertInstallFails(rejection, fixture.container, "runtime KAT")
+        assertInstallFails(rejection, fixture.container, "runtime validation")
         assertFalse(Files.exists(root().resolve("nayti-offline-search")))
         assertNoTemporaryFiles()
 
@@ -148,6 +173,23 @@ class ModelPackInstallerTest {
         assertEquals("1f87cfe37659bee690441e464ae66415c1623e8ae751320a9483adc6aff79d83", installed.manifestSha256)
         assertEquals(1_013_966_012L, installed.payloadBytes)
         assertTrue(Files.isRegularFile(installed.directory.resolve("payload/models/siglip2_image.ort")))
+        val upgraded = ModelPackInstaller(
+            root(), AlphaModelPackTrust.keys, policy().copy(appVersionCode = 2),
+            ModelPackStorageBudget { Long.MAX_VALUE }, ModelPackPayloadValidator {},
+            minimumFreeBytesAfterInstall = 0,
+        ).install(FileModelPackSource(java.nio.file.Path.of(rawPath)))
+        assertEquals("APK upgrade must reuse the exact immutable installation", installed, upgraded)
+        val manifest = Files.readAllBytes(installed.directory.resolve("manifest.json"))
+        policy().copy(appVersionCode = 2).validateManifest(manifest)
+        for (rejected in listOf(
+            policy().copy(appVersionCode = 3),
+            policy().copy(appVersionCode = 2, engineApi = 2),
+            policy().copy(appVersionCode = 2, supportedAbis = setOf("x86_64")),
+            policy().copy(appVersionCode = 2, pageSize = 65536),
+            policy().copy(appVersionCode = 2, expectedRuntimeVersion = "0.0.0"),
+        )) {
+            assertTrue(runCatching { rejected.validateManifest(manifest) }.exceptionOrNull() is ModelPackException)
+        }
     }
 
     private suspend fun assertInstallFails(installer: ModelPackInstaller, bytes: ByteArray, message: String) {

@@ -6,6 +6,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.nayti.search.engine.fusion.MultimodalQueryIntent
 import app.nayti.search.engine.VectorSegmentV1Reader
 import app.nayti.storage.ActivationCandidateState
+import app.nayti.storage.ActivationSnapshotEntity
+import app.nayti.storage.VectorIndexDao
 import app.nayti.storage.ActivationCandidateChannelAction
 import app.nayti.storage.CatalogAssetEntity
 import app.nayti.storage.CatalogAvailability
@@ -31,6 +33,7 @@ import java.io.IOException
 import java.io.RandomAccessFile
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -169,7 +172,7 @@ class VectorPublicationStoreInstrumentedTest {
                 current.copy(
                     mimeType = "image/png",
                     dateTakenMillis = 5_000,
-                    bucketId = 200,
+                    bucketId = -200,
                     bucketDisplayName = "Documents",
                 ),
             ),
@@ -184,7 +187,7 @@ class VectorPublicationStoreInstrumentedTest {
                 componentHash = ComponentHash,
                 takenFromMillis = 4_000,
                 takenBeforeMillis = 6_000,
-                bucketId = 200,
+                bucketId = -200,
                 mimeType = "image/png",
             ),
         )
@@ -1154,17 +1157,35 @@ class VectorPublicationStoreInstrumentedTest {
                 hashes = storage.perceptualHashDao,
                 vectors = storage.vectorIndexDao,
                 clock = { now },
-                leaseTokens = { "phash-query-test" },
+                leaseTokens = {
+                    assertFalse(android.os.Looper.myLooper() == android.os.Looper.getMainLooper())
+                    "phash-query-test"
+                },
                 catalog = storage.catalogDao,
             )
 
-        val result = search.nearDuplicates(sourceAsset)
+        val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { search.nearDuplicates(sourceAsset) }
 
         assertEquals(PerceptualHashSearchStatus.READY, result.status)
         assertEquals(active.snapshotId, result.snapshotId)
         assertEquals(AccessRevision, result.accessRevision)
         assertEquals(listOf(similarAsset), result.hits.map { it.assetId })
         assertNull(storage.vectorIndexDao.queryLease("phash-query-test"))
+
+        val cancellingVectors = object : VectorIndexDao by storage.vectorIndexDao {
+            override suspend fun snapshot(snapshotId: String): ActivationSnapshotEntity? {
+                kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]!!.cancel()
+                kotlinx.coroutines.yield()
+                error("Cancelled lookup must not continue")
+            }
+        }
+        val cancellation = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.currentCoroutineContext()).launch {
+            PerceptualHashSearch(storage.perceptualHashDao, cancellingVectors, clock = { now },
+                leaseTokens = { "phash-cancel-test" }, catalog = storage.catalogDao).nearDuplicates(sourceAsset)
+        }
+        cancellation.join()
+        assertTrue(cancellation.isCancelled)
+        assertNull(storage.vectorIndexDao.queryLease("phash-cancel-test"))
 
         storage.catalogDao.updateIndexingScope(IndexingScopeMode.SINCE_DATE, 2_500, now)
         val scoped = search.nearDuplicates(sourceAsset)
@@ -1357,6 +1378,19 @@ class VectorPublicationStoreInstrumentedTest {
 
         assertEquals(MultimodalQueryIntent.IDENTIFIER, identifier.intent)
         assertTrue(identifier.hits.isEmpty())
+        assertEquals(1, visualSessionsOpened)
+
+        // The UI sends All; it must have the same exact-query contract as an omitted selection.
+        val uiIdentifier = unified.search(
+            query = "№ АБ-123/45",
+            pipelineVersion = "visual-v1",
+            fallbackComponentHash = ComponentHash,
+            channels = SearchChannelSelection.All,
+        )
+        assertEquals(identifier.hits, uiIdentifier.hits)
+        assertEquals(identifier.channels, uiIdentifier.channels)
+        assertEquals(OcrSemanticSearchStatus.NOT_REQUESTED, uiIdentifier.semanticStatus)
+        assertNull(uiIdentifier.visualStatus)
         assertEquals(1, visualSessionsOpened)
 
         val explicitVisual =

@@ -862,13 +862,13 @@ private fun SearchCoverageLine(search: SearchUiState.Ready, indexing: OcrIndexin
     val resultCount = search.results.size
     val resultText = pluralStringResource(R.plurals.search_surface_results, resultCount, resultCount)
     val channelCoverage = buildList {
-        if (search.channels.ocrLiteral) {
+        if (search.executedChannels.ocrLiteral) {
             add(coverageLabel(R.string.search_how_literal, SearchCapability.TEXT, indexing))
         }
-        if (search.channels.ocrSemantic) {
+        if (search.executedChannels.ocrSemantic) {
             add(coverageLabel(R.string.search_how_semantic, SearchCapability.MEANING, indexing))
         }
-        if (search.channels.visual) {
+        if (search.executedChannels.visual) {
             add(coverageLabel(R.string.search_how_visual, SearchCapability.VISUAL, indexing))
         }
     }.joinToString(" · ")
@@ -899,6 +899,13 @@ private fun SearchCoverageLine(search: SearchUiState.Ready, indexing: OcrIndexin
             style = NaytiTheme.type.bodyM,
             color = NaytiTheme.colors.inkMuted,
         )
+        if (search.executedChannels != search.channels) {
+            Text(
+                stringResource(R.string.search_exact_routing_note),
+                style = NaytiTheme.type.bodyM,
+                color = NaytiTheme.colors.inkMuted,
+            )
+        }
         if (resultCount >= SearchResultLimit) {
             Text(
                 pluralStringResource(

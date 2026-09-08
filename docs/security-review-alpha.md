@@ -1,5 +1,7 @@
 # Security и privacy review перед device alpha
 
+Обновление 8 сентября 2026: в кандидате alpha.2 добавлены original share/open (один URI, read-only grant, внешний обработчик выбирает пользователь), cancellation-safe session cleanup и единая import/restore compatibility policy. Hash-specific разрешение старого pack действует только для app code 2; подпись и runtime/ABI/page-size проверки сохраняются. Opt-in corpus EntryPoint существует только в debug; release не получает экспортирующий endpoint. Физическая повторная приёмка текущего commit ещё не выполнена; исторические проверки ниже не являются её заменой.
+
 Дата исходного review: 19 июля 2026 года; актуализация перед personal alpha: 9 августа 2026 года. Область: Android application, локальное хранилище и индекс, SAF/model-pack import, diagnostics, release dependency graph, unsigned control APK и подписанный alpha APK.
 
 ## Сетевой и platform boundary

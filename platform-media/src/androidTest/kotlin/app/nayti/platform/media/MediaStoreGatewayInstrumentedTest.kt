@@ -133,11 +133,96 @@ class MediaStoreGatewayInstrumentedTest {
         return uri
     }
 
-    private fun insertBytes(bytes: ByteArray): android.net.Uri {
+    @Test
+    fun jpegPngWebpAndExtremeAspectRatiosDecodeWithinBudget() {
+        val formats = listOf(Bitmap.CompressFormat.JPEG to "image/jpeg", Bitmap.CompressFormat.PNG to "image/png",
+            Bitmap.CompressFormat.WEBP_LOSSLESS to "image/webp")
+        for ((format, mime) in formats) {
+            for ((width, height) in listOf(4096 to 64, 64 to 4096, 3072 to 2048)) {
+                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                val bytes = try {
+                    bitmap.eraseColor(android.graphics.Color.CYAN)
+                    java.io.ByteArrayOutputStream().use { output ->
+                        check(bitmap.compress(format, 90, output))
+                        output.toByteArray()
+                    }
+                } finally { bitmap.recycle() }
+                val uri = insertBytes(bytes, mime)
+                val key = MediaKey(MediaStore.VOLUME_EXTERNAL_PRIMARY, requireNotNull(uri.lastPathSegment).toLong())
+                BoundedMediaDecoder(resolver, AndroidMediaStoreGateway(context)).decode(key, 128).use { image ->
+                    assertEquals(width, image.sourceWidth)
+                    assertEquals(height, image.sourceHeight)
+                    assertTrue(image.decodedWidth in 1..128 && image.decodedHeight in 1..128)
+                    assertTrue(image.allocationBytes <= 128 * 128 * 4)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun exifRotationIsAppliedBeforePresentingTheBitmap() {
+        val bitmap = Bitmap.createBitmap(160, 80, Bitmap.Config.ARGB_8888)
+        val original = try {
+            java.io.ByteArrayOutputStream().use { output ->
+                check(bitmap.compress(Bitmap.CompressFormat.JPEG, 95, output))
+                output.toByteArray()
+            }
+        } finally { bitmap.recycle() }
+        val exif = java.nio.ByteBuffer.allocate(32).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+            .put("Exif\u0000\u0000".toByteArray()).put('I'.code.toByte()).put('I'.code.toByte())
+            .putShort(42).putInt(8).putShort(1).putShort(0x0112).putShort(3).putInt(1)
+            .putShort(6).putShort(0).putInt(0).array()
+        val rotated = java.io.ByteArrayOutputStream().also { output ->
+            java.io.DataOutputStream(output).apply {
+                write(original, 0, 2)
+                writeShort(0xffe1)
+                writeShort(exif.size + 2)
+                write(exif)
+                write(original, 2, original.size - 2)
+            }
+        }.toByteArray()
+        val uri = insertBytes(rotated)
+        val key = MediaKey(MediaStore.VOLUME_EXTERNAL_PRIMARY, requireNotNull(uri.lastPathSegment).toLong())
+        BoundedMediaDecoder(resolver, AndroidMediaStoreGateway(context)).decode(key, 128).use {
+            assertTrue("Orientation 6 must turn landscape into portrait", it.decodedHeight > it.decodedWidth)
+            assertTrue(it.decodedHeight <= 128)
+        }
+    }
+
+    @Test
+    fun syntheticHeicDecodesOrFailsAsContentWithoutUnboundedRetry() {
+        val bytes = InstrumentationRegistry.getInstrumentation().context.assets.open("synthetic-document.heic").use { it.readBytes() }
+        val uri = insertBytes(bytes, "image/heic")
+        val key = MediaKey(MediaStore.VOLUME_EXTERNAL_PRIMARY, requireNotNull(uri.lastPathSegment).toLong())
+        try {
+            BoundedMediaDecoder(resolver, AndroidMediaStoreGateway(context)).decode(key, 128).use {
+                assertTrue(it.decodedWidth in 1..128 && it.decodedHeight in 1..128)
+                assertTrue(it.allocationBytes <= 128 * 128 * 4)
+            }
+        } catch (_: MediaDecodeContentException) {
+            // A missing platform codec is not evidence that HEIC works on this target.
+            org.junit.Assume.assumeTrue("Platform HEIC decoder unavailable: bounded content rejection", false)
+        }
+    }
+
+    @Test
+    fun pendingAndTrashedMediaAreAbsentOrExplicitlyFlagged() {
+        val uri = insertJpeg(96, 48)
+        val gateway = AndroidMediaStoreGateway(context)
+        val id = requireNotNull(uri.lastPathSegment).toLong()
+        fun observation() = gateway.inventory(gateway.mountedVolumes().single { it.volumeName == MediaStore.VOLUME_EXTERNAL_PRIMARY })
+            .observations.singleOrNull { it.key.mediaStoreId == id }
+        assertEquals(1, resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 1) }, null, null))
+        assertTrue(observation()?.isPending != false)
+        assertEquals(1, resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0); put(MediaStore.MediaColumns.IS_TRASHED, 1) }, null, null))
+        assertTrue(observation()?.isTrashed != false)
+    }
+
+    private fun insertBytes(bytes: ByteArray, mime: String = "image/jpeg"): android.net.Uri {
         val values =
             ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, "nayti-test-${UUID.randomUUID()}.jpg")
-                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                put(MediaStore.MediaColumns.MIME_TYPE, mime)
                 put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/NaytiTests")
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }

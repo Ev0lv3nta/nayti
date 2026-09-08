@@ -1,5 +1,7 @@
 # Подпись personal alpha
 
+Для кандидата `0.1.0-alpha.2` (app code 2) сохраняется прежний сертификат. Model pack alpha.2 остаётся неизменным, с узким manifest-hash разрешением для нового app code; APK signing и Ed25519 pack signing — разные проверки. `assemble_alpha_bundle.sh` собирает кандидат, но не подтверждает device gates и не публикует release автоматически.
+
 Публичные APK Nayti подписываются отдельным alpha release key. Android Debug certificate и model-pack Ed25519 key для этого не используются.
 
 ## Граница секретов

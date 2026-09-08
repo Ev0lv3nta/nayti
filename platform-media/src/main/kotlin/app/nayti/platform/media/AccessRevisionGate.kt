@@ -14,8 +14,24 @@ class AccessRevisionGate(
     private val permissionReader: MediaPermissionReader,
 ) {
     private val mutableState = MutableStateFlow(AccessRevision(1, initialPermission))
+    private var persistedRevisionRestored = false
 
     val state: StateFlow<AccessRevision> = mutableState.asStateFlow()
+
+    /** Restore the durable baseline once, before the first inventory is published. */
+    @Synchronized
+    fun restorePersistedRevision(value: Long?, scope: MediaAccessScope?) {
+        if (persistedRevisionRestored) return
+        require((value == null) == (scope == null))
+        if (value != null) {
+            require(value > 0)
+            val current = mutableState.value
+            // Keep invalidations that already happened during process startup.
+            val changes = maxOf(current.value - 1, if (scope != current.permission.scope) 1L else 0L)
+            mutableState.value = current.copy(value = Math.addExact(value, changes))
+        }
+        persistedRevisionRestored = true
+    }
 
     @Synchronized
     fun refresh(): AccessRevision {

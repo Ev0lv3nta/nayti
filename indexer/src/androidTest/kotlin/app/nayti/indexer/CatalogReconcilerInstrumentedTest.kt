@@ -49,6 +49,24 @@ class CatalogReconcilerInstrumentedTest {
     }
 
     @Test
+    fun processRestartKeepsPersistedRevisionAndStillReconcilesSelectedAccess() = runBlocking {
+        permission = permission(MediaAccessScope.Selected)
+        accessGate = AccessRevisionGate(permission) { permission }
+        accessGate.invalidate()
+        accessGate.invalidate()
+        gateway.observations = listOf(observation(1), observation(2))
+        assertEquals(3L, reconciler().reconcile(forceFull = true).accessRevision.value)
+
+        accessGate = AccessRevisionGate(permission) { permission }
+        gateway.observations = listOf(observation(1))
+        val restored = reconciler().reconcile(forceFull = true)
+        assertEquals(3L, restored.accessRevision.value)
+        assertEquals(3L, storage.catalogDao.accessObservation()?.processAccessRevision)
+        assertEquals(1L, restored.counts.available)
+        assertEquals(CatalogAvailability.OUT_OF_SCOPE, storage.catalogDao.asset("external_primary", 2)?.availability)
+    }
+
+    @Test
     fun selectedScopeHidesUnseenAssetWithoutDeletingIt() = runBlocking {
         gateway.observations = listOf(observation(1), observation(2))
         reconciler().reconcile(forceFull = true)

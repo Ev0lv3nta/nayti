@@ -46,6 +46,11 @@ class CatalogReconciler(
         mutex.withLock {
             val startedAt = clock.nowMillis()
             catalogDao.abandonRunningInventoryRuns(startedAt)
+            val previousAccess = catalogDao.accessObservation()
+            accessGate.restorePersistedRevision(
+                previousAccess?.processAccessRevision,
+                previousAccess?.accessScope?.let(MediaAccessScope::valueOf),
+            )
             val accessPin = accessGate.refresh()
             catalogDao.recordAccessObservation(
                 accessScope = accessPin.permission.scope.name,

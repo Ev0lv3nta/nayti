@@ -22,7 +22,9 @@ interface ModelPackDao {
         require(candidate.status == ModelPackStatus.INSTALLED_CANDIDATE)
         insertIfAbsent(candidate)
         val stored = checkNotNull(pack(candidate.packId, candidate.packVersion))
-        check(stored == candidate) {
+        // Re-import changes the observation time, not the verified content.
+        // Preserve the original row and installation timestamp.
+        check(stored == candidate.copy(installedAtMillis = stored.installedAtMillis)) {
             "Pack identity already points to different immutable content"
         }
         return stored
